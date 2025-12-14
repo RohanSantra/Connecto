@@ -1,0 +1,149 @@
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+
+import { useChatStore } from "@/store/useChatStore";
+import { useProfileStore } from "@/store/useProfileStore";
+import { useUIStore } from "@/store/useUIStore";
+import { useResponsiveDrawer } from "@/hooks/useResponsiveDrawer";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+
+import Sidebar from "./Sidebar";
+import ChatArea from "./ChatArea";
+import DetailsPanel from "../chat/ChatDetailsPanel";
+
+import {
+    ResizableHandle,
+    ResizablePanel,
+    ResizablePanelGroup,
+} from "@/components/ui/resizable";
+
+import LoaderScreen from "@/components/common/LoaderScreen";
+
+import NewChatOverlay from "@/components/chat/NewChatOverlay";
+import NewGroupOverlay from "@/components/chat/NewGroupOverlay";
+
+export default function AppShell() {
+    const navigate = useNavigate();
+    const { isMobile } = useResponsiveDrawer();
+
+    /* ---------------- STORE HOOKS ---------------- */
+    const { fetchChats } = useChatStore();
+
+    const { profile, profileLoading } = useProfileStore();
+
+    const {
+        openCommandPalette,
+        openNewChat,
+        openNewGroup,
+        openSettings,
+        toggleDetailsPanel,
+        openHelp,
+        view,
+        detailsPanelOpen,
+        closeDetailsPanel,
+    } = useUIStore();
+
+    /* -------------------------------------------------------
+       1️⃣ Redirect if profile is missing (security guard)
+    ------------------------------------------------------- */
+    useEffect(() => {
+        if (!profileLoading && !profile) {
+            navigate("/set-profile", { replace: true });
+        }
+    }, [profileLoading, profile]);
+
+    /* -------------------------------------------------------
+       2️⃣ Fetch chats ONLY after profile is loaded
+    ------------------------------------------------------- */
+    useEffect(() => {
+        if (!profileLoading && profile) {
+            fetchChats();
+        }
+    }, [profile, profileLoading]);
+
+    /* -------------------------------------------------------
+       3️⃣ Global keyboard shortcuts
+    ------------------------------------------------------- */
+    useKeyboardShortcuts({
+        onNewChat: openNewChat,             // ALT + N
+        onNewGroup: openNewGroup,           // CTRL + G
+        // Todo 
+        onToggleDetails: toggleDetailsPanel, // CTRL + D
+        onOpenSettings: openSettings,       // CTRL + ,
+        onHelp: openHelp,                   // CTRL + /
+    });
+
+    /* -------------------------------------------------------
+       4️⃣ Loading Screen
+    ------------------------------------------------------- */
+    if (profileLoading && !profile) {
+        return <LoaderScreen message="Loading workspace..." />;
+    }
+
+    return (
+        <div className="w-full h-screen flex flex-col bg-background">
+
+            {/* ------------ Global overlays ALWAYS mounted ------------ */}
+            <NewChatOverlay />
+            <NewGroupOverlay />
+
+            {/* ------------ DESKTOP LAYOUT ------------ */}
+            {!isMobile ? (
+                <ResizablePanelGroup
+                    direction="horizontal"
+                    className="flex-1"
+                >
+                    <ResizablePanel
+                        defaultSize={30}
+                        minSize={28}
+                        maxSize={40}
+                    >
+                        <Sidebar />
+                    </ResizablePanel>
+
+                    <ResizableHandle />
+
+                    <ResizablePanel>
+                        <ChatArea />
+                    </ResizablePanel>
+                </ResizablePanelGroup>
+            ) : (
+                /* ------------ MOBILE LAYOUT ------------ */
+                <div className="flex-1 relative overflow-hidden">
+
+                    {view === "sidebar" && (
+                        <div className="absolute inset-0 z-30 bg-background">
+                            <Sidebar />
+                        </div>
+                    )}
+
+                    {view === "chat" && (
+                        <div className="absolute inset-0 z-40 bg-background">
+                            <ChatArea />
+                        </div>
+                    )}
+
+                    {view === "details" && (
+                        <div className="absolute inset-0 z-50 bg-background">
+                            <DetailsPanel />
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* ------------ UNIVERSAL DETAILS PANEL (DESKTOP) ------------ */}
+            {!isMobile && detailsPanelOpen && (
+                <>
+                    <div
+                        className="fixed inset-0 z-40 bg-background/40 backdrop-blur-sm"
+                        onClick={closeDetailsPanel}
+                    />
+
+                    <div className="fixed inset-y-0 right-0 z-50 w-[420px] max-w-[90vw]">
+                        <DetailsPanel />
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
