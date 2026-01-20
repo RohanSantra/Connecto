@@ -39,6 +39,16 @@ const extractFullMessage = (payload) => {
   return null;
 };
 
+
+const buildOptimisticAttachments = (previews = []) =>
+  previews.map((p) => ({
+    _optimistic: true,
+    filename: p.file?.name || "file",
+    size: p.file?.size || 0,
+    mimeType: p.file?.type || "",
+    previewUrl: p.url, // object URL
+  }));
+
 export const useMessageStore = create(
   persist(
     (set, get) => {
@@ -95,7 +105,7 @@ export const useMessageStore = create(
         deletingMessageId: false,
         clearedAt: {},
         scrollToMessageId: null,
-        
+
         setScrollToMessage(id) {
           set({ scrollToMessageId: id });
         },
@@ -160,9 +170,44 @@ export const useMessageStore = create(
         /* -------------------------
            Send message
         ------------------------- */
-        sendMessage: async (formData) => {
-          set({ sending: true });
+        sendMessage: async (formData, ui = {}) => {
+          const profile = useProfileStore.getState().profile;
+          const myUserId = profile?.userId;
+          const chatId = formData.get("chatId");
 
+          if (!chatId || !myUserId) {
+            toast.error("Unable to send message");
+            return null;
+          }
+
+          /* ======================================================
+             1️⃣ CREATE OPTIMISTIC MESSAGE (INSTANT UI)
+          ====================================================== */
+          const tempId =
+            `temp-${crypto.randomUUID?.() || Date.now() + Math.random()}`;;
+          const now = new Date().toISOString();
+
+          const optimisticMessage = {
+            _id: tempId,
+            tempId,
+            chatId,
+            senderId: myUserId,
+            plaintext: ui.plaintext || "",
+            attachments: buildOptimisticAttachments(ui.previews),
+            createdAt: now,
+            deliveredTo: [],
+            readBy: [],
+            status: "sending",        // 👈 drives loader instead of ticks
+          };
+
+          // Insert instantly (NO loader, NO await)
+          set((state) => ({
+            messages: [...state.messages, optimisticMessage],
+          }));
+
+          /* ======================================================
+             2️⃣ SEND TO SERVER (BACKGROUND)
+          ====================================================== */
           try {
             const deviceId = localStorage.getItem("connecto_device_id");
 
@@ -175,42 +220,75 @@ export const useMessageStore = create(
             });
 
             let msg = res.data?.data;
-            if (!msg) throw new Error("Server returned invalid message");
+            if (!msg) throw new Error("Invalid message response");
 
             try {
               msg = decryptIncomingMessageWithReply(msg);
-            } catch { /* ignore */ }
+            } catch {
+              // leave encrypted if decrypt fails
+            }
 
+            /* ======================================================
+               3️⃣ REPLACE TEMP MESSAGE WITH REAL MESSAGE
+            ====================================================== */
             set((state) => ({
-              messages: mergeMessages(state.messages, [msg]),
+              messages: state.messages.map((m) =>
+                m.tempId === tempId ? msg : m
+              ),
             }));
+
+            /* ======================================================
+               4️⃣ UPDATE CHAT SIDEBAR LAST MESSAGE
+            ====================================================== */
             try {
               const normalized = normalizeLastMessage(msg);
+
               useChatStore.setState((s) => {
                 const chats = s.chats.map((c) =>
                   String(c.chatId) === String(msg.chatId)
-                    ? { ...c, lastMessage: normalized, updatedAt: msg.createdAt }
+                    ? {
+                      ...c,
+                      lastMessage: normalized,
+                      updatedAt: msg.createdAt,
+                    }
                     : c
                 );
 
                 const activeChat =
                   s.activeChat && String(s.activeChat.chatId) === String(msg.chatId)
-                    ? { ...s.activeChat, lastMessage: normalized, updatedAt: msg.createdAt }
+                    ? {
+                      ...s.activeChat,
+                      lastMessage: normalized,
+                      updatedAt: msg.createdAt,
+                    }
                     : s.activeChat;
 
                 return { chats, activeChat };
               });
             } catch (e) {
-              console.warn("Failed to sync lastMessage after send:", e);
+              console.warn("Last message sync failed:", e);
             }
+
             return msg;
           } catch (err) {
-            toast.error(err?.response?.data?.message || "Failed to send message");
+            /* ======================================================
+               5️⃣ MARK MESSAGE AS FAILED (NO DELETE)
+            ====================================================== */
+            set((state) => ({
+              messages: state.messages.map((m) =>
+                m.tempId === tempId
+                  ? { ...m, status: "failed" }
+                  : m
+              ),
+            }));
+
+            toast.error(
+              err?.response?.data?.message || "Failed to send message"
+            );
             return null;
-          } finally {
-            set({ sending: false });
           }
         },
+
 
         /* -------------------------
            Edit / Delete

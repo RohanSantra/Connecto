@@ -15,6 +15,7 @@ import {
   Download,
   Eye,
   FileText,
+  Loader2,
 } from "lucide-react";
 import MessageMenu from "./MessageMenu";
 import QuickReactions from "./QuickReactions";
@@ -41,6 +42,11 @@ const Time = ({ createdAt }) => (
 );
 
 const Tick = ({ state }) => {
+  if (state === "sending") {
+    return (
+      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+    );
+  }
   if (state === "read")
     return <CheckCheck className="w-4 h-4 text-blue-500" />;
   if (state === "delivered")
@@ -96,7 +102,8 @@ function AttachmentBubble({
   index = 0,
   openFullscreen,
   isMediaIndex = false,
-  setFileViewerFile
+  setFileViewerFile,
+  isSending = false
 }) {
   const src = getMediaSrc(att);
   const kind = detectKind(att);
@@ -129,6 +136,7 @@ function AttachmentBubble({
 
 
   const handlePreview = (e) => {
+    if (isSending) return;
     e?.stopPropagation?.();
 
     if (isImg || isVideo) {
@@ -279,26 +287,30 @@ function AttachmentBubble({
         </div>
       </div>
 
-      <div className="flex gap-2 mt-1">
-        <a
-          href={getMediaSrc(att)}
-          download
-          target="_blank"
-          rel="noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="text-xs border rounded-md px-2 py-1 bg-muted hover:bg-muted/70 flex items-center gap-1"
-        >
-          <Download className="w-4 h-4 inline-block mr-1" /> Download
-        </a>
+      {/* Actions (hidden while sending) */}
+      {!isSending && (
+        <div className="flex gap-2 mt-1">
+          <a
+            href={getMediaSrc(att)}
+            download
+            target="_blank"
+            rel="noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="text-xs border rounded-md px-2 py-1 bg-muted hover:bg-muted/70 flex items-center gap-1"
+          >
+            <Download className="w-4 h-4 inline-block mr-1" /> Download
+          </a>
 
-        <button
-          type="button"
-          onClick={handlePreview}
-          className="text-xs border rounded-md px-2 py-1 bg-muted hover:bg-muted/70 flex items-center gap-1"
-        >
-          <Eye className="w-4 h-4" /> Preview
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={handlePreview}
+            className="text-xs border rounded-md px-2 py-1 bg-muted hover:bg-muted/70 flex items-center gap-1"
+          >
+            <Eye className="w-4 h-4" /> Preview
+          </button>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -384,15 +396,22 @@ export default React.memo(
       expanded || !long ? plaintext : plaintext?.slice(0, SHOW_MORE) + "…";
 
     const ticks = useMemo(
-      () =>
-        computeTickState({
+      () => {
+        if (!isOwn) return null;
+
+        if (message.status === "sending") return "sending";
+        if (message.status === "failed") return null;
+
+        return computeTickState({
           isOwn,
           deliveredTo: deliveredTo || [],
           readBy: readBy || [],
           currentUserId,
-        }),
-      [isOwn, deliveredTo, readBy, currentUserId]
+        });
+      },
+      [isOwn, deliveredTo, readBy, currentUserId, message.status]
     );
+
 
     const handleReply = useCallback(
       (e) => {
@@ -415,8 +434,11 @@ export default React.memo(
       [pinned, pinMessage, unpinMessage, chatId, _id]
     );
 
+
     const hasText = Boolean(plaintext && plaintext.trim());
     const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
+    const isSending = isOwn && message.status === "sending";
+
 
     // MEDIA LIST
     const mediaAttachments = useMemo(
@@ -672,6 +694,7 @@ export default React.memo(
                       openFullscreen={openFullscreenAt}
                       isMediaIndex={isMediaIndex}
                       setFileViewerFile={setFileViewerFile}
+                      isSending={isSending}
                     />
 
                   </div>

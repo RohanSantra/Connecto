@@ -54,6 +54,7 @@ function toPreview(file) {
     return {
       _id: `local-${file.name}-${file.size}-${Date.now()}`,
       id: `local-${file.name}-${file.size}-${Math.random()}`,
+      file,
       url,
       type: file.type,
       mimeType: file.type,
@@ -496,7 +497,10 @@ export default function MessageComposer({ chatId }) {
 
       files.forEach((f) => fd.append("attachments", f));
 
-      const ok = await sendMessage(fd);
+      const ok = await sendMessage(fd, {
+        plaintext: plain,
+        previews, // ← UI previews you already have
+      });
       if (ok) {
         setText("");
         previews.forEach((p) => p?.url && URL.revokeObjectURL(p.url));
@@ -567,7 +571,7 @@ export default function MessageComposer({ chatId }) {
   const getPreviewId = (p, idx) => p.id || p._id || `${p.url}-${idx}`;
 
   // console.log(replyTo);
-  
+
 
   return (
     <div ref={wrapperRef} className="border-t bg-card px-4 py-3 flex flex-col gap-3">

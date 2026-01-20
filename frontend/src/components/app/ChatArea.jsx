@@ -46,6 +46,7 @@ export default function ChatArea() {
   const {
     openSidebarView,
     openDetailsPanel,
+    openDetailsView,
     mediaDocsOpen,
     closeMediaDocs,
   } = useUIStore();
@@ -195,7 +196,9 @@ export default function ChatArea() {
             <Video className="w-4 h-4 opacity-40" />
           </Button>
 
-          <Button variant="outline" size="icon" onClick={openDetailsPanel}>
+          <Button
+            onClick={() => (isMobile ? openDetailsView() : openDetailsPanel())}
+          >
             <Info className="w-4 h-4" />
           </Button>
 

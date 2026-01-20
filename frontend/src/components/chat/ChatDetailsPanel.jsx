@@ -1,5 +1,4 @@
-// src/components/chat/ChatDetailsPanel.jsx
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useChatStore } from "@/store/useChatStore";
 import { useProfileStore } from "@/store/useProfileStore";
 import { useUIStore } from "@/store/useUIStore";
@@ -7,13 +6,13 @@ import { useUIStore } from "@/store/useUIStore";
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { cn } from "@/lib/utils";
 
 /* --- Simple info box --- */
 function InfoBox({ label, value }) {
@@ -27,14 +26,22 @@ function InfoBox({ label, value }) {
 
 export default function ChatDetailsPanel() {
   const { activeChatId, chats } = useChatStore();
-  const { profile: myProfile } = useProfileStore();
-  const { detailsPanelOpen, closeDetailsPanel } = useUIStore();
+  const { profile } = useProfileStore();
+  const { detailsPanelOpen, closeDetailsPanel, openChatView } = useUIStore();
+
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
   const chat = chats.find((c) => String(c.chatId) === String(activeChatId));
   if (!chat) return null;
 
   const isGroup = chat.isGroup;
-
   const otherUser = !isGroup ? chat.otherUser : null;
   const groupMembers = isGroup ? chat.participants || [] : [];
 
@@ -45,24 +52,38 @@ export default function ChatDetailsPanel() {
     ? otherUser?.isOnline
       ? "Online"
       : otherUser?.lastSeenAt
-      ? `Last seen ${new Date(otherUser.lastSeenAt).toLocaleString()}`
-      : "Offline"
+        ? `Last seen ${new Date(otherUser.lastSeenAt).toLocaleString()}`
+        : "Offline"
     : null;
 
-    console.log(otherUser);
-    
-
   return (
-    <Sheet open={detailsPanelOpen} onOpenChange={closeDetailsPanel}>
-      <SheetContent side="right" className="w-[min(420px,90vw)] border-l bg-card p-0 shadow-xl">
-        <SheetHeader className="flex flex-row items-center justify-between px-5 py-2.5 border-b">
-          <SheetTitle className="text-md font-semibold tracking-tight">
+    <Sheet
+      open={detailsPanelOpen}
+      onOpenChange={(open) => {
+        if (!open) {
+          closeDetailsPanel();
+          if (isMobile) openChatView(); // 🔑 remove black screen & go back
+        }
+      }}
+    >
+      <SheetContent
+        side={isMobile ? "bottom" : "right"}
+        className={cn(
+          "p-0 flex flex-col bg-card",
+          isMobile
+            ? "h-screen rounded-none"
+            : "w-[min(420px,90vw)] border-l shadow-xl"
+        )}
+        overlayClassName={isMobile ? "bg-transparent pointer-events-none" : ""}
+      >
+        <SheetHeader className="px-5 py-3 border-b shrink-0">
+          <SheetTitle className="text-md font-semibold">
             {isGroup ? "Group Info" : "Profile"}
           </SheetTitle>
-          <SheetDescription />
         </SheetHeader>
 
-        <ScrollArea className="h-[calc(100vh-80px)] px-6 py-6">
+        {/* 🔑 Scroll fills remaining height */}
+        <ScrollArea className="flex-1 px-6 py-6">
           <div className="flex flex-col items-center text-center gap-4 pb-8">
             <Avatar className="w-28 h-28">
               <AvatarImage src={avatar} />
@@ -71,10 +92,14 @@ export default function ChatDetailsPanel() {
 
             <h2 className="text-xl font-semibold">{name}</h2>
 
-            {!isGroup && <p className="text-xs text-muted-foreground">{lastSeenText}</p>}
+            {!isGroup && (
+              <p className="text-xs text-muted-foreground">{lastSeenText}</p>
+            )}
 
             {isGroup && chat.description && (
-              <p className="text-sm text-muted-foreground max-w-xs">{chat.description}</p>
+              <p className="text-sm text-muted-foreground max-w-xs">
+                {chat.description}
+              </p>
             )}
           </div>
 
@@ -82,7 +107,9 @@ export default function ChatDetailsPanel() {
 
           {!isGroup && otherUser && (
             <section className="space-y-4 mb-10">
-              <h3 className="text-sm font-medium text-muted-foreground mb-2">User Information</h3>
+              <h3 className="text-sm font-medium text-muted-foreground">
+                User Information
+              </h3>
 
               <InfoBox label="Username" value={otherUser.username} />
               <InfoBox label="Bio" value={otherUser.bio || "—"} />
@@ -93,14 +120,24 @@ export default function ChatDetailsPanel() {
           {isGroup && (
             <>
               <section className="space-y-4 mb-10">
-                <h3 className="text-sm font-medium text-muted-foreground">Group Details</h3>
+                <h3 className="text-sm font-medium text-muted-foreground">
+                  Group Details
+                </h3>
 
-                <InfoBox label="Created On" value={new Date(chat.createdAt).toLocaleString()} />
-                <InfoBox label="Total Members" value={groupMembers.length} />
+                <InfoBox
+                  label="Created On"
+                  value={new Date(chat.createdAt).toLocaleString()}
+                />
+                <InfoBox
+                  label="Total Members"
+                  value={groupMembers.length}
+                />
               </section>
 
               <section>
-                <h3 className="text-sm font-medium text-muted-foreground mb-4">Members</h3>
+                <h3 className="text-sm font-medium text-muted-foreground mb-4">
+                  Members
+                </h3>
 
                 <div className="space-y-4">
                   {groupMembers.map((m) => (
@@ -112,13 +149,12 @@ export default function ChatDetailsPanel() {
 
                       <div className="flex-1">
                         <p className="font-medium">{m.username}</p>
-
                         <p className="text-xs text-muted-foreground">
                           {m.isOnline
                             ? "Online"
                             : m.lastSeenAt
-                            ? `Last seen ${new Date(m.lastSeenAt).toLocaleString()}`
-                            : "Offline"}
+                              ? `Last seen ${new Date(m.lastSeenAt).toLocaleString()}`
+                              : "Offline"}
                         </p>
                       </div>
                     </div>
