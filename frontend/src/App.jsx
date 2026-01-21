@@ -21,10 +21,17 @@ import LoaderScreen from "@/components/common/LoaderScreen.jsx";
 
 // Settings
 import SettingsPage from "@/pages/Settings/SettingsPage.jsx";
+import { useThemeStore } from "./store/useThemeStore";
 
 export default function App() {
   const location = useLocation();
   const { user, loading, checkAuth, isAuthenticated } = useAuthStore();
+  const initTheme = useThemeStore((s) => s.initTheme);
+
+  // TO get the theme selected
+  useEffect(() => {
+    initTheme();
+  }, []);
 
   /* ------------------------------------------------------------
      🔹 Run checkAuth ONLY on first mount

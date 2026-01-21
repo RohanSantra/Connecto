@@ -4,7 +4,14 @@ import { BrowserRouter } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
 import App from "./App";
-import "./index.css";
+
+// Main css file
+import "./styles/index.css";
+
+// All Themes
+import "./styles/themes/default.css"
+import "./styles/themes/amberMinimal.css"
+
 
 
 createRoot(document.getElementById("root")).render(
