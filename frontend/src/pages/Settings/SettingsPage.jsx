@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import {
+  ArrowLeft,
   User,
   Brush,
   Bell,
@@ -18,6 +19,8 @@ import DevicesSection from "@/components/settings/DevicesSection";
 import AboutSection from "@/components/settings/AboutSection";
 
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 
 const sections = [
   { key: "profile", label: "Profile", icon: User },
@@ -30,6 +33,7 @@ const sections = [
 
 export default function SettingsPage() {
   const [active, setActive] = useState("profile");
+  const naviagte=useNavigate()
 
   const renderSection = () => {
     switch (active) {
@@ -44,51 +48,81 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-screen bg-background">
-      {/* LEFT MENU */}
-      <aside className="w-full md:w-64 border-b md:border-b-0 md:border-r border-border p-3 md:p-4 bg-card">
-        <div className="hidden md:flex items-center justify-between mb-4">
-          <h1 className="text-xl font-semibold">Settings</h1>
+    <div className="min-h-screen bg-background">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+
+        {/* HEADER */}
+        <div className="mb-6 space-y-3">
+
+          {/* Back button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => naviagte("/")}
+            className="flex items-center gap-2 px-0 text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Home
+          </Button>
+
+          {/* Title */}
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Settings
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Manage your account, preferences, and security
+            </p>
+          </div>
         </div>
 
-        {/* mobile tabs */}
-        <div className="md:hidden flex gap-2 overflow-x-auto py-2">
-          {sections.map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setActive(key)}
-              className={cn(
-                "px-4 py-1 rounded-full text-sm whitespace-nowrap",
-                active === key ? "bg-primary text-primary-foreground" : "bg-muted"
-              )}
-            >
-              {label}
-            </button>
-          ))}
+        {/* LAYOUT */}
+        <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6">
+
+          {/* NAVIGATION */}
+          <aside
+            className={cn(
+              "rounded-xl border bg-card",
+              "lg:sticky lg:top-6 h-fit"
+            )}
+          >
+            <nav className="flex flex-col divide-y">
+              {sections.map(({ key, label, icon: Icon }) => {
+                const isActive = active === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setActive(key)}
+                    className={cn(
+                      "flex items-center gap-3 px-4 py-3 text-sm text-left transition",
+                      "first:rounded-t-xl last:rounded-b-xl",
+                      isActive
+                        ? "bg-muted font-medium"
+                        : "hover:bg-muted/40"
+                    )}
+                  >
+                    <Icon
+                      className={cn(
+                        "w-4 h-4 shrink-0",
+                        isActive
+                          ? "text-foreground"
+                          : "text-muted-foreground"
+                      )}
+                    />
+                    <span className="truncate">{label}</span>
+                  </button>
+                );
+              })}
+            </nav>
+          </aside>
+
+          {/* CONTENT */}
+          <main className="rounded-xl border bg-card p-4 sm:p-6">
+            {renderSection()}
+          </main>
+
         </div>
-
-        {/* desktop nav */}
-        <nav className="hidden md:block space-y-1">
-          {sections.map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              onClick={() => setActive(key)}
-              className={cn(
-                "w-full flex items-center gap-3 px-3 py-2 rounded-lg transition text-sm text-left",
-                active === key ? "bg-primary text-primary-foreground" : "hover:bg-muted"
-              )}
-            >
-              <Icon className="w-4 h-4" />
-              {label}
-            </button>
-          ))}
-        </nav>
-      </aside>
-
-      {/* RIGHT CONTENT */}
-      <main className="flex-1 overflow-y-auto p-4 md:p-6">
-        {renderSection()}
-      </main>
+      </div>
     </div>
   );
 }

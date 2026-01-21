@@ -9,6 +9,7 @@ import {
   Trash,
   Copy,
   User,
+  Mail,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -50,14 +51,14 @@ const getLanguageName = (code) => {
 ------------------------- */
 function InfoBadge({ icon: Icon, label, value }) {
   return (
-    <div className="flex items-start gap-3 rounded-xl border bg-card px-4 py-3 w-full sm:w-auto min-w-[200px]">
+    <div className="flex items-start gap-3 rounded-xl border bg-card px-4 py-3 w-full">
       {Icon && (
         <Icon className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
       )}
 
       <div className="min-w-0">
         <div className="text-[11px] text-muted-foreground">{label}</div>
-        <div className="text-sm font-medium break-words">{value ?? "—"}</div>
+        <div className="text-sm font-medium wrap-break-word">{value ?? "—"}</div>
       </div>
     </div>
   );
@@ -306,7 +307,6 @@ export default function ProfileSection() {
       // re-fetch to ensure `user` field is present and store has full shape
       await fetchProfile();
 
-      toast.success("Profile updated");
       setEditMode(false);
       setAvatarFile(null);
       setUsernameAvailable(null);
@@ -351,20 +351,20 @@ export default function ProfileSection() {
 
             <div className="text-center w-full px-2">
               {/* show username as heading even when editing (input below) */}
-              <div className="text-lg font-semibold break-words">{profile?.username || "—"}</div>
-              <div className="text-xs text-muted-foreground break-words">{profile?.user?.email || "—"}</div>
+              <div className="text-lg font-semibold wrap-break-word">{profile?.username || "—"}</div>
+              <div className="text-xs text-muted-foreground wrap-break-word">{profile?.user?.email || "—"}</div>
             </div>
 
             <div className="w-full grid grid-cols-2 gap-2">
               <div className="rounded-md border px-3 py-2 bg-background/40">
                 <div className="text-[11px] text-muted-foreground">Status</div>
-                <div className="text-sm font-medium break-words">
+                <div className="text-sm font-medium wrap-break-word">
                   {profile?.isOnline ? "Online" : (profile?.lastSeen ? `Last seen ${new Date(profile.lastSeen).toLocaleString()}` : "Offline")}
                 </div>
               </div>
               <div className="rounded-md border px-3 py-2 bg-background/40">
                 <div className="text-[11px] text-muted-foreground">Joined</div>
-                <div className="text-sm font-medium break-words">{profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString() : "—"}</div>
+                <div className="text-sm font-medium wrap-break-word">{profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString() : "—"}</div>
               </div>
             </div>
 
@@ -395,7 +395,7 @@ export default function ProfileSection() {
 
           <div className="rounded-xl border bg-card p-3 space-y-2">
             <div className="text-xs text-muted-foreground">Account</div>
-            <div className="text-sm font-medium break-words">{profile?.user?.email || "—"}</div>
+            <div className="text-sm font-medium wrap-break-word">{profile?.user?.email || "—"}</div>
 
             <div className="mt-3 grid grid-cols-1 gap-2">
               <Button variant="outline" onClick={() => { navigator.clipboard?.writeText(profile?.user?.email || ""); toast.success("Email copied"); }}>
@@ -413,7 +413,7 @@ export default function ProfileSection() {
           <div className="rounded-xl border bg-card p-4 space-y-3">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0 w-full md:w-auto">
-                <User className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                <User className="w-5 h-5 text-muted-foreground shrink-0" />
                 <div className="min-w-0 flex-1">
                   <div className="text-xs text-muted-foreground">Username</div>
                   {/* controlled Input: readOnly when not editing */}
@@ -540,29 +540,31 @@ export default function ProfileSection() {
           </div>
 
           {/* Info grid: always visible */}
-          <div className="flex flex-wrap gap-4">
-            <InfoBadge
-              icon={User}
-              label="Email"
-              value={profile?.user?.email}
-            />
+          {!editMode &&
+            <div className="flex flex-wrap gap-4">
+              <InfoBadge
+                icon={Mail}
+                label="Email"
+                value={profile?.user?.email}
+              />
 
-            <InfoBadge
-              icon={User}
-              label="User ID"
-              value={profile?.userId}
-            />
+              <InfoBadge
+                icon={User}
+                label="User ID"
+                value={profile?.userId}
+              />
 
-            <InfoBadge
-              icon={Edit2}
-              label="Last updated"
-              value={
-                profile?.updatedAt
-                  ? new Date(profile.updatedAt).toLocaleString()
-                  : "—"
-              }
-            />
-          </div>
+              <InfoBadge
+                icon={Edit2}
+                label="Last updated"
+                value={
+                  profile?.updatedAt
+                    ? new Date(profile.updatedAt).toLocaleString()
+                    : "—"
+                }
+              />
+            </div>
+          }
 
           {/* Default avatars picker (only visible in edit mode) */}
           {editMode && (
