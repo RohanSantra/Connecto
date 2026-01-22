@@ -36,7 +36,7 @@ import formatSize from "@/lib/formatSize.js"
 const SHOW_MORE = 350;
 
 const Time = ({ createdAt }) => (
-  <span className="text-[11px] leading-none">
+  <span className="text-[11px] leading-none text-[var(--chat-meta)]">
     {createdAt ? format(new Date(createdAt), "hh:mm a") : ""}
   </span>
 );
@@ -44,15 +44,15 @@ const Time = ({ createdAt }) => (
 const Tick = ({ state }) => {
   if (state === "sending") {
     return (
-      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+      <Loader2 className="w-4 h-4 animate-spin text-[var(--chat-meta)]" />
     );
   }
   if (state === "read")
-    return <CheckCheck className="w-4 h-4 text-blue-500" />;
+    return <CheckCheck className="w-4 h-4 text-[var(--color-primary)]" />;
   if (state === "delivered")
-    return <CheckCheck className="w-4 h-4 text-muted-foreground" />;
+    return <CheckCheck className="w-4 h-4 text-[var(--chat-meta)]" />;
   if (state === "sent")
-    return <Check className="w-4 h-4 text-muted-foreground" />;
+    return <Check className="w-4 h-4 text-[var(--chat-meta)]" />;
   return null;
 };
 
@@ -103,7 +103,8 @@ function AttachmentBubble({
   openFullscreen,
   isMediaIndex = false,
   setFileViewerFile,
-  isSending = false
+  isSending = false,
+  isOwn
 }) {
   const src = getMediaSrc(att);
   const kind = detectKind(att);
@@ -165,7 +166,10 @@ function AttachmentBubble({
     return (
       <div
         className={cn(
-          "rounded-xl overflow-hidden shadow-md bg-foreground cursor-pointer relative",
+          "rounded-xl overflow-hidden shadow-md cursor-pointer relative",
+          isOwn
+            ? "bg-[var(--chat-own-bg)] text-[var(--chat-own-fg)]"
+            : "bg-[var(--chat-other-bg)] text-[var(--chat-other-fg)]",
           compact ? "w-40 h-40" : "w-64 h-64"
         )}
         onClick={handlePreview}
@@ -194,7 +198,10 @@ function AttachmentBubble({
     return (
       <div
         className={cn(
-          "relative rounded-xl overflow-hidden shadow-md bg-foreground cursor-pointer",
+          "relative rounded-xl overflow-hidden shadow-md cursor-pointer",
+          isOwn
+            ? "bg-[var(--chat-own-bg)] text-[var(--chat-own-fg)]"
+            : "bg-[var(--chat-other-bg)] text-[var(--chat-other-fg)]",
           compact ? "w-56 h-32" : "w-64 h-40"
         )}
         onClick={handlePreview}
@@ -206,11 +213,11 @@ function AttachmentBubble({
           preload="metadata"
         />
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="rounded-xl bg-foreground/50 p-2">
-            <Play className="w-10 h-10 text-primary" />
+          <div className="rounded-xl bg-[var(--chat-other-bg)/50] p-2">
+            <Play className="w-10 h-10 text-[var(--chat-meta)]" />
           </div>
         </div>
-        <div className="absolute bottom-2 right-2 bg-foreground/70 px-2 rounded-xl text-xs text-primary">
+        <div className="absolute bottom-2 right-2 bg-[var(--chat-other-bg)/70] px-2 rounded-xl text-xs text-[var(--chat-meta)]">
           {duration || "0:00"}
         </div>
         {badge && (
@@ -230,12 +237,15 @@ function AttachmentBubble({
   if (isAudio) {
     return (
       <div
-        className="bg-secondary/60 shadow-sm rounded-xl border border-secondary/40 px-3 py-3 w-80 flex flex-col"
+        className={cn(isOwn
+          ? "bg-[var(--chat-own-bg)] text-[var(--chat-own-fg)] border-[var(--chat-border)]"
+          : "bg-[var(--chat-other-bg)] text-[var(--chat-other-fg)] border-[var(--chat-border)]",
+          "shadow-sm rounded-xl border px-3 py-3 w-80 flex flex-col")}
       >
         <div className="flex items-center gap-3">
           <div
             onClick={(e) => e.stopPropagation()} // prevent opening preview
-            className="text-primary w-full max-w-60"
+            className="w-full max-w-60"
           >
             <SeekableWaveform
               src={src}
@@ -246,11 +256,11 @@ function AttachmentBubble({
         </div>
 
         <div className="mt-2 flex items-center justify-between">
-          <div className="text-xs text-muted-foreground truncate">
+          <div className="text-xs truncate text-[var(--chat-meta)]">
             {name} • {formatSize(size)}
           </div>
           {badge && (
-            <span className={cn("ml-2 px-2 py-0.5 rounded-xl text-[11px] font-medium", badge.className)}>
+            <span className={cn("ml-2 px-2 py-0.5 rounded-xl text-[12px] font-medium", badge.className)}>
               {badge.label}
             </span>
           )}
@@ -262,7 +272,10 @@ function AttachmentBubble({
 
   return (
     <div
-      className="bg-card/90 shadow-md rounded-xl border border-border/60 px-4 py-3 w-80 flex flex-col gap-2 h-fit cursor-pointer"
+      className={cn(isOwn
+        ? "bg-[var(--chat-own-bg)] text-[var(--chat-own-fg)] shadow-md"
+        : "bg-[var(--chat-other-bg)] text-[var(--chat-other-fg)] shadow-md",
+        "shadow-md rounded-xl border border-[var(--chat-border)] px-4 py-3 w-80 flex flex-col gap-2 h-fit cursor-pointer")}
       onClick={handlePreview}
     >
       <div className="flex items-center gap-3">
@@ -276,12 +289,12 @@ function AttachmentBubble({
             {badge.label}
           </span>
         ) : (
-          <FileText className="w-9 h-9 text-muted-foreground" />
+          <FileText className="w-9 h-9 text-[var(--chat-meta)]" />
         )}
 
         <div className="flex-1 min-w-0">
           <div className="truncate font-medium text-sm">{name}</div>
-          <div className="text-xs text-muted-foreground mt-0.5">
+          <div className="text-xs text-[var(--chat-meta)] mt-0.5">
             {formatSize(size)}
           </div>
         </div>
@@ -296,7 +309,7 @@ function AttachmentBubble({
             target="_blank"
             rel="noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="text-xs border rounded-md px-2 py-1 bg-muted hover:bg-muted/70 flex items-center gap-1"
+            className="text-xs border rounded-md px-2 py-1 bg-[var(--color-muted)] hover:bg-[var(--color-muted)]/70 flex items-center gap-1"
           >
             <Download className="w-4 h-4 inline-block mr-1" /> Download
           </a>
@@ -304,7 +317,7 @@ function AttachmentBubble({
           <button
             type="button"
             onClick={handlePreview}
-            className="text-xs border rounded-md px-2 py-1 bg-muted hover:bg-muted/70 flex items-center gap-1"
+            className="text-xs border rounded-md px-2 py-1 bg-[var(--color-muted)] hover:bg-[var(--color-muted)]/70 flex items-center gap-1"
           >
             <Eye className="w-4 h-4" /> Preview
           </button>
@@ -478,8 +491,8 @@ export default React.memo(
               className={cn(
                 "absolute -top-3 z-30 inline-flex items-center gap-1 px-2 py-0.5 rounded-xl text-xs font-medium",
                 isOwn
-                  ? "bg-primary text-primary-foreground shadow-md"
-                  : "bg-secondary text-secondary-foreground shadow-md"
+                  ? "bg-[var(--chat-own-bg)] text-[var(--chat-own-fg)] shadow-md"
+                  : "bg-[var(--chat-other-bg)] text-[var(--chat-other-fg)] shadow-md"
               )}
               style={{ transform: "translateY(-4px)" }}
             >
@@ -493,7 +506,7 @@ export default React.memo(
             <div
               className={cn(
                 "hidden md:flex absolute -top-10 gap-2 px-2 py-1 rounded-xl shadow-lg z-20",
-                "bg-card/95 backdrop-blur-sm transition-all duration-150 opacity-0 md:group-hover:opacity-100",
+                "bg-[var(--color-card)]/95 backdrop-blur-sm transition-all duration-150 opacity-0 md:group-hover:opacity-100",
                 isOwn ? "right-0" : "left-0"
               )}
               style={{
@@ -503,34 +516,34 @@ export default React.memo(
             >
               <button
                 onClick={handleReply}
-                className="p-1 rounded-xl hover:bg-muted/40"
+                className="p-1 rounded-xl hover:bg-[var(--color-muted)]/40"
                 aria-label="Reply"
                 title="Reply"
               >
-                <ReplyIcon className="w-4 h-4" />
+                <ReplyIcon className="w-4 h-4 text-[var(--chat-meta)]" />
               </button>
 
               <button
                 onClick={() => setShowReact((s) => !s)}
-                className="p-1 rounded-xl hover:bg-muted/40"
+                className="p-1 rounded-xl hover:bg-[var(--color-muted)]/40"
                 aria-label="React"
                 title="React"
               >
-                <SmilePlus className="w-4 h-4" />
+                <SmilePlus className="w-4 h-4 text-[var(--chat-meta)]" />
               </button>
 
               <button
                 onClick={handlePinToggle}
                 className={cn(
-                  "p-1 rounded-xl hover:bg-muted/40",
-                  pinned && "text-primary"
+                  "p-1 rounded-xl hover:bg-[var(--color-muted)]/40",
+                  pinned && "text-[var(--color-primary)]"
                 )}
                 aria-label={pinned ? "Unpin message" : "Pin message"}
                 title={pinned ? "Unpin" : "Pin"}
               >
                 {pinned ?
-                  <PinOff className="w-4 h-4" /> :
-                  <PinIcon className="w-4 h-4" />
+                  <PinOff className="w-4 h-4 text-[var(--chat-meta)]" /> :
+                  <PinIcon className="w-4 h-4 text-[var(--chat-meta)]" />
                 }
               </button>
 
@@ -542,11 +555,11 @@ export default React.memo(
                 onOpenChange={setMenuOpen}
               >
                 <button
-                  className="p-1 rounded-xl hover:bg-muted/40"
+                  className="p-1 rounded-xl hover:bg-[var(--color-muted)]/40"
                   aria-label="More"
                   title="More"
                 >
-                  <MoreHorizontal className="w-4 h-4" />
+                  <MoreHorizontal className="w-4 h-4 text-[var(--chat-meta)]" />
                 </button>
               </MessageMenu>
             </div>
@@ -562,9 +575,9 @@ export default React.memo(
             >
               <button
                 onClick={() => setShowReact((s) => !s)}
-                className="p-1 rounded-lg bg-secondary border border-secondary-foreground/20 shadow-sm active:scale-95"
+                className="p-1 rounded-lg bg-[var(--chat-other-bg)] border border-[var(--chat-other-fg)]/20 shadow-sm active:scale-95"
               >
-                <SmilePlus className="w-4 h-4" />
+                <SmilePlus className="w-4 h-4 text-[var(--chat-meta)]" />
               </button>
 
               <MessageMenu
@@ -574,8 +587,8 @@ export default React.memo(
                 open={menuOpen}
                 onOpenChange={setMenuOpen}
               >
-                <button className="p-1 rounded-lg bg-secondary border border-secondary-foreground/20 shadow-sm active:scale-95">
-                  <MoreHorizontal className="w-4 h-4" />
+                <button className="p-1 rounded-lg bg-[var(--chat-other-bg)] border border-[var(--chat-other-fg)]/20 shadow-sm active:scale-95">
+                  <MoreHorizontal className="w-4 h-4 text-[var(--chat-meta)]" />
                 </button>
               </MessageMenu>
             </div>
@@ -589,8 +602,8 @@ export default React.memo(
               className={cn(
                 "px-3 py-2 rounded-xl max-w-full text-xs italic opacity-80 border shadow-sm",
                 isOwn
-                  ? "bg-primary/15 text-primary-foreground/70 border border-primary/20"
-                  : "bg-secondary/40 text-secondary-foreground/70 border border-secondary/30"
+                  ? "bg-[var(--chat-own-bg)]/15 text-[var(--chat-own-fg)]/70 border border-[var(--color-primary)]/20"
+                  : "bg-[var(--chat-other-bg)]/40 text-[var(--chat-other-fg)]/70 border border-[var(--chat-border)]/30"
               )}
             >
               {showPersonalTombstone
@@ -608,16 +621,17 @@ export default React.memo(
               className={cn(
                 "px-4 py-3 rounded-xl text-sm shadow-sm border max-w-full wrap-break-word z-10",
                 isOwn
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-secondary text-secondary-foreground",
-                pinned ? "ring-1 ring-primary/30 ring-offset-1" : ""
+                  ? "bg-[var(--chat-own-bg)] text-[var(--chat-own-fg)]"
+                  : "bg-[var(--chat-other-bg)] text-[var(--chat-other-fg)]",
+                pinned ? "ring-1 ring-[var(--color-primary)]/30 ring-offset-1" : "",
+                "border border-[var(--chat-border)]"
               )}
               role="article"
               aria-label="text message"
             >
               {replyTo && (
                 <div
-                  className="mb-2 border-l-2 pl-3 text-xs opacity-80 cursor-pointer hover:opacity-100 transition"
+                  className="mb-2 border-l-2 pl-3 text-xs opacity-80 cursor-pointer hover:opacity-100 transition border-l-[var(--chat-border)]"
                   onClick={(e) => {
                     e.stopPropagation();
                     if (message.replyMessage?._id) {
@@ -626,7 +640,7 @@ export default React.memo(
                   }}
                 >
                   {message.replyMessage?.deleted ? (
-                    <p className="italic opacity-75">
+                    <p className="italic opacity-75 text-[var(--chat-meta)]">
                       {String(message.replyMessage?.senderId) === String(currentUserId)
                         ? "You deleted this message"
                         : "This message was deleted"}
@@ -634,12 +648,12 @@ export default React.memo(
                   ) : (
                     <>
                       {/* Username */}
-                      <p className="font-medium leading-tight text-[13px]">
+                      <p className="font-medium leading-tight text-[13px] text-[var(--chat-meta)]">
                         {message.replyMessage?.senderProfile?.username || "User"}
                       </p>
 
                       {/* NEW pinned-style preview text */}
-                      <p className="truncate text-[12px] mt-1 opacity-90">
+                      <p className="truncate text-[12px] mt-1 opacity-90 text-[var(--chat-meta)]">
                         {buildReplyPreviewText(message.replyMessage)}
                       </p>
                     </>
@@ -651,14 +665,14 @@ export default React.memo(
 
               <p className="primaryspace-pre-wrap text-[14px] leading-relaxed">
                 {displayed || (
-                  <span className="text-muted-foreground">(Unable to decrypt)</span>
+                  <span className="text-[var(--chat-meta)]">(Unable to decrypt)</span>
                 )}
               </p>
 
               {long && (
                 <button
                   onClick={() => setExpanded((s) => !s)}
-                  className="mt-2 text-xs underline underline-offset-2 text-muted-foreground"
+                  className="mt-2 text-xs underline underline-offset-2 text-[var(--chat-meta)]"
                 >
                   {expanded ? "Show less" : "Show more"}
                 </button>
@@ -695,6 +709,7 @@ export default React.memo(
                       isMediaIndex={isMediaIndex}
                       setFileViewerFile={setFileViewerFile}
                       isSending={isSending}
+                      isOwn={isOwn}
                     />
 
                   </div>
@@ -721,7 +736,7 @@ export default React.memo(
                     setSelectedEmoji(grp.emoji);
                     setEmojiInfoOpen(true);
                   }}
-                  className="px-2 py-0.5 rounded-xl bg-accent/40 border border-accent/30 text-xs shadow hover:bg-accent/60"
+                  className="px-2 py-0.5 rounded-xl bg-[var(--chat-reaction-bg)] border border-[var(--chat-border)]/30 text-xs shadow hover:bg-[var(--chat-reaction-bg)]/60"
                 >
                   <span className="text-[15px]">{grp.emoji}</span>
                   <span className="text-[11px] tabular-nums">{grp.count}</span>
