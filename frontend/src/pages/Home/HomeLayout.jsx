@@ -39,7 +39,7 @@ export default function HomeLayout() {
   }
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen theme-animate">
       <AppShell />
     </div>
   );

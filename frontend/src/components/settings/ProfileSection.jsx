@@ -23,6 +23,17 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -322,7 +333,6 @@ export default function ProfileSection() {
      Delete flow
   ----------------------------------------------------- */
   const handleDeactivate = async () => {
-    if (!confirm("Deactivate your account? This will sign you out.")) return;
     try {
       await deleteProfile();
       toast.success("Profile deactivated");
@@ -401,7 +411,33 @@ export default function ProfileSection() {
               <Button variant="outline" onClick={() => { navigator.clipboard?.writeText(profile?.user?.email || ""); toast.success("Email copied"); }}>
                 <Copy className="w-4 h-4 mr-2" /> Copy email
               </Button>
-              <Button variant="destructive" onClick={handleDeactivate}><Trash className="w-4 h-4 mr-2" /> Deactivate</Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive">
+                    <Trash className="w-4 h-4 mr-2" /> Delete Profile
+                  </Button>
+                </AlertDialogTrigger>
+
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete your profile?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This action is permanent. Your profile, devices, sessions,
+                      and encrypted data will be erased forever. You will be signed out.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+
+                  <AlertDialogFooter>
+                    <AlertDialogCancel className="p-2">Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-white hover:bg-destructive/90 p-2"
+                      onClick={handleDeactivate}
+                    >
+                      Yes, delete everything
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
               <Button onClick={() => logout()}>Sign out</Button>
             </div>
           </div>

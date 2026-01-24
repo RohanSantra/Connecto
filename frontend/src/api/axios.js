@@ -29,6 +29,12 @@ const doRefresh = async () => {
   return API.post("/auth/refresh", {}, { withCredentials: true });
 };
 
+API.interceptors.request.use((config) => {
+  const deviceId = useAuthStore.getState().deviceId;
+  if (deviceId) config.headers["x-device-id"] = deviceId;
+  return config;
+});
+
 // Request interceptor: optionally attach Authorization header when we have access token in memory
 API.interceptors.request.use(
   (config) => {

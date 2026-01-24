@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ArrowLeft,
   User,
@@ -21,6 +21,7 @@ import AboutSection from "@/components/settings/AboutSection";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 
 const sections = [
   { key: "profile", label: "Profile", icon: User },
@@ -32,8 +33,17 @@ const sections = [
 ];
 
 export default function SettingsPage() {
-  const [active, setActive] = useState("profile");
-  const naviagte=useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabFromUrl = searchParams.get("tab") || "profile";
+  const [active, setActive] = useState(tabFromUrl);
+
+  const naviagte = useNavigate()
+
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab) setActive(tab);
+  }, [searchParams]);
 
   const renderSection = () => {
     switch (active) {
@@ -92,7 +102,10 @@ export default function SettingsPage() {
                 return (
                   <button
                     key={key}
-                    onClick={() => setActive(key)}
+                    onClick={() => {
+                      setActive(key);
+                      setSearchParams({ tab: key });
+                    }}
                     className={cn(
                       "flex items-center gap-3 px-4 py-3 text-sm text-left transition",
                       "first:rounded-t-xl last:rounded-b-xl",

@@ -125,30 +125,34 @@ export const verifyOtp = asyncHandler(async (req, res) => {
 
   await Otp.deleteMany({ email });
 
-  /* -----------------------------------------
-   * DEVICE UPSERT
-   * ----------------------------------------- */
+
   let device = await Device.findOne({ userId: user._id, deviceId });
 
   if (!device) {
+    const hasPrimary = await Device.exists({
+      userId: user._id,
+      isPrimary: true,
+    });
+
     device = await Device.create({
       userId: user._id,
       deviceId,
       deviceName,
       publicKey,
       status: "active",
-      isPrimary: true,
+      isPrimary: !hasPrimary, // ✅ ONLY FIRST DEVICE
       lastSeen: new Date(),
     });
   } else {
-    if (device.publicKey && device.publicKey !== publicKey)
+    if (device.publicKey && device.publicKey !== publicKey) {
       throw new ApiError(403, "Device public key mismatch");
+    }
 
-    device.publicKey = publicKey;
     device.status = "active";
     device.lastSeen = new Date();
     await device.save();
   }
+
 
   /* -----------------------------------------
    * SESSION UPSERT
@@ -310,20 +314,30 @@ export const googleCallback = asyncHandler(async (req, res) => {
   let device = await Device.findOne({ userId: user._id, deviceId });
 
   if (!device) {
-    await Device.create({
+    const hasPrimary = await Device.exists({
+      userId: user._id,
+      isPrimary: true,
+    });
+
+    device = await Device.create({
       userId: user._id,
       deviceId,
       deviceName,
       publicKey,
       status: "active",
-      isPrimary: true,
+      isPrimary: !hasPrimary, 
       lastSeen: new Date(),
     });
   } else {
+    if (device.publicKey && device.publicKey !== publicKey) {
+      throw new ApiError(403, "Device public key mismatch");
+    }
+
     device.status = "active";
     device.lastSeen = new Date();
     await device.save();
   }
+
 
   /* Session */
   const accessToken = generateAccessToken({ userId: user._id });

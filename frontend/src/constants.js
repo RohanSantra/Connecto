@@ -101,3 +101,14 @@ export const LANGUAGES = [
     { code: "ja", name: "Japanese" },
     { code: "ar", name: "Arabic" },
 ];
+
+export const APP_INFO = {
+  name: "Connecto",
+  version: "1.0.0",
+  platform: "Web",
+  environment: "Production",
+
+  supportEmail: "support@connecto.app",
+  securityEmail: "security@connecto.app",
+  legalEmail: "legal@connecto.app",
+};

@@ -51,6 +51,8 @@ export const useAuthStore = create((set, get) => ({
   // holds detach function returned by attachSocketHandlers
   socketDetach: null,
 
+  getDeviceId: () => get().deviceId,
+
   setUser: (user) => set({ user, isAuthenticated: !!user }),
 
   /* ==========================================================

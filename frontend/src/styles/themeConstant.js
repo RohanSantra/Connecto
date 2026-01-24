@@ -69,6 +69,27 @@ const THEMES = [
       ],
     },
   },
+  /* ---------------- Aurora---------------- */
+  {
+    key: "aurora",
+    name: "Aurora",
+    preview: {
+      light: [
+        "oklch(0.98 0.02 280)",
+        "oklch(0.995 0.02 280)",
+        "oklch(0.32 0.22 275)",
+        "oklch(0.95 0.03 250)",
+        "oklch(0.92 0.18 200)",
+      ],
+      dark: [
+        "oklch(0.08 0.02 280)",
+        "oklch(0.16 0.03 275)",
+        "oklch(0.86 0.25 270)",
+        "oklch(0.2 0.03 250)",
+        "oklch(0.22 0.16 200)",
+      ],
+    },
+  },
 
   /* ---------------- BOLD TECH ---------------- */
   {
@@ -393,7 +414,27 @@ const THEMES = [
       ],
     },
   },
-
+  /* ---------------- Midnight ---------------- */
+  {
+    key: "midnight",
+    name: "Midnight",
+    preview: {
+      light: [
+        "oklch(0.97 0.01 260)",
+        "oklch(0.99 0.01 260)",
+        "oklch(0.22 0.14 260)",
+        "oklch(0.95 0.02 260)",
+        "oklch(0.95 0.12 260)",
+      ],
+      dark: [
+        "oklch(0.06 0.01 260)",
+        "oklch(0.16 0.02 260)",
+        "oklch(0.86 0.22 260)",
+        "oklch(0.18 0.02 260)",
+        "oklch(0.18 0.12 260)",
+      ],
+    },
+  },
   {
     key: "midnightBloom",
     name: "Midnight Bloom",
@@ -414,7 +455,27 @@ const THEMES = [
       ],
     },
   },
-
+  /* ---------------- Mint ---------------- */
+  {
+    key: "mint",
+    name: "Mint",
+    preview: {
+      light: [
+        "oklch(0.99 0.02 130)",
+        "oklch(0.995 0.02 130)",
+        "oklch(0.25 0.16 140)",
+        "oklch(0.95 0.02 120)",
+        "oklch(0.95 0.12 100)",
+      ],
+      dark: [
+        "oklch(0.14 0.02 130)",
+        "oklch(0.2 0.02 140)",
+        "oklch(0.9 0.2 140)",
+        "oklch(0.25 0.02 130)",
+        "oklch(0.25 0.12 110)",
+      ],
+    },
+  },
   {
     key: "mochaMousse",
     name: "Mocha Mousse",
@@ -560,7 +621,27 @@ const THEMES = [
       ],
     },
   },
-
+  /* ---------------- Ocean ---------------- */
+  {
+    key: "ocean",
+    name: "Ocean",
+    preview: {
+      light: [
+        "oklch(0.98 0.01 250)",  // background
+        "oklch(0.99 0.01 250)",  // card
+        "oklch(0.27 0.16 250)",  // primary
+        "oklch(0.95 0.02 220)",  // secondary
+        "oklch(0.95 0.14 200)",  // accent
+      ],
+      dark: [
+        "oklch(0.12 0.02 250)",
+        "oklch(0.2 0.03 240)",
+        "oklch(0.9 0.2 220)",
+        "oklch(0.25 0.02 210)",
+        "oklch(0.25 0.12 200)",
+      ],
+    },
+  },
   {
     key: "oceanBreeze",
     name: "Ocean Breeze",
@@ -745,6 +826,27 @@ const THEMES = [
         "oklch(0.4815 0.1178 263.3758)",
         "oklch(0.9097 0.1440 95.1120)",
         "oklch(0.8469 0.0524 264.7751)",
+      ],
+    },
+  },
+  /* ---------------- Sunset ---------------- */
+  {
+    key: "sunset",
+    name: "Sunset",
+    preview: {
+      light: [
+        "oklch(0.99 0.03 30)",
+        "oklch(0.995 0.03 30)",
+        "oklch(0.28 0.18 35)",
+        "oklch(0.95 0.03 320)",
+        "oklch(0.95 0.16 60)",
+      ],
+      dark: [
+        "oklch(0.13 0.03 30)",
+        "oklch(0.22 0.03 25)",
+        "oklch(0.9 0.22 40)",
+        "oklch(0.26 0.02 320)",
+        "oklch(0.26 0.16 65)",
       ],
     },
   },

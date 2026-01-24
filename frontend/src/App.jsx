@@ -21,7 +21,13 @@ import LoaderScreen from "@/components/common/LoaderScreen.jsx";
 
 // Settings
 import SettingsPage from "@/pages/Settings/SettingsPage.jsx";
+
+// Legal
+import PrivacyPolicyPage from "./pages/legal/PrivacyPolicyPage";
+import TermsOfServicePage from "./pages/legal/TermsOfServicePage";
+
 import { useThemeStore } from "./store/useThemeStore";
+
 
 export default function App() {
   const location = useLocation();
@@ -97,6 +103,7 @@ export default function App() {
         }
       />
 
+
       {/* ------------------------------------------------------------
          🔹 Main App (Protected)
       ------------------------------------------------------------ */}
@@ -118,6 +125,23 @@ export default function App() {
           <ProtectedRoute>
             <SettingsPage />
           </ProtectedRoute>
+        }
+      />
+
+
+      {/* ------------------------------------------------------------
+         🔹 Legal
+      ------------------------------------------------------------ */}
+      <Route
+        path="/legal/privacy-policy"
+        element={
+          <PrivacyPolicyPage />
+        }
+      />
+      <Route
+        path="/legal/terms-of-service"
+        element={
+          <TermsOfServicePage />
         }
       />
 

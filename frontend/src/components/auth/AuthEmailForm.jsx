@@ -130,8 +130,8 @@ export default function AuthEmailForm() {
             />
             <Label htmlFor="accept" className="text-sm leading-snug text-muted-foreground">
               I agree to the{" "}
-              <a href="#" className="underline">Privacy Policy</a> and{" "}
-              <a href="#" className="underline">Terms of Service</a>.
+              <a href="/legal/privacy-policy" className="underline">Privacy Policy</a> and{" "}
+              <a href="/legal/terms-of-service" className="underline">Terms of Service</a>.
             </Label>
           </div>
 
