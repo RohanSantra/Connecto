@@ -90,6 +90,27 @@ const THEMES = [
       ],
     },
   },
+  /* ---------------- Autumn Glow ---------------- */
+  {
+    key: "autumn-glow",
+    name: "Warm Autumn Glow",
+    preview: {
+      light: [
+        "oklch(0.97 0.02 60)",
+        "oklch(1 0 0)",
+        "oklch(0.50 0.20 55)",
+        "oklch(0.93 0.03 45)",
+        "oklch(0.70 0.18 30)",
+      ],
+      dark: [
+        "oklch(0.11 0.03 50)",
+        "oklch(0.19 0.03 50)",
+        "oklch(0.82 0.24 60)",
+        "oklch(0.25 0.02 40)",
+        "oklch(0.66 0.21 30)",
+      ],
+    },
+  },
 
   /* ---------------- BOLD TECH ---------------- */
   {
@@ -369,6 +390,26 @@ const THEMES = [
         "oklch(0.5054 0.1905 27.5181)",
         "oklch(0.4732 0.1247 46.2007)",
         "oklch(0.5553 0.1455 48.9975)",
+      ],
+    },
+  },
+  {
+    key: "fiesta",
+    name: "Vibrant Fiesta",
+    preview: {
+      light: [
+        "oklch(0.97 0.02 260)",
+        "oklch(1 0 0)",
+        "oklch(0.55 0.28 330)",
+        "oklch(0.92 0.03 250)",
+        "oklch(0.70 0.25 150)",
+      ],
+      dark: [
+        "oklch(0.09 0.02 260)",
+        "oklch(0.17 0.03 260)",
+        "oklch(0.86 0.30 330)",
+        "oklch(0.24 0.02 250)",
+        "oklch(0.65 0.27 150)",
       ],
     },
   },
@@ -662,7 +703,26 @@ const THEMES = [
       ],
     },
   },
-
+  {
+    key: "olive-feast",
+    name: "Olive Garden Feast",
+    preview: {
+      light: [
+        "oklch(0.96 0.02 110)",
+        "oklch(0.99 0.01 100)",
+        "oklch(0.42 0.16 125)",
+        "oklch(0.90 0.04 95)",
+        "oklch(0.70 0.18 80)",
+      ],
+      dark: [
+        "oklch(0.12 0.03 120)",
+        "oklch(0.18 0.03 120)",
+        "oklch(0.78 0.20 125)",
+        "oklch(0.25 0.02 110)",
+        "oklch(0.65 0.22 85)",
+      ],
+    },
+  },
   {
     key: "pastelDreams",
     name: "Pastel Dreams",
@@ -680,6 +740,26 @@ const THEMES = [
         "oklch(0.7874 0.1179 295.7538)",
         "oklch(0.3858 0.0509 304.6383)",
         "oklch(0.9299 0.0334 272.7879)",
+      ],
+    },
+  },
+  {
+    key: "peachy-daylight",
+    name: "Peachy Daylight",
+    preview: {
+      light: [
+        "oklch(0.98 0.02 35)",  // background
+        "oklch(1 0 0)",         // card
+        "oklch(0.60 0.22 40)",  // primary
+        "oklch(0.93 0.04 25)",  // secondary
+        "oklch(0.80 0.18 60)",  // accent
+      ],
+      dark: [
+        "oklch(0.13 0.03 30)",
+        "oklch(0.20 0.03 30)",
+        "oklch(0.82 0.25 45)",
+        "oklch(0.26 0.02 20)",
+        "oklch(0.72 0.21 70)",
       ],
     },
   },
@@ -785,6 +865,26 @@ const THEMES = [
         "oklch(0.6801 0.1583 276.9349)",
         "oklch(0.8790 0.1534 91.6054)",
         "oklch(1 0 0)",
+      ],
+    },
+  },
+  {
+    key: "soft-sand",
+    name: "Soft Sand",
+    preview: {
+      light: [
+        "oklch(0.98 0.01 80)",
+        "oklch(1 0 0)",
+        "oklch(0.55 0.12 70)",
+        "oklch(0.92 0.02 75)",
+        "oklch(0.75 0.14 50)",
+      ],
+      dark: [
+        "oklch(0.14 0.02 70)",
+        "oklch(0.21 0.02 70)",
+        "oklch(0.78 0.16 75)",
+        "oklch(0.28 0.02 70)",
+        "oklch(0.70 0.18 55)",
       ],
     },
   },
@@ -1015,6 +1115,26 @@ const THEMES = [
         "oklch(0.6132 0.2294 291.7437)",
         "oklch(0.2940 0.0130 272.9312)",
         "oklch(0.2795 0.0368 260.0310)",
+      ],
+    },
+  },
+  {
+    key: "warm-neutrals",
+    name: "Warm Neutrals",
+    preview: {
+      light: [
+        "oklch(0.97 0.01 50)",
+        "oklch(1 0 0)",
+        "oklch(0.48 0.10 40)",
+        "oklch(0.93 0.02 50)",
+        "oklch(0.70 0.12 30)",
+      ],
+      dark: [
+        "oklch(0.12 0.02 45)",
+        "oklch(0.20 0.02 45)",
+        "oklch(0.75 0.14 45)",
+        "oklch(0.27 0.02 45)",
+        "oklch(0.68 0.15 30)",
       ],
     },
   },
