@@ -12,12 +12,11 @@ import {
 } from "lucide-react";
 
 import ProfileSection from "@/components/settings/ProfileSection";
-import AppearanceSection from "@/components/settings/AppearanceSection";
+import AppearanceSection from "@/components/settings/appearance/AppearanceSection";
 import NotificationsSection from "@/components/settings/NotificationsSection";
 import PrivacySection from "@/components/settings/PrivacySection";
 import DevicesSection from "@/components/settings/DevicesSection";
 import AboutSection from "@/components/settings/AboutSection";
-
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
