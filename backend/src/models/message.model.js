@@ -187,6 +187,11 @@ const MessageSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    clientTempId: {
+        type: String,
+        default: null,
+        index: true,
+    },
 
     // system message classification (when type === 'system')
     systemType: {

@@ -1,27 +1,27 @@
 // src/components/chat/ChatListItem.jsx
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Pin, Trash2, EllipsisVertical, Check, CheckCheck } from "lucide-react";
+import { Pin, Trash2, EllipsisVertical, Check, CheckCheck, X, Loader2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useChatStore } from "@/store/useChatStore";
 import { useProfileStore } from "@/store/useProfileStore";
+import { useMessageStore } from "@/store/useMessageStore";
 import { formatDistanceToNowStrict } from "date-fns";
 import { getMessageStatusIcon } from "@/lib/messagePreview";
 import { Button } from "../ui/button";
 
-// 🔥 Alert Dialog imports
 import {
   AlertDialog,
-  AlertDialogTrigger,
   AlertDialogContent,
   AlertDialogHeader,
   AlertDialogTitle,
@@ -30,6 +30,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
+
 
 /* -----------------------------------
    Detect file kind
@@ -193,10 +194,141 @@ function highlightMatches(text = "", query = "") {
         {text.slice(idx, idx + q.length)}
       </mark>,
       text.slice(idx + q.length),
-    ];
+    ]
   }
   return text;
 }
+
+
+function ChatListMenu({ chat }) {
+  const { togglePin, deleteChat, leaveGroup } = useChatStore();
+  const { clearChatForUser } = useMessageStore();
+  const { profile } = useProfileStore();
+
+  const [confirm, setConfirm] = useState(null); // "clear" | "delete" | "leave"
+  const [loading, setLoading] = useState(false);
+
+  const isGroup = chat.isGroup;
+  const isPinned = !!chat.pinned;
+
+  const members = chat.participants || [];
+  const myMember = members.find(m => String(m.userId) === String(profile.userId));
+  const isAdmin = myMember?.role === "admin";
+  const adminCount = members.filter(m => m.role === "admin").length;
+
+  const canLeaveGroup = () => {
+    if (!isGroup) return true;
+    if (members.length < 3) return false;
+    if (isAdmin && adminCount <= 1) return false;
+    return true;
+  };
+
+  const run = async (type, fn) => {
+    setLoading(true);
+    try { await fn(); }
+    finally { setLoading(false); setConfirm(null); }
+  };
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="p-1 hover:bg-accent rounded-lg">
+            <EllipsisVertical className="w-4 h-4" />
+          </Button>
+        </DropdownMenuTrigger>
+
+        <DropdownMenuContent side="left" align="end" className="w-44">
+
+          <DropdownMenuItem onClick={() => togglePin(chat.chatId)}>
+            <Pin className="w-4 h-4 mr-2" />
+            {isPinned ? "Unpin" : "Pin"}
+          </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+
+          <DropdownMenuItem
+            className="text-destructive"
+            onClick={() => setConfirm("clear")}
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Clear Chat
+          </DropdownMenuItem>
+
+          {!isGroup && (
+            <DropdownMenuItem
+              className="text-destructive"
+              onClick={() => setConfirm("delete")}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete Chat
+            </DropdownMenuItem>
+          )}
+
+          {isGroup && isAdmin && (
+            <DropdownMenuItem
+              className="text-destructive"
+              onClick={() => setConfirm("delete")}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete Group
+            </DropdownMenuItem>
+          )}
+
+          {isGroup && canLeaveGroup() && (
+            <DropdownMenuItem
+              className="text-destructive"
+              onClick={() => setConfirm("leave")}
+            >
+              <X className="w-4 h-4 mr-2" />
+              Leave Group
+            </DropdownMenuItem>
+          )}
+
+          {isGroup && !canLeaveGroup() && (
+            <DropdownMenuItem disabled className="opacity-50">
+              <X className="w-4 h-4 mr-2" />
+              Cannot Leave
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* CONFIRM DIALOG */}
+      <AlertDialog open={!!confirm} onOpenChange={() => setConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirm === "leave" && "Leave group?"}
+              {confirm === "delete" && (isGroup ? "Delete group?" : "Delete chat?")}
+              {confirm === "clear" && "Clear chat?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirm === "leave" && "You will stop receiving messages."}
+              {confirm === "delete" && "This cannot be undone."}
+              {confirm === "clear" && "Messages will be removed only for you."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel className="px-2">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="px-2"
+              onClick={() => {
+                if (confirm === "clear") run("clear", () => clearChatForUser(chat.chatId));
+                if (confirm === "delete") run("delete", () => deleteChat(chat.chatId));
+                if (confirm === "leave") run("leave", () => leaveGroup(chat.chatId));
+              }}
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirm"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
 
 /* -----------------------------------
    MAIN COMPONENT
@@ -238,15 +370,14 @@ export default function ChatListItem({ chat = {}, onClick, searchTerm = "" }) {
   const msgStatus = getMessageStatusIcon(last, profile);
   const tick =
     msgStatus === "read" ? (
-      <CheckCheck className="w-3.5 h-3.5 text-blue-500" />
+      <CheckCheck className="w-4 h-4 text-[var(--color-primary)]" />
     ) : msgStatus === "delivered" ? (
-      <CheckCheck className="w-3.5 h-3.5 text-muted-foreground" />
+      <CheckCheck className="w-4 h-4 text-[var(--chat-meta)]" />
     ) : msgStatus === "sent" ? (
-      <Check className="w-3.5 h-3.5 text-muted-foreground" />
+      <Check className="w-4 h-4 text-[var(--chat-meta)]" />
     ) : null;
 
   const hasAttachments = Array.isArray(last?.attachments) && last.attachments.length > 0;
-
 
   return (
     <div
@@ -269,13 +400,21 @@ export default function ChatListItem({ chat = {}, onClick, searchTerm = "" }) {
       {/* Avatar */}
       <div className="relative shrink-0">
         <Avatar className="h-11 w-11 rounded-xl">
-          <AvatarImage src={avatarUrl} />
-          <AvatarFallback>{(chatName || "?")[0]}</AvatarFallback>
+          <AvatarImage src={isGroup ? chat.groupAvatarUrl : avatarUrl} />
+          <AvatarFallback className="rounded-xl">{(chatName || "?")[0]}</AvatarFallback>
         </Avatar>
+
+        {/* 📌 PIN ICON */}
+        {chat.pinned && (
+          <Pin className="absolute -top-1 -right-1 w-4 h-4 text-primary bg-background rounded-full p-[2px] shadow-sm" />
+        )}
+
+        {/* 🟢 ONLINE DOT */}
         {!isGroup && isOnline && (
-          <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-500 ring-1 ring-background" />
+          <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-500 ring-2 ring-background" />
         )}
       </div>
+
 
       {/* Middle */}
       <div className="min-w-0">
@@ -321,47 +460,11 @@ export default function ChatListItem({ chat = {}, onClick, searchTerm = "" }) {
         )}
 
         {/* menu button */}
-        <div className="absolute bottom-0 right-0">
-          <AlertDialog>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="p-1 hover:bg-accent rounded-lg">
-                  <EllipsisVertical className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-
-              <DropdownMenuContent side="left" align="end" className="w-44">
-                <DropdownMenuItem onClick={() => togglePin(chat.chatId, chat.pinned)}>
-                  <Pin className="w-4 h-4 mr-2" /> {chat.pinned ? "Unpin chat" : "Pin chat"}
-                </DropdownMenuItem>
-
-                <AlertDialogTrigger asChild>
-                  <DropdownMenuItem className="text-destructive">
-                    <Trash2 className="w-4 h-4 mr-2" /> Delete chat
-                  </DropdownMenuItem>
-                </AlertDialogTrigger>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            <AlertDialogContent className="rounded-xl shadow-xl border">
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete chat?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  You will lose messages, media, and history for this chat.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-
-              <AlertDialogFooter>
-                <AlertDialogCancel className="rounded-lg">Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  className="bg-red-600 hover:bg-red-700 rounded-lg"
-                  onClick={() => deleteChat(chat.chatId)}
-                >
-                  Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+        <div
+          className="absolute bottom-0 right-0"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <ChatListMenu chat={chat} />
         </div>
       </div>
     </div>

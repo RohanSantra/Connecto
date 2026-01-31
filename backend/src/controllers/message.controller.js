@@ -131,6 +131,7 @@ async function populateMessage(msgId) {
         deleted: 1,
         createdAt: 1,
         updatedAt: 1,
+        clientTempId: 1,
 
         sender: {
           userId: "$senderProfile.userId",
@@ -170,7 +171,7 @@ async function populateMessage(msgId) {
    - persists deliveredTo for online recipients and emits per-recipient MESSAGE_DELIVERED_EVENT
 ==================================================================== */
 export const sendMessage = asyncHandler(async (req, res) => {
-  const { chatId, ciphertext, ciphertextNonce, type, replyTo } = req.body;
+  const { chatId, ciphertext, ciphertextNonce, type, replyTo, clientTempId } = req.body;
 
   if (!chatId || !ciphertext || !ciphertextNonce)
     throw new ApiError(400, "Missing required fields");
@@ -245,11 +246,13 @@ export const sendMessage = asyncHandler(async (req, res) => {
     senderDeviceId,
     ciphertext,
     ciphertextNonce,
+    clientTempId: clientTempId || null, // 🔥 ADD THIS
     type: type || (attachments.length ? "attachment" : "text"),
     replyTo: replyTo ? new mongoose.Types.ObjectId(replyTo) : null,
     encryptedKeys,
     attachments,
   });
+
 
   /* Update chat status */
   await Chat.findByIdAndUpdate(chatId, {
@@ -402,9 +405,30 @@ export const deleteMessage = asyncHandler(async (req, res) => {
 
   const isSender = message.senderId.toString() === req.user._id.toString();
 
-  if (forEveryone && !isSender) {
-    throw new ApiError(403, "Only sender can delete for everyone");
+  const chat = await Chat.findById(message.chatId).select("isGroup");
+  if (!chat) throw new ApiError(404, "Chat not found");
+
+  let isAdmin = false;
+
+  if (chat.isGroup) {
+    const member = await ChatMember.findOne({
+      chatId: message.chatId,
+      userId: req.user._id,
+    }).select("role");
+
+    isAdmin = member?.role === "admin";
   }
+
+  if (forEveryone) {
+    if (!chat.isGroup && !isSender) {
+      throw new ApiError(403, "Only sender can delete for everyone");
+    }
+
+    if (chat.isGroup && !isSender && !isAdmin) {
+      throw new ApiError(403, "Only sender or admin can delete this message");
+    }
+  }
+
 
   // ⚡ store pinned flag BEFORE editing
   const wasPinned = message.pinned === true;

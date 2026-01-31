@@ -106,6 +106,15 @@ export function normalizeChat(chat) {
 
   // canonical participants array (fallbacks)
   let participants = chat.participants || chat.members || [];
+  participants = participants.map(p => ({
+    userId: p.userId,
+    role: p.role || "member",
+    username: p.username || "Unknown",
+    avatarUrl: p.avatarUrl || null,
+    isOnline: !!p.isOnline,
+    lastSeenAt: p.lastSeenAt || p.lastSeen || null,
+    bio: p.bio || null
+  }));
 
   // If profiles (lookup) present, align them into participants entries
   // so participants[i] contains username/avatar/isOnline etc when possible.

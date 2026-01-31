@@ -26,7 +26,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Upload } from "lucide-react";
+import { Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 /* highlight util (same idea) */
@@ -63,7 +63,7 @@ function highlightMatches(text = "", query = "") {
 export default function NewGroupOverlay() {
     const { newGroupOpen, closeNewGroup } = useUIStore();
     const { isMobile } = useResponsiveDrawer();
-    const { createGroupChat } = useChatStore();
+    const { createGroupChat, setActiveChatId, loading } = useChatStore();
     const { searchProfiles, searchLoading } = useProfileStore();
 
     const [groupName, setGroupName] = useState("");
@@ -169,12 +169,14 @@ export default function NewGroupOverlay() {
         const formData = new FormData();
         formData.append("name", groupName.trim());
         formData.append("description", groupDescription.trim() || "");
-        formData.append("members", JSON.stringify(members.map(m => m.userId || m.user?.userId || m.userId)));
+        formData.append("memberIds", JSON.stringify(members.map(m => m.userId || m.user?.userId || m.userId)));
         if (avatarFile) formData.append("avatar", avatarFile);
 
         const created = await createGroupChat(formData);
         if (created) {
             toast.success("Group created");
+            const activeId = created.chatId || chat._id;
+            if (activeId) setActiveChatId(activeId);
             closeNewGroup();
         } else {
             toast.error("Failed to create group");
@@ -272,7 +274,13 @@ export default function NewGroupOverlay() {
                                             <div className="text-xs text-muted-foreground whitespace-nowrap">{user.isOnline ? "Online" : user.lastSeen ? new Date(user.lastSeen).toLocaleDateString() : ""}</div>
                                         </div>
 
-                                        <div className="text-xs text-muted-foreground truncate">{highlightMatches(user.bio || (user.lastSeen ? `Last seen ${new Date(user.lastSeen).toLocaleString()}` : "Offline"), search)}</div>
+                                        <div className="text-xs text-muted-foreground truncate">
+                                            {user.isOnline
+                                                ? "Online"
+                                                : user.lastSeen
+                                                    ? `Last seen ${new Date(user.lastSeen).toLocaleString()}`
+                                                    : "Offline"}
+                                        </div>
                                     </div>
 
                                     {selected && <span className="text-xs font-medium text-primary ml-2">Added</span>}
@@ -283,7 +291,15 @@ export default function NewGroupOverlay() {
                 )}
             </ScrollArea>
 
-            <Button onClick={createGroup} className="w-full">Create Group</Button>
+            <Button onClick={createGroup} className="w-full">{
+                loading ?
+                    (
+                        <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Creating...
+                        </>
+                    ) :
+                    ("Create Group")}
+            </Button>
         </div>
     );
 

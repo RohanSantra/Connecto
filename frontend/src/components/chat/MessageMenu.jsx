@@ -35,6 +35,7 @@ import { useMessageStore } from "@/store/useMessageStore";
 import { useProfileStore } from "@/store/useProfileStore";
 import { toast } from "sonner";
 import { LANGUAGES } from "@/constants";
+import { useChatStore } from "@/store/useChatStore";
 
 /* Reusable Button */
 const MenuItem = ({ icon: Icon, label, danger, onClick }) => (
@@ -64,6 +65,17 @@ function MenuBody({ message = {}, isOwn = false, onClose, onShowInfo }) {
     plaintext,
     ciphertext,
   } = message;
+
+
+  const { activeChat } = useChatStore();
+
+  const isGroup = !!activeChat?.isGroup;
+
+  const myMemberData = activeChat?.participants?.find(
+    (p) => String(p.userId) === String(profile?.userId)
+  );
+
+  const isAdmin = myMemberData?.role === "admin";
 
   const text = plaintext || ciphertext;
   const canCopy = type === "text" && text;
@@ -137,20 +149,45 @@ function MenuBody({ message = {}, isOwn = false, onClose, onShowInfo }) {
   };
 
   /** File download handler */
-  const doDownload = () => {
-    attachments.forEach((att) => {
-      const url =
-        att.cloudinary?.secure_url || att.cloudinary?.url || att.url;
-      if (url) {
+  const doDownload = async () => {
+    if (!attachments.length) return;
+
+    try {
+      for (const att of attachments) {
+        const url =
+          att.cloudinary?.secure_url ||
+          att.cloudinary?.url ||
+          att.url;
+
+        if (!url) continue;
+
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Failed to fetch file");
+
+        const blob = await response.blob();
+
+        const blobUrl = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
-        a.href = url;
+
+        a.href = blobUrl;
         a.download = att.filename || "file";
+
+        document.body.appendChild(a);
         a.click();
+
+        a.remove();
+        window.URL.revokeObjectURL(blobUrl);
       }
-    });
-    toast.success("Download started");
+
+      toast.success("Download started");
+    } catch (err) {
+      console.error(err);
+      toast.error("Download failed");
+    }
+
     onClose?.();
   };
+
 
   const primaryLang = profile?.primaryLanguage;
   const secondaryLang = profile?.secondaryLanguage;
@@ -217,14 +254,14 @@ function MenuBody({ message = {}, isOwn = false, onClose, onShowInfo }) {
         />
 
         {/* INFO */}
-        <MenuItem
+        {isOwn && <MenuItem
           icon={Info}
           label="Message Info"
           onClick={() => {
             onClose?.();
             onShowInfo?.();
           }}
-        />
+        />}
 
         <Divider />
 
@@ -248,15 +285,15 @@ function MenuBody({ message = {}, isOwn = false, onClose, onShowInfo }) {
             </AlertDialogHeader>
 
             <AlertDialogFooter>
-              <AlertDialogCancel
-                className="px-1"
+              <AlertDialogCancel 
+                className="px-2"
                 disabled={deletingMessageId === _id}
               >
                 Cancel
               </AlertDialogCancel>
 
               <AlertDialogAction
-                className="bg-destructive hover:bg-destructive px-1"
+                className="bg-destructive hover:bg-destructive px-2"
                 onClick={runDelete}
                 disabled={deletingMessageId === _id}
               >
@@ -271,7 +308,8 @@ function MenuBody({ message = {}, isOwn = false, onClose, onShowInfo }) {
         </AlertDialog>
 
         {/* DELETE FOR EVERYONE */}
-        {isOwn && (
+        {/* DELETE FOR EVERYONE */}
+        {(isOwn || (isGroup && isAdmin)) && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <MenuItem
@@ -291,15 +329,12 @@ function MenuBody({ message = {}, isOwn = false, onClose, onShowInfo }) {
               </AlertDialogHeader>
 
               <AlertDialogFooter>
-                <AlertDialogCancel
-                  className="px-1"
-                  disabled={deletingMessageId === _id}
-                >
+                <AlertDialogCancel className="px-2" disabled={deletingMessageId === _id}>
                   Cancel
                 </AlertDialogCancel>
 
                 <AlertDialogAction
-                  className="bg-destructive hover:bg-destructive px-1"
+                  className="bg-destructive hover:bg-destructive px-2"
                   onClick={runDelete}
                   disabled={deletingMessageId === _id}
                 >

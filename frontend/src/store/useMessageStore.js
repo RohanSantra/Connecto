@@ -10,16 +10,41 @@ import { getSocket } from "@/lib/socket";
 import { ChatEventEnum } from "@/constants";
 
 /* Utility: dedupe + sort chronologically (oldest -> newest) */
-const mergeMessages = (existing, incoming) => {
+/* Utility: dedupe + reconcile optimistic & real messages */
+const mergeMessages = (existing = [], incoming = []) => {
   const map = new Map();
-  [...existing, ...incoming].forEach((m) => {
-    if (m && m._id) map.set(String(m._id), m);
-  });
+
+  const add = (m) => {
+    if (!m) return;
+
+    const rawId = m._id ? String(m._id) : null;
+    const isTempId = rawId && rawId.startsWith && rawId.startsWith("temp-");
+
+    // optimistic key
+    const tempKey = m.clientTempId || m.tempId || (isTempId ? rawId : null);
+
+    // real database id
+    const realKey = rawId && !isTempId ? rawId : null;
+
+    // If real message arrives and an optimistic version exists → remove optimistic
+    if (realKey && tempKey && map.has(String(tempKey))) {
+      map.delete(String(tempKey));
+    }
+
+    const key = realKey || tempKey || rawId || Math.random().toString(36);
+    map.set(String(key), m);
+  };
+
+  // Existing first, incoming after (incoming wins)
+  for (const m of existing) add(m);
+  for (const m of incoming) add(m);
 
   return [...map.values()].sort(
     (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
   );
 };
+
+
 
 /* Helper to extract an id from several payload shapes. */
 const getMessageId = (payload) => {
@@ -170,7 +195,11 @@ export const useMessageStore = create(
         /* -------------------------
            Send message
         ------------------------- */
-        sendMessage: async (formData, ui = {}) => {
+        sendMessage: async (formData, ui = {
+          plaintext,
+          previews,
+          replyTo,
+        }) => {
           const profile = useProfileStore.getState().profile;
           const myUserId = profile?.userId;
           const chatId = formData.get("chatId");
@@ -180,16 +209,18 @@ export const useMessageStore = create(
             return null;
           }
 
-          /* ======================================================
-             1️⃣ CREATE OPTIMISTIC MESSAGE (INSTANT UI)
-          ====================================================== */
-          const tempId =
-            `temp-${crypto.randomUUID?.() || Date.now() + Math.random()}`;;
+          // ---------------------------
+          // 1️⃣ OPTIMISTIC MESSAGE
+          // ---------------------------
+          const tempId = `temp-${crypto.randomUUID?.() || Date.now() + Math.random()}`;
           const now = new Date().toISOString();
+
+
 
           const optimisticMessage = {
             _id: tempId,
             tempId,
+            clientTempId: tempId, // 🔥 reconciliation id
             chatId,
             senderId: myUserId,
             plaintext: ui.plaintext || "",
@@ -197,19 +228,23 @@ export const useMessageStore = create(
             createdAt: now,
             deliveredTo: [],
             readBy: [],
-            status: "sending",        // 👈 drives loader instead of ticks
+            status: "sending",
+            replyTo: ui.replyTo?._id || null,
+            replyMessage: ui.replyTo || null,
           };
 
-          // Insert instantly (NO loader, NO await)
+          // Insert using mergeMessages (NOT push)
           set((state) => ({
-            messages: [...state.messages, optimisticMessage],
+            messages: mergeMessages(state.messages, [optimisticMessage]),
           }));
 
-          /* ======================================================
-             2️⃣ SEND TO SERVER (BACKGROUND)
-          ====================================================== */
           try {
             const deviceId = localStorage.getItem("connecto_device_id");
+
+            // send clientTempId to server (so socket & API echo it)
+            if (typeof formData.append === "function") {
+              formData.append("clientTempId", tempId);
+            }
 
             const res = await api.post("/messages/send", formData, {
               headers: {
@@ -224,70 +259,49 @@ export const useMessageStore = create(
 
             try {
               msg = decryptIncomingMessageWithReply(msg);
-            } catch {
-              // leave encrypted if decrypt fails
-            }
+            } catch { }
 
-            /* ======================================================
-               3️⃣ REPLACE TEMP MESSAGE WITH REAL MESSAGE
-            ====================================================== */
+            // ---------------------------
+            // 2️⃣ MERGE REAL MESSAGE
+            // (handles socket vs api race)
+            // ---------------------------
             set((state) => ({
-              messages: state.messages.map((m) =>
-                m.tempId === tempId ? msg : m
-              ),
+              messages: mergeMessages(state.messages, [msg]),
             }));
 
-            /* ======================================================
-               4️⃣ UPDATE CHAT SIDEBAR LAST MESSAGE
-            ====================================================== */
+            // Update sidebar last message
             try {
               const normalized = normalizeLastMessage(msg);
-
               useChatStore.setState((s) => {
                 const chats = s.chats.map((c) =>
                   String(c.chatId) === String(msg.chatId)
-                    ? {
-                      ...c,
-                      lastMessage: normalized,
-                      updatedAt: msg.createdAt,
-                    }
+                    ? { ...c, lastMessage: normalized, updatedAt: msg.createdAt }
                     : c
                 );
 
                 const activeChat =
                   s.activeChat && String(s.activeChat.chatId) === String(msg.chatId)
-                    ? {
-                      ...s.activeChat,
-                      lastMessage: normalized,
-                      updatedAt: msg.createdAt,
-                    }
+                    ? { ...s.activeChat, lastMessage: normalized, updatedAt: msg.createdAt }
                     : s.activeChat;
 
                 return { chats, activeChat };
               });
-            } catch (e) {
-              console.warn("Last message sync failed:", e);
-            }
+            } catch { }
 
             return msg;
           } catch (err) {
-            /* ======================================================
-               5️⃣ MARK MESSAGE AS FAILED (NO DELETE)
-            ====================================================== */
+            // Mark optimistic message as failed
             set((state) => ({
               messages: state.messages.map((m) =>
-                m.tempId === tempId
-                  ? { ...m, status: "failed" }
-                  : m
+                m.tempId === tempId ? { ...m, status: "failed" } : m
               ),
             }));
 
-            toast.error(
-              err?.response?.data?.message || "Failed to send message"
-            );
+            toast.error(err?.response?.data?.message || "Failed to send message");
             return null;
           }
         },
+
 
 
         /* -------------------------
@@ -558,6 +572,8 @@ export const useMessageStore = create(
           const myUserId = chatStore.currentUserId || "";
           const isActive = String(chatId) === String(activeChatId);
           const isOwnMessage = String(decrypted.senderId) === String(myUserId);
+
+          if (isOwnMessage) return;
 
           // Update sidebar
           useChatStore.setState((state) => {

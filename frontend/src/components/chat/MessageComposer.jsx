@@ -478,45 +478,57 @@ export default function MessageComposer({ chatId }) {
   };
 
   const send = async () => {
-    const plain = text.trim();
+    const plain = text;
     if (!plain && files.length <= 0) return;
     if (!activeChatDevices?.length) return toast.error("Missing device keys");
 
+    // 🟢 SNAPSHOT current state BEFORE clearing
+    const currentText = text;
+    const currentFiles = files;
+    const currentPreviews = previews;
+    const currentReply = replyTo;
+
+    // 🟢 INSTANT UI CLEAR (optimistic)
+    setText("");
+    setFiles([]);
+    setPreviews([]);
+    setReplyTo(null);
+
+    if (textareaRef.current) {
+      textareaRef.current.style.height = `${DEFAULT_TEXTAREA_HEIGHT}px`;
+      textareaRef.current.blur();
+    }
+
     try {
       const { ciphertext, ciphertextNonce, encryptedKeys } =
-        encryptOutgoingMessage(plain, activeChatDevices);
+        encryptOutgoingMessage(currentText, activeChatDevices);
 
       const fd = new FormData();
       fd.append("chatId", chatId);
       fd.append("ciphertext", ciphertext);
       fd.append("ciphertextNonce", ciphertextNonce);
       fd.append("encryptedKeys", JSON.stringify(encryptedKeys));
-      fd.append("type", files.length ? "attachment" : "text");
+      fd.append("type", currentFiles.length ? "attachment" : "text");
 
-      if (replyTo?._id) fd.append("replyTo", replyTo._id);
+      if (currentReply?._id) fd.append("replyTo", currentReply._id);
+      currentFiles.forEach((f) => fd.append("attachments", f));
 
-      files.forEach((f) => fd.append("attachments", f));
-
-      const ok = await sendMessage(fd, {
-        plaintext: plain,
-        previews, // ← UI previews you already have
+      await sendMessage(fd, {
+        plaintext: currentText,
+        previews: currentPreviews,
+        replyTo: currentReply,
       });
-      if (ok) {
-        setText("");
-        previews.forEach((p) => p?.url && URL.revokeObjectURL(p.url));
-        setPreviews([]);
-        setFiles([]);
-        setReplyTo(null);
 
-        if (textareaRef.current) {
-          textareaRef.current.style.height = `${DEFAULT_TEXTAREA_HEIGHT}px`;
-          textareaRef.current.blur();
-        }
-      }
-    } catch {
+    } catch (err) {
+      // 🔴 If sending fails, restore message back to input
+      setText(currentText);
+      setFiles(currentFiles);
+      setPreviews(currentPreviews);
+      setReplyTo(currentReply);
       toast.error("Send failed");
     }
   };
+
 
   /* Key handling */
   const keyDown = (e) => {
@@ -747,7 +759,7 @@ export default function MessageComposer({ chatId }) {
               className="flex gap-2 items-center px-2 py-1 hover:bg-muted rounded"
               onClick={() => fileAny.current?.click()}
             >
-              <Camera className="w-4 h-4" /> Files
+              <Camera className="w-4 h-4" /> Any File
             </button>
           </PopoverContent>
         </Popover>
@@ -856,7 +868,7 @@ export default function MessageComposer({ chatId }) {
 
         {/* Send */}
         <button
-          disabled={sending || (!text.trim() && files.length === 0)}
+          disabled={sending || (!text && files.length === 0)}
           className="p-2 rounded bg-primary text-primary-foreground disabled:opacity-50"
           onClick={send}
           title="Send message"

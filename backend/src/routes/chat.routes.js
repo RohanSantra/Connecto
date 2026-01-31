@@ -1,20 +1,20 @@
 import express from "express";
 import {
-  createOneToOneChat,
-  createGroupChat,
-  renameGroup,
-  updateGroupAvatar,
-  addGroupMember,
-  removeGroupMember,
-  promoteMember,
-  demoteMember,
-  deleteChat,
-  pinChat,
-  unpinChat,
-  getAllChats,
-  getChatDetails,
-  getGroupMembers,
-  getChatDevices,
+   createOneToOneChat,
+   createGroupChat,
+   renameGroup,
+   updateGroupAvatar,
+   addGroupMember,
+   removeGroupMember,
+   promoteMember,
+   demoteMember,
+   deleteChat,
+   pinChat,
+   unpinChat,
+   getAllChats,
+   getChatDetails,
+   getGroupMembers,
+   getChatDevices,
 } from "../controllers/chat.controller.js";
 
 import { authMiddleware } from "../middlewares/auth.middleware.js";
@@ -30,7 +30,7 @@ router.post("/one-to-one", authMiddleware, createOneToOneChat);
 /* ==========================================================
    👥 GROUP CHAT CREATION
    ========================================================== */
-router.post("/group", authMiddleware, createGroupChat);
+router.post("/group", authMiddleware, upload.single("avatar"), createGroupChat);
 
 /* ==========================================================
    ✏️ UPDATE GROUP INFO (name/settings)
@@ -41,10 +41,10 @@ router.patch("/group/:chatId", authMiddleware, renameGroup);
    🖼️ UPDATE GROUP AVATAR (Cloudinary)
    ========================================================== */
 router.patch(
-  "/group/:chatId/avatar",
-  authMiddleware,
-  upload.single("avatar"),
-  updateGroupAvatar
+   "/group/:chatId/avatar",
+   authMiddleware,
+   upload.single("avatar"),
+   updateGroupAvatar
 );
 
 /* ==========================================================
@@ -78,7 +78,7 @@ router.get("/group/:chatId/members", authMiddleware, getGroupMembers);
 /* ==========================================================
    📜 FETCH CHATS DEVICES
    ========================================================== */
-router.get("/:chatId/devices",authMiddleware, getChatDevices);
+router.get("/:chatId/devices", authMiddleware, getChatDevices);
 
 
 export default router;

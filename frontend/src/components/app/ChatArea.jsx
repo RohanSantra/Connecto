@@ -1,5 +1,5 @@
 // src/components/chat/ChatArea.jsx
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useCallback } from "react";
 
 import { useChatStore } from "@/store/useChatStore";
 import { useMessageStore } from "@/store/useMessageStore";
@@ -40,6 +40,8 @@ export default function ChatArea() {
     fetchMessages,
     pinnedMessages,
     refreshPinnedMessages,
+    currentPage,
+    hasMore,
   } = useMessageStore();
 
   const { profile } = useProfileStore();
@@ -60,23 +62,24 @@ export default function ChatArea() {
     },
   });
 
+  /* ---------------- FETCH CHAT ---------------- */
   useEffect(() => {
     if (!activeChatId) return;
-
     fetchChatDetails(activeChatId);
-    fetchMessages(activeChatId, 1);
+    fetchMessages(activeChatId, 1);          // first page
     refreshPinnedMessages(activeChatId);
   }, [activeChatId]);
 
+  /* ---------------- SOCKET JOIN ---------------- */
   useEffect(() => {
     if (!activeChatId) return;
     const socket = getSocket();
     if (!socket) return;
-
     joinChat(activeChatId);
     return () => leaveChat(activeChatId);
   }, [activeChatId]);
 
+  /* ---------------- AUTO READ ---------------- */
   useEffect(() => {
     if (!activeChatId) return;
 
@@ -87,7 +90,9 @@ export default function ChatArea() {
       if (!entry.isIntersecting) return;
 
       const socket = getSocket();
-      const lastMsgId = activeChat?.lastMessage?._id ? String(activeChat.lastMessage._id) : null;
+      const lastMsgId = activeChat?.lastMessage?._id
+        ? String(activeChat.lastMessage._id)
+        : null;
 
       if (socket) {
         socket.emit(ChatEventEnum.MESSAGE_READ_EVENT, {
@@ -111,10 +116,18 @@ export default function ChatArea() {
     return () => observer.disconnect();
   }, [activeChatId, messages, activeChat]);
 
-  /* ------------------------------ PARTICIPANTS (use participants) ------------------------------ */
+  /* ---------------- OLDER MESSAGE FETCHER (🔥 IMPORTANT) ---------------- */
+  const fetchOlder = useCallback(
+    async (nextPage) => {
+      if (!activeChatId) return;
+      await fetchMessages(activeChatId, nextPage);
+    },
+    [activeChatId, fetchMessages]
+  );
+
+  /* ---------------- PARTICIPANTS ---------------- */
   const participants = useMemo(() => {
     if (!activeChat) return [];
-    // activeChat.participants should already be normalized with username/avatar
     return (activeChat.participants || []).map((p) => ({
       userId: p.userId,
       role: p.role,
@@ -130,24 +143,34 @@ export default function ChatArea() {
     return participants.find((u) => String(u.userId) !== String(profile.userId));
   }, [activeChat, participants, profile]);
 
-  const chatName = activeChat?.isGroup ? activeChat?.name : otherUser?.username || "User";
-  const chatAvatar = activeChat?.isGroup ? activeChat?.groupAvatarUrl : otherUser?.avatarUrl;
+  const chatName = activeChat?.isGroup
+    ? activeChat?.name
+    : otherUser?.username || "User";
+
+  const chatAvatar = activeChat?.isGroup
+    ? activeChat?.groupAvatarUrl
+    : otherUser?.avatarUrl;
 
   const isTyping = useMemo(() => {
     if (!activeChat) return false;
     const map = typing?.[activeChatId] || {};
-    return activeChat.isGroup ? Object.keys(map).length > 0 : map[otherUser?.userId];
+    return activeChat.isGroup
+      ? Object.keys(map).length > 0
+      : map[otherUser?.userId];
   }, [typing, activeChatId, activeChat, otherUser]);
 
-  const typingText = activeChat?.isGroup ? "Someone is typing…" : "typing…";
+  const typingText = activeChat?.isGroup
+    ? "Someone is typing…"
+    : "typing…";
 
   const statusText = useMemo(() => {
     if (activeChat?.isGroup) return `${participants.length} members`;
     if (!otherUser) return "";
     if (otherUser.isOnline) return "Online";
     if (!otherUser.lastSeenAt) return "Offline";
-
-    return `last seen ${formatDistanceToNowStrict(new Date(otherUser.lastSeenAt))} ago`;
+    return `last seen ${formatDistanceToNowStrict(
+      new Date(otherUser.lastSeenAt)
+    )} ago`;
   }, [otherUser, participants]);
 
   if (!activeChat) {
@@ -166,24 +189,30 @@ export default function ChatArea() {
 
   return (
     <div className="flex flex-col h-full w-full bg-background">
+      {/* HEADER */}
       <div className="flex items-center justify-between px-4 py-3 border-b bg-card">
         <div className="flex items-center gap-3">
-          {isMobile && (
-            <Button variant="ghost" size="icon" onClick={closeChat}>
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-          )}
+          <Button variant="ghost" size="icon" onClick={closeChat}>
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
 
-          <Avatar className="w-10 h-10">
+          <Avatar className="w-10 h-10 rounded-xl">
             <AvatarImage src={chatAvatar} />
-            <AvatarFallback>{chatName?.[0]}</AvatarFallback>
+            <AvatarFallback className="rounded-xl">
+              {chatName?.[0]}
+            </AvatarFallback>
           </Avatar>
 
           <div className="leading-tight">
             <p className="font-medium text-[15px]">{chatName}</p>
-
             <p className="text-xs text-muted-foreground">
-              {isTyping ? <span className="text-primary font-medium">{typingText}</span> : statusText}
+              {isTyping ? (
+                <span className="text-primary font-medium">
+                  {typingText}
+                </span>
+              ) : (
+                statusText
+              )}
             </p>
           </div>
         </div>
@@ -197,7 +226,9 @@ export default function ChatArea() {
           </Button>
 
           <Button
-            onClick={() => (isMobile ? openDetailsView() : openDetailsPanel())}
+            onClick={() =>
+              isMobile ? openDetailsView() : openDetailsPanel()
+            }
           >
             <Info className="w-4 h-4" />
           </Button>
@@ -210,13 +241,20 @@ export default function ChatArea() {
 
       <PinnedMessagesBar pinnedMessages={pinnedMessages} />
 
+      {/* MESSAGE LIST WITH PAGINATION */}
       <div className="flex-1 overflow-hidden">
         {getSocket() == null ? (
           <div className="flex justify-center items-center h-full">
             <Loader2 className="w-6 h-6 animate-spin" />
           </div>
         ) : (
-          <MessageList messages={messages} currentUserId={profile.userId} />
+          <MessageList
+            messages={messages}
+            currentUserId={profile.userId}
+            fetchOlderMessages={fetchOlder}
+            hasMore={hasMore}
+            page={currentPage}
+          />
         )}
       </div>
 
@@ -224,7 +262,12 @@ export default function ChatArea() {
         <MessageComposer chatId={activeChatId} />
       </div>
 
-      {mediaDocsOpen && <MediaDocsOverlay chatId={activeChatId} onClose={closeMediaDocs} />}
+      {mediaDocsOpen && (
+        <MediaDocsOverlay
+          chatId={activeChatId}
+          onClose={closeMediaDocs}
+        />
+      )}
     </div>
   );
 }

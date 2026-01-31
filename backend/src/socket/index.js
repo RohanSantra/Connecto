@@ -261,7 +261,7 @@ function mountMessageEvents(socket, io) {
   forwardToChat(io, socket, ChatEventEnum.CHAT_CLEARED_EVENT);
   forwardToChat(io, socket, ChatEventEnum.MESSAGE_PIN_EVENT);
   forwardToChat(io, socket, ChatEventEnum.MESSAGE_UNPIN_EVENT);
-  forwardToChat(io, socket, ChatEventEnum.MESSAGE_DELIVERED_EVENT);
+  // forwardToChat(io, socket, ChatEventEnum.MESSAGE_DELIVERED_EVENT);
   forwardToChat(io, socket, ChatEventEnum.MESSAGE_READ_EVENT);
 
   // reactions (these often include messageId and chatId)
@@ -269,12 +269,14 @@ function mountMessageEvents(socket, io) {
   forwardToChat(io, socket, ChatEventEnum.MESSAGE_REACTION_REMOVED_EVENT);
 }
 
+/*
 function mountGroupEvents(socket, io) {
   forwardToChat(io, socket, ChatEventEnum.UPDATE_GROUP_NAME_EVENT);
   forwardToChat(io, socket, ChatEventEnum.UPDATE_GROUP_AVATAR_EVENT);
   forwardToChat(io, socket, ChatEventEnum.GROUP_MEMBER_ADDED_EVENT);
   forwardToChat(io, socket, ChatEventEnum.GROUP_MEMBER_REMOVED_EVENT);
 }
+*/
 
 function mountProfileEvents(socket, io) {
   // profile events can be broadcast globally or to userRoom depending on payload
@@ -378,7 +380,7 @@ export function initializeSocket(server, app) {
     // mount features
     mountTypingEvents(socket, io);
     mountMessageEvents(socket, io);
-    mountGroupEvents(socket, io);
+    // mountGroupEvents(socket, io);
     mountProfileEvents(socket, io);
     mountCallEvents(socket, io);
 

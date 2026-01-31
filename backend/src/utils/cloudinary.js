@@ -21,9 +21,9 @@ export const uploadOnCloudinary = async (localFilePath) => {
     if (!localFilePath) return null;
 
 
-    const isDocument = /\.(pdf|docx?|xlsx?|pptx?|txt)$/i.test(path);
+    const isDocument = /\.(pdf|docx?|xlsx?|pptx?|txt)$/i.test(localFilePath);
 
-    const uploaded = await cloudinary.uploader.upload(path, {
+    const uploaded = await cloudinary.uploader.upload(localFilePath, {
       resource_type: isDocument ? "raw" : "auto",
       type: "upload"
     });
@@ -47,28 +47,32 @@ export const uploadMultipleOnCloudinary = async (localFilePaths = []) => {
     if (!Array.isArray(localFilePaths) || localFilePaths.length === 0) return [];
 
     const results = [];
-    for (const path of localFilePaths) {
-      const isDocument = /\.(pdf|docx?|xlsx?|pptx?|txt)$/i.test(path);
 
-      const uploaded = await cloudinary.uploader.upload(path, {
+    for (const filePath of localFilePaths) {
+      const isDocument = /\.(pdf|docx?|xlsx?|pptx?|txt)$/i.test(filePath);
+
+      const uploaded = await cloudinary.uploader.upload(filePath, {
         resource_type: isDocument ? "raw" : "auto",
-        type: "upload"
+        type: "upload",
       });
+
       results.push(uploaded);
-      fs.unlinkSync(path);
+      fs.unlinkSync(filePath);
     }
 
     return results;
+
   } catch (error) {
     console.error("❌ Failed to upload multiple files:", error);
-    for (const path of localFilePaths) {
-      try {
-        fs.unlinkSync(path);
-      } catch { }
+
+    for (const filePath of localFilePaths) {
+      try { fs.unlinkSync(filePath); } catch { }
     }
+
     return [];
   }
 };
+
 
 // =====================================================
 // 3️⃣ DELETE SINGLE FILE

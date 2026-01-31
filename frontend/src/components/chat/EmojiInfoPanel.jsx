@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useMessageStore } from "@/store/useMessageStore";
 
 import {
@@ -19,6 +19,17 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useResponsiveDrawer } from "@/hooks/useResponsiveDrawer";
 
+import { X as CloseIcon } from "lucide-react";
+
+const formatDateTime = (iso) => {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString();
+  } catch {
+    return iso || "";
+  }
+};
+
 export default function EmojiInfoPanel({ open, onClose, message }) {
   const fetchReactions = useMessageStore((s) => s.fetchReactions);
 
@@ -29,34 +40,46 @@ export default function EmojiInfoPanel({ open, onClose, message }) {
   const [activeTab, setActiveTab] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // fetch reactions
   useEffect(() => {
     if (!open || !message?._id) return;
 
     setLoading(true);
-    fetchReactions(message._id).then((res) => {
-      setGroups(res);
+    fetchReactions(message._id)
+      .then((res) => {
+        setGroups(res || []);
 
-      // dynamic tabs: pick first emoji OR "all"
-      if (res.length > 1) {
-        setActiveTab("all");
-      } else if (res.length === 1) {
-        setActiveTab(res[0].emoji);
-      }
+        if (res && res.length > 1) {
+          setActiveTab("all");
+        } else if (res && res.length === 1) {
+          setActiveTab(res[0].emoji);
+        } else {
+          setActiveTab(null);
+        }
+      })
+      .catch(() => {
+        setGroups([]);
+        setActiveTab(null);
+      })
+      .finally(() => setLoading(false));
+  }, [open, message?._id, fetchReactions]);
 
-      setLoading(false);
-    });
-  }, [open, message?._id]);
+  const totalReactions = useMemo(
+    () => groups.reduce((s, g) => s + (g.users?.length || 0), 0),
+    [groups]
+  );
 
-  // dynamic tab list
-  const emojiTabs = groups.map((g) => g.emoji);
+  const emojiTabs = useMemo(
+    () => groups.map((g) => ({ emoji: g.emoji, count: g.users?.length || 0 })),
+    [groups]
+  );
 
-  // show All tab only if having more than 1 emoji
   const showAll = groups.length > 1;
 
   const getUsers = () => {
-    if (activeTab === "all") return groups.flatMap((g) => g.users);
-    return groups.find((g) => g.emoji === activeTab)?.users || [];
+    if (!groups || groups.length === 0) return [];
+    if (activeTab === "all") return groups.flatMap((g) => g.users || []);
+    const g = groups.find((x) => x.emoji === activeTab);
+    return (g && g.users) || [];
   };
 
   if (!open) return null;
@@ -65,54 +88,103 @@ export default function EmojiInfoPanel({ open, onClose, message }) {
     <Drawer direction={drawerDirection} open={open} onOpenChange={onClose}>
       <DrawerContent
         className={`bg-card border-t md:border-l rounded-none md:rounded-l-xl shadow-xl
-          ${isMobile ? "h-[70vh]" : "w-[380px] h-full"}
+          ${isMobile ? "h-[70vh]" : "w-[420px] h-full"}
         `}
       >
-        <DrawerHeader className="border-b px-4 py-3">
-          <DrawerTitle className="text-lg font-semibold">Reactions</DrawerTitle>
-          <p className="text-sm text-muted-foreground">See who reacted to this message</p>
+        {/* Header */}
+        <DrawerHeader className="grid grid-cols-2 gap-2 items-center justify-between border-b px-4 py-3">
+          <div>
+            <DrawerTitle className="text-lg font-semibold">Reactions</DrawerTitle>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              See who reacted to this message —{" "}
+              <span className="font-medium">{totalReactions}</span> total
+            </p>
+          </div>
+
+          {/* CLOSE BUTTON RIGHT END */}
+          <button
+            aria-label="Close"
+            onClick={() => onClose(false)}
+            className="ml-auto inline-flex items-center justify-center rounded-md p-2 hover:bg-muted/50 transition"
+          >
+            <CloseIcon className="w-4 h-4 text-muted-foreground" />
+          </button>
         </DrawerHeader>
 
+        {/* Body */}
         <div className="p-4 overflow-y-auto h-full">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-
-            <TabsList className={`grid ${showAll ? `grid-cols-${groups.length + 1}` : `grid-cols-${groups.length}`} mb-4`}>
+          <Tabs
+            value={activeTab}
+            onValueChange={setActiveTab}
+            className="w-full"
+          >
+            <TabsList className="flex flex-wrap gap-2 mb-4">
               {showAll && (
-                <TabsTrigger value="all">
-                  All
+                <TabsTrigger
+                  value="all"
+                  className="px-3 py-1 rounded-full text-sm font-medium shadow-sm bg-muted/10"
+                >
+                  All{" "}
+                  <span className="ml-2 text-xs tabular-nums text-muted-foreground">
+                    ({totalReactions})
+                  </span>
                 </TabsTrigger>
               )}
 
-              {emojiTabs.map((emoji) => (
-                <TabsTrigger key={emoji} value={emoji}>
-                  {emoji}
+              {emojiTabs.map((t) => (
+                <TabsTrigger
+                  key={t.emoji}
+                  value={t.emoji}
+                  className="px-3 py-1 rounded-full text-sm font-medium shadow-sm bg-muted/10 flex items-center gap-2"
+                >
+                  <span className="text-[18px] leading-none">{t.emoji}</span>
+                  <span className="text-xs tabular-nums text-muted-foreground">
+                    ({t.count})
+                  </span>
                 </TabsTrigger>
               ))}
             </TabsList>
 
-            {/* Content */}
             <TabsContent value={activeTab}>
               {loading ? (
-                <p className="text-sm text-muted-foreground text-center py-3">
-                  Loading…
-                </p>
+                <div className="space-y-3">
+                  {[0, 1, 2, 3].map((n) => (
+                    <div key={n} className="flex items-center gap-3 animate-pulse">
+                      <div className="w-9 h-9 rounded-full bg-muted-foreground/20" />
+                      <div className="flex-1">
+                        <div className="h-3 w-3/5 bg-muted-foreground/20 rounded mb-2" />
+                        <div className="h-2 w-1/4 bg-muted-foreground/20 rounded" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : getUsers().length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-3">
-                  No reactions
-                </p>
+                <div className="py-8 text-center">
+                  <p className="text-sm text-muted-foreground">No reactions to show.</p>
+                </div>
               ) : (
-                <div className="flex flex-col gap-3">
+                <div className="flex flex-col divide-y divide-border">
                   {getUsers().map((u) => (
-                    <div key={u.userId} className="flex items-center gap-3">
-                      <Avatar className="h-9 w-9">
-                        <AvatarImage src={u.avatarUrl} />
-                        <AvatarFallback>{u.username?.[0] || "U"}</AvatarFallback>
+                    <div
+                      key={u.userId || u.id || u.username}
+                      className="flex items-center gap-3 py-3"
+                    >
+                      <Avatar className="h-10 w-10">
+                        {u.avatarUrl ? (
+                          <AvatarImage src={u.avatarUrl} />
+                        ) : (
+                          <AvatarFallback>
+                            {(u.username || "U")[0]}
+                          </AvatarFallback>
+                        )}
                       </Avatar>
 
-                      <div>
-                        <p className="text-sm font-medium">{u.username}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(u.reactedAt).toLocaleString()}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {u.username || u.displayName || "Unknown"}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {formatDateTime(u.reactedAt)}
                         </p>
                       </div>
                     </div>

@@ -13,6 +13,15 @@ import MediaGalleryManager, {
     groupByDate,
 } from "./MediaGalleryManager";
 import FileViewer from "./FileViewer";
+import {
+    Select,
+    SelectTrigger,
+    SelectValue,
+    SelectContent,
+    SelectItem,
+} from "@/components/ui/select";
+import MediaGallerySkeleton from "../Skeleton/MediaGallerySkeleton";
+
 
 function formatSize(size) {
     if (!size) return "";
@@ -31,6 +40,8 @@ export default function MediaDocsOverlay({ chatId }) {
     const [docs, setDocs] = useState([]);
     const [viewerFile, setViewerFile] = useState(null);
 
+    // 🔥 NEW — sort state
+    const [sortBy, setSortBy] = useState("date");
 
     useEffect(() => {
         if (!chatId) return;
@@ -56,13 +67,29 @@ export default function MediaDocsOverlay({ chatId }) {
         [media]
     );
 
-    const docsByDate = useMemo(() => groupByDate(docs), [docs]);
+    // 🔥 Sorted docs
+    const sortedDocs = useMemo(() => {
+        const out = [...docs];
+
+        if (sortBy === "newest") out.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        if (sortBy === "oldest") out.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+        if (sortBy === "size") out.sort((a, b) => (b.size || 0) - (a.size || 0));
+
+        return out;
+    }, [docs, sortBy]);
+
+    // 🔥 Group only if date sort
+    const groupedDocs = useMemo(() => {
+        if (sortBy !== "date") return null;
+        return groupByDate(sortedDocs);
+    }, [sortedDocs, sortBy]);
 
     return (
         <>
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-998" onClick={closeMediaDocs} />
             <div className="fixed inset-0 z-999 flex items-center justify-center px-2 sm:px-4 py-4">
                 <div className="relative flex h-full w-full max-w-5xl flex-col rounded-2xl bg-card shadow-xl border overflow-hidden">
+
                     {/* Header */}
                     <div className="flex items-center justify-between px-4 py-3 border-b">
                         <div className="flex items-center gap-3">
@@ -74,40 +101,47 @@ export default function MediaDocsOverlay({ chatId }) {
                             <div className="flex rounded-full bg-muted/60 p-1 text-xs">
                                 <button
                                     onClick={() => setActiveTab("media")}
-                                    className={cn(
-                                        "px-3 py-1 rounded-full transition",
-                                        activeTab === "media"
-                                            ? "bg-background shadow-sm"
-                                            : "text-muted-foreground"
-                                    )}
+                                    className={cn("px-3 py-1 rounded-full transition",
+                                        activeTab === "media" ? "bg-background shadow-sm" : "text-muted-foreground")}
                                 >
                                     Media
                                 </button>
                                 <button
                                     onClick={() => setActiveTab("docs")}
-                                    className={cn(
-                                        "px-3 py-1 rounded-full transition",
-                                        activeTab === "docs"
-                                            ? "bg-background shadow-sm"
-                                            : "text-muted-foreground"
-                                    )}
+                                    className={cn("px-3 py-1 rounded-full transition",
+                                        activeTab === "docs" ? "bg-background shadow-sm" : "text-muted-foreground")}
                                 >
                                     Documents
                                 </button>
                             </div>
+
+                            {/* 🔥 Sort dropdown for documents */}
+                            {activeTab === "docs" && (
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    <span>Sort</span>
+
+                                    <Select value={sortBy} onValueChange={setSortBy}>
+                                        <SelectTrigger className="h-8 w-[120px] text-xs">
+                                            <SelectValue placeholder="Sort" />
+                                        </SelectTrigger>
+
+                                        <SelectContent position="popper" className="z-[9999]">
+                                            <SelectItem value="date">Date</SelectItem>
+                                            <SelectItem value="newest">Newest</SelectItem>
+                                            <SelectItem value="oldest">Oldest</SelectItem>
+                                            <SelectItem value="size">Size (desc)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                            )}
                         </div>
 
                         <div className="flex items-center gap-2">
-                            <button
-                                onClick={loadData}
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-muted"
-                            >
+                            <button onClick={loadData} className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-muted">
                                 <RefreshCw className="w-4 h-4" />
                             </button>
-                            <button
-                                onClick={closeMediaDocs}
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-muted"
-                            >
+                            <button onClick={closeMediaDocs} className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-muted">
                                 <X className="w-4 h-4" />
                             </button>
                         </div>
@@ -116,8 +150,8 @@ export default function MediaDocsOverlay({ chatId }) {
                     {/* Body */}
                     <div className="flex-1 overflow-hidden">
                         {loading ? (
-                            <div className="h-full flex items-center justify-center">
-                                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                            <div className="h-full w-full overflow-hidden px-3 pb-3 pt-2">
+                                <MediaGallerySkeleton activeTab={activeTab}/>
                             </div>
                         ) : activeTab === "media" ? (
                             <div className="h-full overflow-hidden px-3 pb-3 pt-2">
@@ -125,19 +159,17 @@ export default function MediaDocsOverlay({ chatId }) {
                             </div>
                         ) : (
                             <div className="h-full overflow-y-auto px-3 pb-3 pt-2 scroll-thumb-only">
-                                {docsByDate.length === 0 ? (
+                                {sortedDocs.length === 0 ? (
                                     <div className="flex flex-col items-center justify-center text-sm text-muted-foreground h-full">
                                         <FileText className="w-8 h-8 mb-2" />
                                         <p>No documents shared yet</p>
                                     </div>
-                                ) : (
-                                    docsByDate.map(([label, arr]) => (
+                                ) : sortBy === "date" ? (
+                                    groupedDocs.map(([label, arr]) => (
                                         <section key={label} className="mb-5">
                                             <div className="flex items-center gap-2 mb-2">
                                                 <Calendar className="w-4 h-4 text-muted-foreground" />
-                                                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                                    {label}
-                                                </h3>
+                                                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</h3>
                                                 <span className="text-[11px] text-muted-foreground/80">
                                                     {arr.length} item{arr.length > 1 ? "s" : ""}
                                                 </span>
@@ -150,18 +182,19 @@ export default function MediaDocsOverlay({ chatId }) {
                                             </div>
                                         </section>
                                     ))
+                                ) : (
+                                    <div className="space-y-2">
+                                        {sortedDocs.map((doc) => (
+                                            <DocRow key={doc._id} item={doc} onView={setViewerFile} />
+                                        ))}
+                                    </div>
                                 )}
                             </div>
                         )}
                     </div>
                 </div>
-                {viewerFile && (
-                    <FileViewer
-                        file={viewerFile}
-                        onClose={() => setViewerFile(null)}
-                    />
-                )}
 
+                {viewerFile && <FileViewer file={viewerFile} onClose={() => setViewerFile(null)} />}
             </div>
         </>
     );

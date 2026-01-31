@@ -15,6 +15,41 @@ import { badgeFor } from "@/lib/fileBadge";
 import SeekableWaveform from "./SeekableWaveform";
 import { detectKind } from "@/lib/detectKind";
 import formatSize from "@/lib/formatSize";
+import {
+    Select,
+    SelectTrigger,
+    SelectValue,
+    SelectContent,
+    SelectItem,
+} from "@/components/ui/select";
+
+
+
+function useLazyMedia(rootMargin = "300px") {
+    const ref = React.useRef(null);
+    const [visible, setVisible] = React.useState(false);
+
+    React.useEffect(() => {
+        const el = ref.current;
+        if (!el) return;
+
+        const obs = new IntersectionObserver(
+            ([entry]) => {
+                if (entry.isIntersecting) {
+                    setVisible(true);
+                    obs.disconnect();
+                }
+            },
+            { rootMargin }
+        );
+
+        obs.observe(el);
+        return () => obs.disconnect();
+    }, []);
+
+    return [ref, visible];
+}
+
 
 /* ------------ Kind detection helpers ------------ */
 export const isImage = (m) =>
@@ -74,11 +109,11 @@ export function groupByDate(items = []) {
 ========================================================= */
 export default function MediaGalleryManager({ items = [], withinParent = false }) {
     const [filter, setFilter] = useState("image");
-    const [sortBy, setSortBy] = useState("newest");
+    const [sortBy, setSortBy] = useState("date");
     const [selected, setSelected] = useState(() => new Set());
     const [fullscreenIndex, setFullscreenIndex] = useState(null);
     const [fullscreenOpen, setFullscreenOpen] = useState(false);
-    
+
 
     /* auto switch when empty */
     useEffect(() => {
@@ -92,8 +127,7 @@ export default function MediaGalleryManager({ items = [], withinParent = false }
 
     /* filtering + sorting */
     const filtered = useMemo(() => {
-        let out = [...items];
-        out = out.filter((it) => detectKind(it) === filter);
+        let out = items.filter((it) => detectKind(it) === filter);
 
         if (sortBy === "newest") out.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         if (sortBy === "oldest") out.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
@@ -102,7 +136,11 @@ export default function MediaGalleryManager({ items = [], withinParent = false }
         return out;
     }, [items, filter, sortBy]);
 
-    const grouped = useMemo(() => groupByDate(filtered), [filtered]);
+    const grouped = useMemo(() => {
+        if (sortBy !== "date") return null;
+        return groupByDate(filtered);
+    }, [filtered, sortBy]);
+
 
     const toggleSelect = useCallback((item) => {
         const id = mediaKey(item);
@@ -151,15 +189,21 @@ export default function MediaGalleryManager({ items = [], withinParent = false }
                     <FilterPills filter={filter} onChange={setFilter} />
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <span>Sort</span>
-                        <select
-                            value={sortBy}
-                            onChange={(e) => setSortBy(e.target.value)}
-                            className="rounded-md border bg-background px-2 py-1 text-xs"
-                        >
-                            <option value="newest">Newest</option>
-                            <option value="oldest">Oldest</option>
-                            <option value="size">Size (desc)</option>
-                        </select>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Select value={sortBy} onValueChange={setSortBy}>
+                                <SelectTrigger className="h-8 w-[120px] text-xs">
+                                    <SelectValue placeholder="Sort" />
+                                </SelectTrigger>
+
+                                <SelectContent className="z-[9999]" position="popper">
+                                    <SelectItem value="date">Date</SelectItem>
+                                    <SelectItem value="newest">Newest</SelectItem>
+                                    <SelectItem value="oldest">Oldest</SelectItem>
+                                    <SelectItem value="size">Size (desc)</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
                     </div>
                 </div>
 
@@ -188,11 +232,11 @@ export default function MediaGalleryManager({ items = [], withinParent = false }
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto pr-1 scroll-thumb-only">
-                {grouped.length === 0 ? (
+                {filtered.length === 0 ? (
                     <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
                         No media found
                     </div>
-                ) : (
+                ) : sortBy === "date" ? (
                     grouped.map(([label, arr]) => (
                         <section key={label} className="mb-5">
                             <div className="mb-2 flex items-center gap-2">
@@ -205,20 +249,16 @@ export default function MediaGalleryManager({ items = [], withinParent = false }
                                 </span>
                             </div>
 
-                            {/* AUDIO LIST */}
                             {filter === "audio" ? (
                                 <div className="flex flex-col gap-2">
-                                    {arr.map((it) => {
-                                        const idx = filtered.findIndex((x) => mediaKey(x) === mediaKey(it));
-                                        return (
-                                            <AudioRow
-                                                key={mediaKey(it)}
-                                                item={it}
-                                                selected={selected.has(mediaKey(it))}
-                                                onToggle={() => toggleSelect(it)}
-                                            />
-                                        );
-                                    })}
+                                    {arr.map((it) => (
+                                        <AudioRow
+                                            key={mediaKey(it)}
+                                            item={it}
+                                            selected={selected.has(mediaKey(it))}
+                                            onToggle={() => toggleSelect(it)}
+                                        />
+                                    ))}
                                 </div>
                             ) : (
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
@@ -238,8 +278,32 @@ export default function MediaGalleryManager({ items = [], withinParent = false }
                             )}
                         </section>
                     ))
+                ) : filter === "audio" ? (
+                    <div className="flex flex-col gap-2">
+                        {filtered.map((it) => (
+                            <AudioRow
+                                key={mediaKey(it)}
+                                item={it}
+                                selected={selected.has(mediaKey(it))}
+                                onToggle={() => toggleSelect(it)}
+                            />
+                        ))}
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                        {filtered.map((it, idx) => (
+                            <ThumbCard
+                                key={mediaKey(it)}
+                                item={it}
+                                selected={selected.has(mediaKey(it))}
+                                onToggle={() => toggleSelect(it)}
+                                onOpen={() => openFullscreenAt(idx)}
+                            />
+                        ))}
+                    </div>
                 )}
             </div>
+
 
             {/* Fullscreen Viewer */}
             {fullscreenOpen && (
@@ -285,19 +349,21 @@ function FilterPills({ filter, onChange }) {
 
 /* ------------ Thumbnail Card (images/videos) ------------ */
 function ThumbCard({ item, selected, onToggle, onOpen }) {
-    const [loaded, setLoaded] = useState(false);
     const kind = detectKind(item);
     const src = getMediaSrc(item);
     const badge = badgeFor(item.filename, kind);
+    const [mediaRef, show] = useLazyMedia();
+    const [loaded, setLoaded] = useState(false);
 
     return (
-        <div className="group relative">
+        <div ref={mediaRef} className="group relative">
             <button
                 type="button"
                 onClick={onOpen}
                 className="block w-full overflow-hidden rounded-xl bg-muted/60 shadow-sm"
             >
                 <div className="relative aspect-3/4 w-full">
+                    {/* skeleton */}
                     <div
                         className={cn(
                             "absolute inset-0 bg-muted animate-pulse",
@@ -305,10 +371,11 @@ function ThumbCard({ item, selected, onToggle, onOpen }) {
                         )}
                     />
 
-                    {kind === "image" && (
+                    {show && kind === "image" && (
                         <img
                             src={src}
                             alt={item.filename}
+                            loading="lazy"
                             className={cn(
                                 "absolute inset-0 w-full h-full object-cover transition duration-300",
                                 loaded ? "opacity-100 scale-100" : "opacity-0 scale-[1.02]"
@@ -317,16 +384,16 @@ function ThumbCard({ item, selected, onToggle, onOpen }) {
                         />
                     )}
 
-                    {kind === "video" && (
+                    {show && kind === "video" && (
                         <video
                             src={src}
+                            muted
+                            playsInline
+                            preload="metadata"
                             className={cn(
                                 "absolute inset-0 w-full h-full object-cover transition",
                                 loaded ? "opacity-100 scale-100" : "opacity-0 scale-[1.02]"
                             )}
-                            muted
-                            playsInline
-                            preload="metadata"
                             onLoadedData={() => setLoaded(true)}
                         />
                     )}
@@ -355,10 +422,11 @@ function ThumbCard({ item, selected, onToggle, onOpen }) {
     );
 }
 
+
 /* ------------ Audio list row ------------ */
 function AudioRow({ item, selected, onToggle }) {
     const src = getMediaSrc(item);
-    
+
     function getResponsiveBarCount() {
         const w = typeof window !== "undefined" ? window.innerWidth : 360;
 

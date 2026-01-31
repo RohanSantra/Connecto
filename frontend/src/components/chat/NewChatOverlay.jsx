@@ -204,7 +204,9 @@ export default function NewChatOverlay() {
                         {results.map((u, i) => {
                             const isFocused = i === focusedIndex;
                             const label = u.username || (u.user && u.user.username) || "Unknown";
-                            const preview = u.bio || (u.lastSeen ? `Last seen ${new Date(u.lastSeen).toLocaleString()}` : "Offline");
+                            const preview = u.lastSeen
+                                ? `Last seen ${new Date(u.lastSeen).toLocaleString()}`
+                                : "Offline";
                             return (
                                 <div
                                     id={`nc-item-${i}`}
@@ -233,7 +235,7 @@ export default function NewChatOverlay() {
                                             </div>
 
                                             <div className="text-xs text-muted-foreground truncate mt-0.5">
-                                                {highlightMatches(preview, search)}
+                                                {preview}
                                             </div>
                                         </div>
                                     </div>

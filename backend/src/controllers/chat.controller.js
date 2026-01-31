@@ -10,33 +10,39 @@ import mongoose from "mongoose";
 import {
   uploadOnCloudinary,
   deleteFromCloudinary,
-  deleteMultipleFromCloudinary
+  deleteMultipleFromCloudinary,
 } from "../utils/cloudinary.js";
 import { emitSocketEvent } from "../socket/index.js";
 import { ChatEventEnum } from "../constants.js";
 
 /* ============================================================
+   HELPER — Emit chat update to ALL members (by user room)
+   ============================================================ */
+async function emitChatToAllMembers(req, chatId, event, payload) {
+  const members = await ChatMember.find({ chatId }).select("userId").lean();
+  members.forEach((m) => {
+    emitSocketEvent(req, "user", m.userId.toString(), event, payload);
+  });
+}
+
+/* ============================================================
    INTERNAL — Build participants[]
    ============================================================ */
 async function buildParticipants(members, profileLookup) {
-  const participants = members.map((m) => {
-    const prof = profileLookup.find(
-      (p) => String(p.userId) === String(m.userId)
-    );
+  const map = new Map(profileLookup.map((p) => [String(p.userId), p]));
 
+  return members.map((m) => {
+    const prof = map.get(String(m.userId));
     return {
       userId: m.userId,
       role: m.role,
-      lastSeenAt: m.lastSeenAt || null,
+      lastSeen: m.lastSeenAt || null,
       username: prof?.username || "Unknown",
       avatarUrl: prof?.avatarUrl || null,
       bio: prof?.bio || null,
       isOnline: prof?.isOnline || false,
-      lastSeen: prof?.lastSeenAt || null
     };
   });
-
-  return participants;
 }
 
 /* ============================================================
@@ -54,63 +60,64 @@ async function getFullChat(chatId, currentUserId) {
         from: "chatmembers",
         localField: "_id",
         foreignField: "chatId",
-        as: "members"
-      }
+        as: "members",
+      },
     },
 
     {
       $lookup: {
         from: "profiles",
         let: { ids: "$members.userId" },
-        pipeline: [
-          { $match: { $expr: { $in: ["$userId", "$$ids"] } } }
-        ],
-        as: "profileLookup"
-      }
+        pipeline: [{ $match: { $expr: { $in: ["$userId", "$$ids"] } } }],
+        as: "profileLookup",
+      },
     },
 
+    // optimized last message fetch
     {
       $lookup: {
         from: "messages",
-        localField: "_id",
-        foreignField: "chatId",
-        as: "messages"
-      }
+        let: { cid: "$_id" },
+        pipeline: [
+          { $match: { $expr: { $eq: ["$chatId", "$$cid"] } } },
+          { $sort: { createdAt: -1 } },
+          { $limit: 1 },
+        ],
+        as: "lastMessage",
+      },
     },
-    { $addFields: { lastMessage: { $last: "$messages" } } },
+    { $unwind: { path: "$lastMessage", preserveNullAndEmptyArrays: true } },
 
     {
       $project: {
-        isGroup: "$isGroup",
-        name: "$name",
-        description: "$description",
-        groupAvatarUrl: "$groupAvatarUrl",
+        isGroup: 1,
+        name: 1,
+        description: 1,
+        groupAvatarUrl: 1,
         members: 1,
         profileLookup: 1,
-        lastMessage: 1
-      }
-    }
+        lastMessage: 1,
+        createdAt: 1,
+      },
+    },
   ]);
 
   if (!result.length) return null;
 
   const chat = result[0];
-
   chat.participants = await buildParticipants(chat.members, chat.profileLookup);
 
-  // ⭐ extract unreadCount from ChatMember for THIS user
-  const my = chat.members.find(m => String(m.userId) === String(currentUserId));
+  const my = chat.members.find(
+    (m) => String(m.userId) === String(currentUserId)
+  );
   chat.unreadCount = my?.unreadCount || 0;
 
   delete chat.members;
   delete chat.profileLookup;
-  delete chat.messages;
 
   chat.chatId = chat._id;
-
   return chat;
 }
-
 
 /* ============================================================
    1️⃣ CREATE ONE-TO-ONE CHAT
@@ -130,24 +137,24 @@ export const createOneToOneChat = asyncHandler(async (req, res) => {
         from: "chatmembers",
         localField: "chatId",
         foreignField: "chatId",
-        as: "members"
-      }
+        as: "members",
+      },
     },
     {
       $match: {
-        "members.userId": new mongoose.Types.ObjectId(participantId)
-      }
+        "members.userId": new mongoose.Types.ObjectId(participantId),
+      },
     },
     {
       $lookup: {
         from: "chats",
         localField: "chatId",
         foreignField: "_id",
-        as: "chat"
-      }
+        as: "chat",
+      },
     },
     { $unwind: "$chat" },
-    { $match: { "chat.isGroup": false } }
+    { $match: { "chat.isGroup": false } },
   ]);
 
   if (existing.length) {
@@ -160,12 +167,12 @@ export const createOneToOneChat = asyncHandler(async (req, res) => {
   // create new
   const newChat = await Chat.create({
     isGroup: false,
-    creator: req.user._id
+    creator: req.user._id,
   });
 
   await ChatMember.insertMany([
     { chatId: newChat._id, userId: req.user._id },
-    { chatId: newChat._id, userId: participantId }
+    { chatId: newChat._id, userId: participantId },
   ]);
 
   const chat = await getFullChat(newChat._id, req.user._id);
@@ -195,10 +202,24 @@ export const createOneToOneChat = asyncHandler(async (req, res) => {
    2️⃣ CREATE GROUP CHAT
    ============================================================ */
 export const createGroupChat = asyncHandler(async (req, res) => {
-  const { name, memberIds = [], description } = req.body;
+  let { name, memberIds = [], description } = req.body;
 
-  if (!name || memberIds.length < 2)
-    throw new ApiError(400, "Group name and at least 2 members required");
+  if (typeof memberIds === "string") {
+    try {
+      memberIds = JSON.parse(memberIds);
+    } catch {
+      throw new ApiError(400, "Invalid memberIds format");
+    }
+  }
+
+  const avatarFile = req.file?.path;
+  let avatarUrl = null;
+
+  if (avatarFile) {
+    const uploaded = await uploadOnCloudinary(avatarFile);
+    if (!uploaded) throw new ApiError(500, "Group avatar upload failed");
+    avatarUrl = uploaded.secure_url;
+  }
 
   const all = [...new Set([...memberIds, req.user._id.toString()])];
 
@@ -206,28 +227,26 @@ export const createGroupChat = asyncHandler(async (req, res) => {
     isGroup: true,
     name,
     description,
-    creator: req.user._id
+    creator: req.user._id,
+    groupAvatarUrl: avatarUrl,
   });
 
   await ChatMember.insertMany(
     all.map((id) => ({
       chatId: newChat._id,
       userId: id,
-      role: id === req.user._id.toString() ? "admin" : "member"
+      role: id === req.user._id.toString() ? "admin" : "member",
     }))
   );
 
   const chat = await getFullChat(newChat._id, req.user._id);
 
-  all.forEach((uid) => {
-    emitSocketEvent(req, "user", uid, ChatEventEnum.NEW_CHAT_EVENT, {
-      chat
-    });
+  // notify all members
+  await emitChatToAllMembers(req, newChat._id, ChatEventEnum.NEW_CHAT_EVENT, {
+    chat,
   });
 
-  return res
-    .status(201)
-    .json(new ApiResponse(201, chat, "Group created"));
+  return res.status(201).json(new ApiResponse(201, chat, "Group created"));
 });
 
 /* ============================================================
@@ -242,16 +261,14 @@ export const renameGroup = asyncHandler(async (req, res) => {
 
   const me = await ChatMember.findOne({
     chatId,
-    userId: req.user._id
+    userId: req.user._id,
   });
   if (!me) throw new ApiError(403, "Not a member");
 
   const canRename =
-    me.role === "admin" ||
-    (chat.settings && chat.settings.allowAnyoneToRename);
+    me.role === "admin" || (chat.settings && chat.settings.allowAnyoneToRename);
 
-  if (!canRename)
-    throw new ApiError(403, "No permission");
+  if (!canRename) throw new ApiError(403, "No permission");
 
   if (newName) chat.name = newName;
   if (description !== undefined) chat.description = description;
@@ -261,12 +278,12 @@ export const renameGroup = asyncHandler(async (req, res) => {
 
   const updated = await getFullChat(chatId, req.user._id);
 
-  emitSocketEvent(
+  // emit to all members (to update sidebar, etc.)
+  await emitChatToAllMembers(
     req,
-    "chat",
     chatId,
     ChatEventEnum.UPDATE_GROUP_NAME_EVENT,
-    updated
+    { chat: updated }
   );
 
   return res.status(200).json(new ApiResponse(200, updated, "Updated"));
@@ -284,7 +301,7 @@ export const updateGroupAvatar = asyncHandler(async (req, res) => {
 
   const me = await ChatMember.findOne({
     chatId,
-    userId: req.user._id
+    userId: req.user._id,
   });
 
   if (!me) throw new ApiError(403, "Not a member");
@@ -298,12 +315,13 @@ export const updateGroupAvatar = asyncHandler(async (req, res) => {
   if (chat.groupAvatarPublicId) {
     try {
       await deleteFromCloudinary(chat.groupAvatarPublicId);
-    } catch { }
+    } catch {
+      /* ignore deletion errors */
+    }
   }
 
   const upload = await uploadOnCloudinary(req.file.path);
-  if (!upload?.secure_url)
-    throw new ApiError(500, "Upload failed");
+  if (!upload?.secure_url) throw new ApiError(500, "Upload failed");
 
   chat.groupAvatarUrl = upload.secure_url;
   chat.groupAvatarPublicId = upload.public_id;
@@ -311,12 +329,11 @@ export const updateGroupAvatar = asyncHandler(async (req, res) => {
 
   const updated = await getFullChat(chatId, req.user._id);
 
-  emitSocketEvent(
+  await emitChatToAllMembers(
     req,
-    "chat",
     chatId,
     ChatEventEnum.UPDATE_GROUP_AVATAR_EVENT,
-    updated
+    { chat: updated }
   );
 
   return res
@@ -334,12 +351,11 @@ export const addGroupMember = asyncHandler(async (req, res) => {
   if (!userId) throw new ApiError(400, "userId required");
 
   const chat = await Chat.findById(chatId);
-  if (!chat || !chat.isGroup)
-    throw new ApiError(404, "Group not found");
+  if (!chat || !chat.isGroup) throw new ApiError(404, "Group not found");
 
   const me = await ChatMember.findOne({
     chatId,
-    userId: req.user._id
+    userId: req.user._id,
   });
 
   const canAdd =
@@ -354,26 +370,22 @@ export const addGroupMember = asyncHandler(async (req, res) => {
   await ChatMember.create({
     chatId,
     userId,
-    role: "member"
+    role: "member",
   });
 
   const updated = await getFullChat(chatId, req.user._id);
 
-  emitSocketEvent(
+  await emitChatToAllMembers(
     req,
-    "chat",
     chatId,
     ChatEventEnum.GROUP_MEMBER_ADDED_EVENT,
-    updated
+    { chat: updated }
   );
 
-  emitSocketEvent(
-    req,
-    "user",
-    userId,
-    ChatEventEnum.NEW_CHAT_EVENT,
-    updated
-  );
+  // notify the newly added user about the chat
+  emitSocketEvent(req, "user", userId, ChatEventEnum.NEW_CHAT_EVENT, {
+    chat: updated,
+  });
 
   return res
     .status(200)
@@ -384,16 +396,23 @@ export const addGroupMember = asyncHandler(async (req, res) => {
    6️⃣ REMOVE MEMBER
    ============================================================ */
 export const removeGroupMember = asyncHandler(async (req, res) => {
-  const { chatId } = req.params;
-  const { userId } = req.body;
+  const { chatId, userId } = req.params;
 
   const chat = await Chat.findById(chatId);
-  if (!chat || !chat.isGroup)
-    throw new ApiError(404, "Group not found");
+  if (!chat || !chat.isGroup) throw new ApiError(404, "Group not found");
+
+  const admins = await ChatMember.countDocuments({ chatId, role: "admin" });
+  const target = await ChatMember.findOne({ chatId, userId });
+
+  if (!target) throw new ApiError(404, "User not found in group");
+
+  if (target.role === "admin" && admins <= 1) {
+    throw new ApiError(400, "Group must have at least one admin");
+  }
 
   const me = await ChatMember.findOne({
     chatId,
-    userId: req.user._id
+    userId: req.user._id,
   });
 
   const canRemove =
@@ -407,13 +426,20 @@ export const removeGroupMember = asyncHandler(async (req, res) => {
 
   const updated = await getFullChat(chatId, req.user._id);
 
-  emitSocketEvent(
+  // notify remaining members
+  await emitChatToAllMembers(
     req,
-    "chat",
     chatId,
     ChatEventEnum.GROUP_MEMBER_REMOVED_EVENT,
-    updated
+    { chat: updated }
   );
+
+  // notify removed user specifically (so their UI can remove the chat)
+  if (userId !== req.user._id.toString()) {
+    emitSocketEvent(req, "user", userId, ChatEventEnum.CHAT_DELETED_EVENT, {
+      chatId,
+    });
+  }
 
   return res
     .status(200)
@@ -430,7 +456,7 @@ export const promoteMember = asyncHandler(async (req, res) => {
   const admin = await ChatMember.findOne({
     chatId,
     userId: req.user._id,
-    role: "admin"
+    role: "admin",
   });
 
   if (!admin) throw new ApiError(403, "Not allowed");
@@ -443,12 +469,11 @@ export const promoteMember = asyncHandler(async (req, res) => {
 
   const updated = await getFullChat(chatId, req.user._id);
 
-  emitSocketEvent(
+  await emitChatToAllMembers(
     req,
-    "chat",
     chatId,
     ChatEventEnum.MEMBER_PROMOTED_EVENT,
-    updated
+    { chat: updated }
   );
 
   return res.status(200).json(new ApiResponse(200, updated, "Promoted"));
@@ -464,7 +489,7 @@ export const demoteMember = asyncHandler(async (req, res) => {
   const admin = await ChatMember.findOne({
     chatId,
     userId: req.user._id,
-    role: "admin"
+    role: "admin",
   });
 
   if (!admin) throw new ApiError(403, "Not allowed");
@@ -482,12 +507,11 @@ export const demoteMember = asyncHandler(async (req, res) => {
 
   const updated = await getFullChat(chatId, req.user._id);
 
-  emitSocketEvent(
+  await emitChatToAllMembers(
     req,
-    "chat",
     chatId,
     ChatEventEnum.MEMBER_DEMOTED_EVENT,
-    updated
+    { chat: updated }
   );
 
   return res.status(200).json(new ApiResponse(200, updated, "Demoted"));
@@ -496,7 +520,6 @@ export const demoteMember = asyncHandler(async (req, res) => {
 /* ============================================================
    9️⃣ DELETE CHAT
    ============================================================ */
-
 export const deleteChat = asyncHandler(async (req, res) => {
   const { chatId } = req.params;
 
@@ -514,52 +537,49 @@ export const deleteChat = asyncHandler(async (req, res) => {
     if (!admin) throw new ApiError(403, "Only admins can delete group");
   }
 
-  // 1️⃣ Get attachments BEFORE deletions
-  const messages = await Message.find({ chatId }).select("attachments").lean();
+  // fetch members first
+  const members = await ChatMember.find({ chatId }).select("userId").lean();
 
+  // 1️⃣ Get attachments
+  const messages = await Message.find({ chatId }).select("attachments").lean();
   const publicIds = [];
   for (const msg of messages) {
     if (Array.isArray(msg.attachments)) {
-      msg.attachments.forEach(att => {
+      msg.attachments.forEach((att) => {
         const pid = att?.cloudinary?.public_id;
         if (pid) publicIds.push(pid);
       });
     }
   }
 
-  // 2️⃣ Delete DB instantly
+  // optionally delete attachments from cloudinary if you want
+  if (publicIds.length) {
+    try {
+      await deleteMultipleFromCloudinary(publicIds);
+    } catch {
+      // ignore deletion errors
+    }
+  }
+
+  // 2️⃣ DELETE DATABASE DATA
   await Chat.deleteOne({ _id: chatId });
   await ChatMember.deleteMany({ chatId });
   await Message.deleteMany({ chatId });
 
-  // 3️⃣ Emit socket immediately
-  emitSocketEvent(
-    req,
-    "chat",
-    chatId.toString(),
-    ChatEventEnum.CHAT_DELETED_EVENT,
-    { chatId }
-  );
-
-  // 4️⃣ Respond instantly to user
-  res.status(200).json(new ApiResponse(200, null, "Chat deleted"));
-
-  // 5️⃣ Run cloud cleanup async (non blocking)
-  process.nextTick(async () => {
-    try {
-      // Chunk delete in 100 batches to avoid failure
-      for (let i = 0; i < publicIds.length; i += 100) {
-        const batch = publicIds.slice(i, i + 100);
-        await deleteMultipleFromCloudinary(batch);
-      }
-      console.log(`Cloudinary purge complete for chat ${chatId}`);
-    } catch (err) {
-      console.warn("Cloudinary cleanup failed:", err?.message);
-    }
+  // 3️⃣ NOW EMIT TO ALL USERS DIRECTLY
+  members.forEach((m) => {
+    emitSocketEvent(
+      req,
+      "user",
+      m.userId.toString(),
+      ChatEventEnum.CHAT_DELETED_EVENT,
+      { chatId }
+    );
   });
+
+  // 4️⃣ Respond
+  res.status(200).json(new ApiResponse(200, null, "Chat deleted"));
 });
-
-
 
 /* ============================================================
    🔟 PIN / UNPIN CHAT
@@ -611,94 +631,119 @@ export const getAllChats = asyncHandler(async (req, res) => {
   const result = await ChatMember.aggregate([
     { $match: { userId } },
 
+    /* JOIN CHAT */
     {
       $lookup: {
         from: "chats",
         localField: "chatId",
         foreignField: "_id",
-        as: "chat"
-      }
+        as: "chat",
+      },
     },
     { $unwind: "$chat" },
 
+    /* JOIN MEMBERS */
     {
       $lookup: {
         from: "chatmembers",
         localField: "chatId",
         foreignField: "chatId",
-        as: "members"
-      }
+        as: "members",
+      },
     },
 
+    /* JOIN PROFILES */
     {
       $lookup: {
         from: "profiles",
         let: { ids: "$members.userId" },
-        pipeline: [
-          { $match: { $expr: { $in: ["$userId", "$$ids"] } } }
-        ],
-        as: "profileLookup"
-      }
+        pipeline: [{ $match: { $expr: { $in: ["$userId", "$$ids"] } } }],
+        as: "profileLookup",
+      },
     },
 
+    /* ONLY FETCH LAST MESSAGE (NOT ALL) */
     {
       $lookup: {
         from: "messages",
-        localField: "chatId",
-        foreignField: "chatId",
-        as: "msgs"
-      }
+        let: { cid: "$chatId" },
+        pipeline: [
+          { $match: { $expr: { $eq: ["$chatId", "$$cid"] } } },
+          { $sort: { createdAt: -1 } },
+          { $limit: 1 },
+        ],
+        as: "lastMessage",
+      },
     },
-    { $addFields: { lastMessage: { $last: "$msgs" } } },
+    { $unwind: { path: "$lastMessage", preserveNullAndEmptyArrays: true } },
 
+    /* PROJECT */
     {
       $project: {
-        chatId: "$chatId",
+        chatId: 1,
         isGroup: "$chat.isGroup",
         name: "$chat.name",
         description: "$chat.description",
         groupAvatarUrl: "$chat.groupAvatarUrl",
+        createdAt: "$chat.createdAt",
         members: 1,
         profileLookup: 1,
         lastMessage: 1,
-        unreadCount: "$unreadCount"
-      }
-    }
+        unreadCount: "$unreadCount",
+        updatedAt: "$chat.updatedAt",
+        pinned: { $ifNull: ["$pinned", false] },
+      },
+    },
+
+    /* SORT BY RECENT ACTIVITY */
+    { $sort: { updatedAt: -1 } },
   ]);
 
-  const chats = [];
+  const chats = result.map((x) => ({
+    chatId: x.chatId,
+    isGroup: x.isGroup,
+    name: x.name,
+    description: x.description,
+    groupAvatarUrl: x.groupAvatarUrl,
+    participants: x.members.map((m) => {
+      const prof = x.profileLookup.find(
+        (p) => String(p.userId) === String(m.userId)
+      );
+      return {
+        userId: m.userId,
+        role: m.role,
+        username: prof?.username || "Unknown",
+        avatarUrl: prof?.avatarUrl || null,
+        isOnline: prof?.isOnline || false,
+        lastSeenAt: prof?.lastSeenAt || null,
+        bio: prof?.bio || null,
+      };
+    }),
+    lastMessage: x.lastMessage || null,
+    pinned: Boolean(x.pinned),
+    unreadCount: Number(x.unreadCount) || 0,
+    createdAt: x.createdAt,
+  }));
 
-  for (const x of result) {
-    const participants = await buildParticipants(
-      x.members,
-      x.profileLookup
-    );
-
-    chats.push({
-      chatId: x.chatId,
-      isGroup: x.isGroup,
-      name: x.name,
-      participants,
-      lastMessage: x.lastMessage,
-      unreadCount: Number(x.unreadCount) || 0
-    })
-  }
-
-  res
-    .status(200)
-    .json(new ApiResponse(200, chats, "Chats fetched"));
+  res.status(200).json(new ApiResponse(200, chats, "Chats fetched"));
 });
 
 /* ============================================================
    1️⃣2️⃣ GET CHAT DETAILS
    ============================================================ */
 export const getChatDetails = asyncHandler(async (req, res) => {
-  const chat = await getFullChat(req.params.chatId, req.user._id);
+  const chatId = req.params.chatId;
+
+  const isMember = await ChatMember.exists({
+    chatId,
+    userId: req.user._id,
+  });
+  if (!isMember) throw new ApiError(403, "Not a member");
+
+  const chat = await getFullChat(chatId, req.user._id);
   if (!chat) throw new ApiError(404, "Chat not found");
 
-  res
-    .status(200)
-    .json(new ApiResponse(200, chat, "Chat details fetched"));
+  res.status(200).json(new ApiResponse(200, chat, "Chat details fetched"));
 });
 
 /* ============================================================
@@ -714,8 +759,8 @@ export const getGroupMembers = asyncHandler(async (req, res) => {
         from: "profiles",
         localField: "userId",
         foreignField: "userId",
-        as: "p"
-      }
+        as: "p",
+      },
     },
     { $unwind: "$p" },
 
@@ -726,14 +771,12 @@ export const getGroupMembers = asyncHandler(async (req, res) => {
         username: "$p.username",
         avatarUrl: "$p.avatarUrl",
         isOnline: "$p.isOnline",
-        lastSeenAt: "$p.lastSeenAt"
-      }
-    }
+        lastSeenAt: "$p.lastSeenAt",
+      },
+    },
   ]);
 
-  res
-    .status(200)
-    .json(new ApiResponse(200, members, "Members fetched"));
+  res.status(200).json(new ApiResponse(200, members, "Members fetched"));
 });
 
 /* ============================================================

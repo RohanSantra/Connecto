@@ -14,9 +14,14 @@ import { useMessageStore } from "./useMessageStore";
 --------------------------------------------- */
 const mergeChats = (list) => {
   const map = new Map();
-  list.forEach((c) => map.set(String(c.chatId), c));
+  list.forEach((c) => {
+    const id = String(c.chatId);
+    const prev = map.get(id);
+    map.set(id, prev ? { ...prev, ...c } : c);
+  });
   return [...map.values()];
 };
+
 
 /* ==========================================================
    Helper: apply clearedAt -> if chat.lastMessage is older than
@@ -50,6 +55,7 @@ export const useChatStore = create((set, get) => ({
   activeChatId: null,
   activeChat: null,
   loading: false,
+  loadingChats :false,
 
   typing: {}, // { chatId: { userId: true } }
   activeChatDevices: [],
@@ -137,7 +143,7 @@ export const useChatStore = create((set, get) => ({
      FETCH ALL CHATS
   ========================================================== */
   fetchChats: async () => {
-    set({ loading: true });
+    set({ loadingChats : true });
 
     try {
       const res = await api.get("/chats", { withCredentials: true });
@@ -156,7 +162,7 @@ export const useChatStore = create((set, get) => ({
 
       return [];
     } finally {
-      set({ loading: false });
+      set({ loadingChats : false });
     }
   },
 
@@ -167,21 +173,23 @@ export const useChatStore = create((set, get) => ({
     if (!chatId) return null;
 
     try {
-      const res = await api.get(`/chats/${chatId}`, {
-        withCredentials: true,
-      });
-
-      const raw = res.data?.data;
-      const chat = normalizeChat(raw);
-
-      // ensure activeChat respects clearedAt too
+      const res = await api.get(`/chats/${chatId}`, { withCredentials: true });
+      const chat = normalizeChat(res.data?.data);
       set({ activeChat: applyClearedToLastMessage(chat) });
       return chat;
     } catch (err) {
+
+      // 🔥 If chat deleted/left — DO NOT show error
+      if (err.response?.status === 403 || err.response?.status === 404) {
+        set({ activeChat: null, activeChatId: null });
+        return null;
+      }
+
       toast.error("Failed to load chat");
       return null;
     }
   },
+
 
   /* ==========================================================
      FETCH DEVICES (E2EE)
@@ -191,7 +199,7 @@ export const useChatStore = create((set, get) => ({
       const res = await api.get(`/chats/${chatId}/devices`, {
         withCredentials: true,
       });
-      const devices = res.data?.data || [];      
+      const devices = res.data?.data || [];
       set({ activeChatDevices: devices });
 
       return devices;
@@ -225,20 +233,22 @@ export const useChatStore = create((set, get) => ({
      CREATE GROUP CHAT
   ========================================================== */
   createGroupChat: async (payload) => {
+    set({ loading: true });
     try {
       const res = await api.post("/chats/group", payload, {
+        headers: { "Content-Type": "multipart/form-data" },
         withCredentials: true,
       });
 
       const chat = normalizeChat(res.data?.data);
-
-      set({ chats: [chat, ...get().chats] });
 
       toast.success("Group created");
       return chat;
     } catch (err) {
       toast.error("Failed to create group");
       return null;
+    } finally {
+      set({ loading: false });
     }
   },
 
@@ -329,41 +339,168 @@ export const useChatStore = create((set, get) => ({
   /* ==========================================================
      PIN / UNPIN CHAT
   ========================================================== */
-  togglePin: async (chatId, pinned) => {
-    try {
-      set({
-        chats: get().chats.map((c) =>
-          c.chatId === chatId ? { ...c, pinned: !pinned } : c
-        ),
-      });
+  togglePin: async (chatId) => {
+    const state = get();
+    const chat = state.chats.find(c => c.chatId === chatId);
+    if (!chat) return;
 
-      if (!pinned) {
+    const newPinned = !chat.pinned; // ✅ derive from state, not param
+
+    // optimistic update
+    set({
+      chats: state.chats.map(c =>
+        c.chatId === chatId ? { ...c, pinned: newPinned } : c
+      )
+    });
+
+    try {
+      if (newPinned) {
         await api.put(`/chats/${chatId}/pin`, {}, { withCredentials: true });
       } else {
         await api.put(`/chats/${chatId}/unpin`, {}, { withCredentials: true });
       }
 
-      toast.success(!pinned ? "Pinned" : "Unpinned");
-    } catch {
+      toast.success(newPinned ? "Pinned" : "Unpinned");
+
+      // reorder AFTER success
+      set(state => {
+        const updated = state.chats.map(c =>
+          c.chatId === chatId ? { ...c, pinned: newPinned } : c
+        );
+
+        updated.sort((a, b) => {
+          if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+          return new Date(b.updatedAt) - new Date(a.updatedAt);
+        });
+
+        return { chats: updated };
+      });
+
+    } catch (err) {
+      // rollback
       set({
-        chats: get().chats.map((c) =>
-          c.chatId === chatId ? { ...c, pinned } : c
-        ),
+        chats: get().chats.map(c =>
+          c.chatId === chatId ? { ...c, pinned: !newPinned } : c
+        )
       });
 
       toast.error("Failed to toggle pin");
     }
   },
 
+
+  /* ==========================================================
+     ADD MEMBER (correct route)
+  ========================================================== */
+  addMember: async (chatId, userId) => {
+    try {
+      const res = await api.post(
+        `/chats/group/${chatId}/members`,
+        { userId },
+        { withCredentials: true }
+      );
+
+      const updated = normalizeChat(res.data.data);
+      get().updateGroupInfoSocket(updated); // refresh UI
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Add member failed");
+    }
+  },
+
+  /* ==========================================================
+     REMOVE MEMBER (correct route)
+  ========================================================== */
+  removeMember: async (chatId, userId) => {
+    try {
+      const res = await api.delete(
+        `/chats/group/${chatId}/members/${userId}`,
+        { withCredentials: true }
+      );
+
+      const updated = normalizeChat(res.data.data);
+      get().updateGroupInfoSocket(updated);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Remove failed");
+    }
+  },
+
+  /* ==========================================================
+     PROMOTE MEMBER
+  ========================================================== */
+  promoteMember: async (chatId, userId) => {
+    try {
+      const res = await api.post(
+        `/chats/group/${chatId}/members/promote`,
+        { userId },
+        { withCredentials: true }
+      );
+
+      const updated = normalizeChat(res.data.data);
+      get().updateGroupInfoSocket(updated);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Promote failed");
+    }
+  },
+
+  /* ==========================================================
+     DEMOTE MEMBER
+  ========================================================== */
+  demoteMember: async (chatId, userId) => {
+    try {
+      const res = await api.post(
+        `/chats/group/${chatId}/members/demote`,
+        { userId },
+        { withCredentials: true }
+      );
+
+      const updated = normalizeChat(res.data.data);
+      get().updateGroupInfoSocket(updated);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Demote failed");
+    }
+  },
+
+  /* ==========================================================
+     LEAVE GROUP (self remove)
+  ========================================================== */
+  leaveGroup: async (chatId) => {
+    try {
+      const myId = useProfileStore.getState().profile.userId;
+
+      await api.delete(`/chats/group/${chatId}/members/${myId}`, {
+        withCredentials: true
+      });
+
+      // 🔥 REMOVE CHAT LOCALLY (THIS IS THE FIX)
+      set(state => ({
+        chats: state.chats.filter(c => c.chatId !== chatId),
+        activeChatId: state.activeChatId === chatId ? null : state.activeChatId,
+        activeChat: state.activeChatId === chatId ? null : state.activeChat
+      }));
+
+      toast.success("Left group");
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Leave group failed");
+    }
+  },
+
+
+
   /* ==========================================================
      SOCKET — GROUP RENAMED
   ========================================================== */
-  updateGroupInfoSocket: (chat) => {
+  updateGroupInfoSocket: (payload) => {
+    const chat = payload.chat || payload;
     const norm = applyClearedToLastMessage(normalizeChat(chat));
 
     set({
       chats: get().chats.map((c) =>
-        c.chatId === norm.chatId ? norm : c
+        c.chatId === norm.chatId
+          ? {
+            ...c,               // keep pinned, unreadCount, local UI state
+            ...norm,            // update server fields (name, avatar, etc)
+          }
+          : c
       ),
     });
 
@@ -375,12 +512,18 @@ export const useChatStore = create((set, get) => ({
   /* ==========================================================
      SOCKET — GROUP AVATAR UPDATED
   ========================================================== */
-  updateGroupAvatarSocket: (chat) => {
+  updateGroupAvatarSocket: (payload) => {
+    const chat = payload.chat || payload;
     const norm = applyClearedToLastMessage(normalizeChat(chat));
 
     set({
       chats: get().chats.map((c) =>
-        c.chatId === norm.chatId ? norm : c
+        c.chatId === norm.chatId
+          ? {
+            ...c,               // keep pinned, unreadCount, local UI state
+            ...norm,            // update server fields (name, avatar, etc)
+          }
+          : c
       ),
     });
 
@@ -422,17 +565,18 @@ export const useChatStore = create((set, get) => ({
      SOCKET — PIN/UNPIN
   ========================================================== */
   updateChatPinnedSocket: ({ chatId, pinned }) => {
-    set({
-      chats: get().chats.map((c) =>
+    set(state => {
+      const updated = state.chats.map(c =>
         c.chatId === chatId ? { ...c, pinned } : c
-      ),
-    });
+      );
 
-    if (get().activeChatId === chatId) {
-      set({
-        activeChat: { ...get().activeChat, pinned },
+      updated.sort((a, b) => {
+        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+        return new Date(b.updatedAt) - new Date(a.updatedAt);
       });
-    }
+
+      return { chats: updated };
+    });
   },
 
   /* ==========================================================
@@ -453,39 +597,32 @@ export const useChatStore = create((set, get) => ({
   /* ==========================================================
      SOCKET — MEMBER ADDED
   ========================================================== */
-  groupMemberAddedSocket: ({ chatId, participant }) => {
-    if (!chatId || !participant) return;
-
-    const state = get();
-
-    if (state.activeChatId === chatId && state.activeChat) {
-      const updated = {
-        ...state.activeChat,
-        participants: [...state.activeChat.participants, participant],
-      };
-
-      set({ activeChat: updated });
-    }
+  groupMemberAddedSocket: (payload) => {
+    const chat = payload.chat || payload;
+    const norm = applyClearedToLastMessage(normalizeChat(chat));
+    set({
+      chats: get().chats.map((c) =>
+        c.chatId === norm.chatId ? norm : c
+      ),
+      activeChat: get().activeChatId === norm.chatId ? norm : get().activeChat
+    });
   },
+
+
+
 
   /* ==========================================================
      SOCKET — MEMBER REMOVED
   ========================================================== */
-  groupMemberRemovedSocket: ({ chatId, userId }) => {
-    if (!chatId || !userId) return;
-
-    const state = get();
-
-    if (state.activeChatId === chatId && state.activeChat) {
-      const updated = {
-        ...state.activeChat,
-        participants: state.activeChat.participants.filter(
-          (p) => String(p.userId) !== String(userId)
-        ),
-      };
-
-      set({ activeChat: updated });
-    }
+  groupMemberRemovedSocket: (payload) => {
+    const chat = payload.chat || payload;
+    const norm = applyClearedToLastMessage(normalizeChat(chat));
+    set({
+      chats: get().chats.map((c) =>
+        c.chatId === norm.chatId ? norm : c
+      ),
+      activeChat: get().activeChatId === norm.chatId ? norm : get().activeChat
+    });
   },
 
   /* ==========================================================

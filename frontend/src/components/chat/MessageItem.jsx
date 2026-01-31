@@ -24,14 +24,13 @@ import EmojiInfoPanel from "./EmojiInfoPanel";
 import { useMessageStore } from "@/store/useMessageStore";
 import { useProfileStore } from "@/store/useProfileStore";
 import { badgeFor } from "@/lib/fileBadge";
-import {
-  FullscreenGallery,
-} from "./MediaGalleryManager";
+import { FullscreenGallery } from "./MediaGalleryManager";
 import SeekableWaveform from "./SeekableWaveform";
 import { buildReplyPreviewText } from "@/lib/replyPreview";
 import { detectKind } from "@/lib/detectKind";
 import FileViewer from "./FileViewer";
-import formatSize from "@/lib/formatSize.js"
+import formatSize from "@/lib/formatSize.js";
+import { useChatStore } from "@/store/useChatStore";
 
 const SHOW_MORE = 350;
 
@@ -43,16 +42,11 @@ const Time = ({ createdAt }) => (
 
 const Tick = ({ state }) => {
   if (state === "sending") {
-    return (
-      <Loader2 className="w-4 h-4 animate-spin text-[var(--chat-meta)]" />
-    );
+    return <Loader2 className="w-4 h-4 animate-spin text-[var(--chat-meta)]" />;
   }
-  if (state === "read")
-    return <CheckCheck className="w-4 h-4 text-[var(--color-primary)]" />;
-  if (state === "delivered")
-    return <CheckCheck className="w-4 h-4 text-[var(--chat-meta)]" />;
-  if (state === "sent")
-    return <Check className="w-4 h-4 text-[var(--chat-meta)]" />;
+  if (state === "read") return <CheckCheck className="w-4 h-4 text-[var(--color-primary)]" />;
+  if (state === "delivered") return <CheckCheck className="w-4 h-4 text-[var(--chat-meta)]" />;
+  if (state === "sent") return <Check className="w-4 h-4 text-[var(--chat-meta)]" />;
   return null;
 };
 
@@ -87,6 +81,7 @@ function computeTickState({ isOwn, deliveredTo = [], readBy = [], currentUserId 
 
 export function getMediaSrc(att) {
   return (
+    att?.previewUrl || // 🔥 FIRST PRIORITY (optimistic)
     att?.cloudinary?.secure_url ||
     att?.cloudinary?.url ||
     att?.url ||
@@ -95,7 +90,33 @@ export function getMediaSrc(att) {
   );
 }
 
-/* AttachmentBubble */
+function useLazyMedia(rootMargin = "400px") {
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          obs.disconnect();
+        }
+      },
+      { rootMargin }
+    );
+
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  return [ref, visible];
+}
+
+
+/* AttachmentBubble (unchanged, kept for brevity) */
 function AttachmentBubble({
   att,
   compact = false,
@@ -104,7 +125,7 @@ function AttachmentBubble({
   isMediaIndex = false,
   setFileViewerFile,
   isSending = false,
-  isOwn
+  isOwn,
 }) {
   const src = getMediaSrc(att);
   const kind = detectKind(att);
@@ -115,6 +136,8 @@ function AttachmentBubble({
   const isAudio = kind === "audio";
   const [duration, setDuration] = useState(att?.duration || null);
 
+  const [mediaRef, showMedia] = useLazyMedia(); // ⭐ LAZY
+
   useEffect(() => {
     if (isVideo && src) {
       const v = document.createElement("video");
@@ -124,9 +147,7 @@ function AttachmentBubble({
         const d = v.duration;
         if (!isNaN(d) && isFinite(d)) {
           const mins = Math.floor(d / 60);
-          const secs = Math.round(d % 60)
-            .toString()
-            .padStart(2, "0");
+          const secs = Math.round(d % 60).toString().padStart(2, "0");
           setDuration(`${mins}:${secs}`);
         }
       };
@@ -134,7 +155,6 @@ function AttachmentBubble({
       return () => v.removeEventListener("loadedmetadata", onLoaded);
     }
   }, [isVideo, src]);
-
 
   const handlePreview = (e) => {
     if (isSending) return;
@@ -149,44 +169,35 @@ function AttachmentBubble({
       return;
     }
 
-    // For PDF, DOC, PPT, ZIP → open FileViewer
     if (typeof att === "object" && att.cloudinary) {
       setFileViewerFile(att);
       return;
     }
 
-    // fallback
     if (src) window.open(src, "_blank");
   };
 
-
   const badge = badgeFor(name, kind);
 
+  /* ---------------- IMAGE ---------------- */
   if (isImg) {
     return (
       <div
+        ref={mediaRef}
         className={cn(
           "rounded-xl overflow-hidden shadow-md cursor-pointer relative",
-          isOwn
-            ? "bg-[var(--chat-own-bg)] text-[var(--chat-own-fg)]"
-            : "bg-[var(--chat-other-bg)] text-[var(--chat-other-fg)]",
+          isOwn ? "bg-[var(--chat-own-bg)] text-[var(--chat-own-fg)]" : "bg-[var(--chat-other-bg)] text-[var(--chat-other-fg)]",
           compact ? "w-40 h-40" : "w-64 h-64"
         )}
         onClick={handlePreview}
       >
-        <img
-          src={src}
-          alt={name}
-          className="object-cover w-full h-full"
-          draggable={false}
-        />
+        {showMedia ? (
+          <img src={src} alt={name} className="object-cover w-full h-full" draggable={false} loading="lazy" />
+        ) : (
+          <div className="w-full h-full bg-muted animate-pulse" />
+        )}
         {badge && (
-          <span
-            className={cn(
-              "absolute left-2 top-2 px-2 py-0.5 rounded-xl text-[10px] font-medium shadow",
-              badge.className
-            )}
-          >
+          <span className={cn("absolute left-2 top-2 px-2 py-0.5 rounded-xl text-[10px] font-medium shadow", badge.className)}>
             {badge.label}
           </span>
         )}
@@ -194,24 +205,24 @@ function AttachmentBubble({
     );
   }
 
+  /* ---------------- VIDEO ---------------- */
   if (isVideo) {
     return (
       <div
+        ref={mediaRef}
         className={cn(
           "relative rounded-xl overflow-hidden shadow-md cursor-pointer",
-          isOwn
-            ? "bg-[var(--chat-own-bg)] text-[var(--chat-own-fg)]"
-            : "bg-[var(--chat-other-bg)] text-[var(--chat-other-fg)]",
+          isOwn ? "bg-[var(--chat-own-bg)] text-[var(--chat-own-fg)]" : "bg-[var(--chat-other-bg)] text-[var(--chat-other-fg)]",
           compact ? "w-56 h-32" : "w-64 h-40"
         )}
         onClick={handlePreview}
       >
-        <video
-          src={src}
-          className="object-cover w-full h-full"
-          muted
-          preload="metadata"
-        />
+        {showMedia ? (
+          <video src={src} className="object-cover w-full h-full" muted preload="metadata" />
+        ) : (
+          <div className="w-full h-full bg-muted animate-pulse" />
+        )}
+
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="rounded-xl bg-[var(--chat-other-bg)/50] p-2">
             <Play className="w-10 h-10 text-[var(--chat-meta)]" />
@@ -221,12 +232,7 @@ function AttachmentBubble({
           {duration || "0:00"}
         </div>
         {badge && (
-          <span
-            className={cn(
-              "absolute left-2 top-2 px-2 py-0.5 rounded-xl text-[10px] font-medium shadow",
-              badge.className
-            )}
-          >
+          <span className={cn("absolute left-2 top-2 px-2 py-0.5 rounded-xl text-[10px] font-medium shadow", badge.className)}>
             {badge.label}
           </span>
         )}
@@ -234,99 +240,70 @@ function AttachmentBubble({
     );
   }
 
-  if (isAudio) {
+  /* ---------------- FILES (lazy preview box) ---------------- */
+  if (!isAudio) {
     return (
       <div
-        className={cn(isOwn
-          ? "bg-[var(--chat-own-bg)] text-[var(--chat-own-fg)] border-[var(--chat-border)]"
-          : "bg-[var(--chat-other-bg)] text-[var(--chat-other-fg)] border-[var(--chat-border)]",
-          "shadow-sm rounded-xl border px-3 py-3 w-80 flex flex-col")}
+        ref={mediaRef}
+        className={cn(
+          isOwn ? "bg-[var(--chat-own-bg)] text-[var(--chat-own-fg)] shadow-md" : "bg-[var(--chat-other-bg)] text-[var(--chat-other-fg)] shadow-md",
+          "shadow-md rounded-xl border border-[var(--chat-border)] px-4 py-3 w-80 flex flex-col gap-2 h-fit cursor-pointer"
+        )}
+        onClick={handlePreview}
       >
-        <div className="flex items-center gap-3">
-          <div
-            onClick={(e) => e.stopPropagation()} // prevent opening preview
-            className="w-full max-w-60"
-          >
-            <SeekableWaveform
-              src={src}
-              barCount={48}
-              height={50}
-            />
-          </div>
-        </div>
+        {showMedia ? (
+          <>
+            <div className="flex items-center gap-3">
+              {badge ? (
+                <span className={cn("inline-flex items-center justify-center w-9 h-9 rounded-xl text-xs font-semibold", badge.className)}>
+                  {badge.label}
+                </span>
+              ) : (
+                <FileText className="w-9 h-9 text-[var(--chat-meta)]" />
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="truncate font-medium text-sm">{name}</div>
+                <div className="text-xs text-[var(--chat-meta)] mt-0.5">{formatSize(size)}</div>
+              </div>
+            </div>
 
-        <div className="mt-2 flex items-center justify-between">
-          <div className="text-xs truncate text-[var(--chat-meta)]">
-            {name} • {formatSize(size)}
-          </div>
-          {badge && (
-            <span className={cn("ml-2 px-2 py-0.5 rounded-xl text-[12px] font-medium", badge.className)}>
-              {badge.label}
-            </span>
-          )}
-        </div>
+            {!isSending && (
+              <div className="flex gap-2 mt-1">
+                <a href={getMediaSrc(att)} download target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-xs border rounded-md px-2 py-1 bg-[var(--color-muted)] hover:bg-[var(--color-muted)]/70 flex items-center gap-1">
+                  <Download className="w-4 h-4 inline-block mr-1" /> Download
+                </a>
+                <button type="button" onClick={handlePreview} className="text-xs border rounded-md px-2 py-1 bg-[var(--color-muted)] hover:bg-[var(--color-muted)]/70 flex items-center gap-1">
+                  <Eye className="w-4 h-4" /> Preview
+                </button>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="h-20 bg-muted animate-pulse rounded-xl" />
+        )}
       </div>
     );
   }
 
-
+  /* ---------------- AUDIO (unchanged) ---------------- */
   return (
-    <div
-      className={cn(isOwn
-        ? "bg-[var(--chat-own-bg)] text-[var(--chat-own-fg)] shadow-md"
-        : "bg-[var(--chat-other-bg)] text-[var(--chat-other-fg)] shadow-md",
-        "shadow-md rounded-xl border border-[var(--chat-border)] px-4 py-3 w-80 flex flex-col gap-2 h-fit cursor-pointer")}
-      onClick={handlePreview}
-    >
+    <div className={cn(
+      isOwn ? "bg-[var(--chat-own-bg)] text-[var(--chat-own-fg)] border-[var(--chat-border)]" : "bg-[var(--chat-other-bg)] text-[var(--chat-other-fg)] border-[var(--chat-border)]",
+      "shadow-sm rounded-xl border px-3 py-3 w-80 flex flex-col"
+    )}>
       <div className="flex items-center gap-3">
-        {badge ? (
-          <span
-            className={cn(
-              "inline-flex items-center justify-center w-9 h-9 rounded-xl text-xs font-semibold",
-              badge.className
-            )}
-          >
-            {badge.label}
-          </span>
-        ) : (
-          <FileText className="w-9 h-9 text-[var(--chat-meta)]" />
-        )}
-
-        <div className="flex-1 min-w-0">
-          <div className="truncate font-medium text-sm">{name}</div>
-          <div className="text-xs text-[var(--chat-meta)] mt-0.5">
-            {formatSize(size)}
-          </div>
+        <div onClick={(e) => e.stopPropagation()} className="w-full max-w-60">
+          <SeekableWaveform src={src} barCount={48} height={50} />
         </div>
       </div>
-
-      {/* Actions (hidden while sending) */}
-      {!isSending && (
-        <div className="flex gap-2 mt-1">
-          <a
-            href={getMediaSrc(att)}
-            download
-            target="_blank"
-            rel="noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="text-xs border rounded-md px-2 py-1 bg-[var(--color-muted)] hover:bg-[var(--color-muted)]/70 flex items-center gap-1"
-          >
-            <Download className="w-4 h-4 inline-block mr-1" /> Download
-          </a>
-
-          <button
-            type="button"
-            onClick={handlePreview}
-            className="text-xs border rounded-md px-2 py-1 bg-[var(--color-muted)] hover:bg-[var(--color-muted)]/70 flex items-center gap-1"
-          >
-            <Eye className="w-4 h-4" /> Preview
-          </button>
-        </div>
-      )}
-
+      <div className="mt-2 flex items-center justify-between">
+        <div className="text-xs truncate text-[var(--chat-meta)]">{name} • {formatSize(size)}</div>
+        {badge && <span className={cn("ml-2 px-2 py-0.5 rounded-xl text-[12px] font-medium", badge.className)}>{badge.label}</span>}
+      </div>
     </div>
   );
 }
+
 
 /* MessageItem main */
 export default React.memo(
@@ -345,17 +322,13 @@ export default React.memo(
     } = message || {};
     const { setReplyTo, pinMessage, unpinMessage, setScrollToMessage } = useMessageStore();
     const { profile } = useProfileStore();
+    const { activeChat } = useChatStore();
     const currentUserId = profile?.userId;
 
     /** ---- Delete State ---- **/
     const isDeletedForAll = !!message.deleted;
-    const deletedForArr = Array.isArray(message.deletedFor)
-      ? message.deletedFor.map(String)
-      : [];
-    const deletedForMe = currentUserId
-      ? deletedForArr.includes(String(currentUserId))
-      : false;
-
+    const deletedForArr = Array.isArray(message.deletedFor) ? message.deletedFor.map(String) : [];
+    const deletedForMe = currentUserId ? deletedForArr.includes(String(currentUserId)) : false;
     const showPersonalTombstone = deletedForMe && !isDeletedForAll;
 
     const bubbleRef = useRef(null);
@@ -379,23 +352,16 @@ export default React.memo(
         arr.push(r);
         map.set(em, arr);
       });
-      return Array.from(map.entries()).map(([emoji, arr]) => ({
-        emoji,
-        users: arr,
-        count: arr.length,
-      }));
+      return Array.from(map.entries()).map(([emoji, arr]) => ({ emoji, users: arr, count: arr.length }));
     }, [reactions]);
 
     const [isTouch, setIsTouch] = useState(false);
     const [isSmall, setIsSmall] = useState(false);
 
     useEffect(() => {
-      const touch =
-        typeof window !== "undefined" &&
-        ("ontouchstart" in window || (navigator.maxTouchPoints || 0) > 0);
+      const touch = typeof window !== "undefined" && ("ontouchstart" in window || (navigator.maxTouchPoints || 0) > 0);
       setIsTouch(!!touch);
     }, []);
-
 
     useEffect(() => {
       const check = () => setIsSmall(window.innerWidth < 768);
@@ -405,339 +371,177 @@ export default React.memo(
     }, []);
 
     const long = plaintext && plaintext.length > SHOW_MORE;
-    const displayed =
-      expanded || !long ? plaintext : plaintext?.slice(0, SHOW_MORE) + "…";
+    const displayed = expanded || !long ? plaintext : plaintext?.slice(0, SHOW_MORE) + "…";
 
-    const ticks = useMemo(
-      () => {
-        if (!isOwn) return null;
+    const ticks = useMemo(() => {
+      if (!isOwn) return null;
+      if (message.status === "sending") return "sending";
+      if (message.status === "failed") return null;
 
-        if (message.status === "sending") return "sending";
-        if (message.status === "failed") return null;
+      return computeTickState({ isOwn, deliveredTo: deliveredTo || [], readBy: readBy || [], currentUserId });
+    }, [isOwn, deliveredTo, readBy, currentUserId, message.status]);
 
-        return computeTickState({
-          isOwn,
-          deliveredTo: deliveredTo || [],
-          readBy: readBy || [],
-          currentUserId,
-        });
-      },
-      [isOwn, deliveredTo, readBy, currentUserId, message.status]
-    );
+    const handleReply = useCallback((e) => {
+      e?.stopPropagation?.();
+      setReplyTo(message);
+    }, [message, setReplyTo]);
 
+    const handlePinToggle = useCallback(async (e) => {
+      e?.stopPropagation?.();
+      try {
+        if (pinned) await unpinMessage(chatId, _id);
+        else await pinMessage(chatId, _id);
+      } catch (err) {
+        console.warn("Pin failed", err);
+      }
+    }, [pinned, pinMessage, unpinMessage, chatId, _id]);
 
-    const handleReply = useCallback(
-      (e) => {
-        e?.stopPropagation?.();
-        setReplyTo(message);
-      },
-      [message, setReplyTo]
-    );
-
-    const handlePinToggle = useCallback(
-      async (e) => {
-        e?.stopPropagation?.();
-        try {
-          if (pinned) await unpinMessage(chatId, _id);
-          else await pinMessage(chatId, _id);
-        } catch (err) {
-          console.warn("Pin failed", err);
-        }
-      },
-      [pinned, pinMessage, unpinMessage, chatId, _id]
-    );
-
-
-    const hasText = Boolean(plaintext && plaintext.trim());
+    const hasText = Boolean(plaintext && plaintext);
     const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
     const isSending = isOwn && message.status === "sending";
 
-
     // MEDIA LIST
-    const mediaAttachments = useMemo(
-      () =>
-        attachments.filter((a) => {
-          const k = detectKind(a);
-          return k === "image" || k === "video";
-        }),
-      [attachments]
-    );
+    const mediaAttachments = useMemo(() => attachments.filter((a) => {
+      const k = detectKind(a);
+      return k === "image" || k === "video";
+    }), [attachments]);
 
     const mediaIndexMap = useMemo(() => {
       const map = new Map();
-      mediaAttachments.forEach((m, idx) =>
-        map.set(getMediaSrc(m) + (m.filename || ""), idx)
-      );
+      mediaAttachments.forEach((m, idx) => map.set(getMediaSrc(m) + (m.filename || ""), idx));
       return map;
     }, [mediaAttachments]);
 
-    const onlyImages =
-      hasAttachments && attachments.every((a) => detectKind(a) === "image");
+    const onlyImages = hasAttachments && attachments.every((a) => detectKind(a) === "image");
 
     const openFullscreenAt = useCallback((mediaIdx) => {
       setFullscreenIndex(mediaIdx || 0);
       setFullscreenOpen(true);
     }, []);
 
+    // Heuristic for group chat — check common properties on message/chat
+
+    const isGroup = !!activeChat?.isGroup;
+
+    // resolve sender profile object (fallbacks)
+    const senderProfile = message.senderProfile || message.sender || message.senderProfilePublic || (isOwn ? profile : null) || {};
+    const senderAvatar = senderProfile?.avatarUrl || senderProfile?.avatar || senderProfile?.photo || "/avatar-placeholder.png";
+    const senderName = senderProfile?.username || senderProfile?.name || senderProfile?.displayName || (isOwn ? profile?.username || "You" : "User");
 
     return (
-      <div
-        id={`msg-${_id}`}
-        className={cn("flex mb-5 mx-2", isOwn ? "justify-end" : "justify-start")}
-      >
+      <div id={`msg-${_id}`} className={cn("flex mb-5 mx-2 items-end", isOwn ? "justify-end" : "justify-start")}>
+        {/* Avatar outside bubble: only show for other people's messages in group chats */}
+        {!isOwn && isGroup && (
+          <div className="flex-shrink-0 mr-3">
+            <img src={senderAvatar} alt={senderName || "Avatar"} className="w-8 h-8 rounded-full object-cover" />
+          </div>
+        )}
+
         <div className="relative max-w-[78%] group overflow-visible z-0">
           {pinned && (
-            <div
-              className={cn(
-                "absolute -top-3 z-30 inline-flex items-center gap-1 px-2 py-0.5 rounded-xl text-xs font-medium",
-                isOwn
-                  ? "bg-[var(--chat-own-bg)] text-[var(--chat-own-fg)] shadow-md"
-                  : "bg-[var(--chat-other-bg)] text-[var(--chat-other-fg)] shadow-md"
-              )}
-              style={{ transform: "translateY(-4px)" }}
-            >
+            <div className={cn("absolute -top-3 z-30 inline-flex items-center gap-1 px-2 py-0.5 rounded-xl text-xs font-medium",
+              isOwn ? "bg-[var(--chat-own-bg)] text-[var(--chat-own-fg)] shadow-md" : "bg-[var(--chat-other-bg)] text-[var(--chat-other-fg)] shadow-md"
+            )} style={{ transform: "translateY(-4px)" }}>
               <PinIcon className="w-3 h-3" />
               <span className="hidden md:inline">Pinned</span>
             </div>
           )}
 
-          {/* Big device action bar */}
-          {!(isSmall || isTouch) && !isDeletedForAll && (
-            <div
-              className={cn(
-                "hidden md:flex absolute -top-10 gap-2 px-2 py-1 rounded-xl shadow-lg z-20",
-                "bg-[var(--color-card)]/95 backdrop-blur-sm transition-all duration-150 opacity-0 md:group-hover:opacity-100",
-                isOwn ? "right-0" : "left-0"
-              )}
-              style={{
-                transformOrigin: isOwn ? "right center" : "left center",
-              }}
-              aria-hidden
-            >
-              <button
-                onClick={handleReply}
-                className="p-1 rounded-xl hover:bg-[var(--color-muted)]/40"
-                aria-label="Reply"
-                title="Reply"
-              >
-                <ReplyIcon className="w-4 h-4 text-[var(--chat-meta)]" />
-              </button>
+          {/* Big device action bar (hide for deleted messages) */}
+          {!(isSmall || isTouch) && !isDeletedForAll && message.status !== "sending" && (
+            <div className={cn("hidden md:flex absolute -top-10 gap-2 px-2 py-1 rounded-xl shadow-lg z-20",
+              "bg-[var(--color-card)]/95 backdrop-blur-sm transition-all duration-150 opacity-0 md:group-hover:opacity-100",
+              isOwn ? "right-0" : "left-0"
+            )} style={{ transformOrigin: isOwn ? "right center" : "left center" }} aria-hidden>
+              <button onClick={handleReply} className="p-1 rounded-xl hover:bg-[var(--color-muted)]/40" aria-label="Reply" title="Reply"><ReplyIcon className="w-4 h-4 text-[var(--chat-meta)]" /></button>
+              <button onClick={() => setShowReact((s) => !s)} className="p-1 rounded-xl hover:bg-[var(--color-muted)]/40" aria-label="React" title="React"><SmilePlus className="w-4 h-4 text-[var(--chat-meta)]" /></button>
+              <button onClick={handlePinToggle} className={cn("p-1 rounded-xl hover:bg-[var(--color-muted)]/40", pinned && "text-[var(--color-primary)]")} aria-label={pinned ? "Unpin message" : "Pin message"} title={pinned ? "Unpin" : "Pin"}>{pinned ? <PinOff className="w-4 h-4 text-[var(--chat-meta)]" /> : <PinIcon className="w-4 h-4 text-[var(--chat-meta)]" />}</button>
 
-              <button
-                onClick={() => setShowReact((s) => !s)}
-                className="p-1 rounded-xl hover:bg-[var(--color-muted)]/40"
-                aria-label="React"
-                title="React"
-              >
-                <SmilePlus className="w-4 h-4 text-[var(--chat-meta)]" />
-              </button>
-
-              <button
-                onClick={handlePinToggle}
-                className={cn(
-                  "p-1 rounded-xl hover:bg-[var(--color-muted)]/40",
-                  pinned && "text-[var(--color-primary)]"
-                )}
-                aria-label={pinned ? "Unpin message" : "Pin message"}
-                title={pinned ? "Unpin" : "Pin"}
-              >
-                {pinned ?
-                  <PinOff className="w-4 h-4 text-[var(--chat-meta)]" /> :
-                  <PinIcon className="w-4 h-4 text-[var(--chat-meta)]" />
-                }
-              </button>
-
-              <MessageMenu
-                message={message}
-                isOwn={isOwn}
-                onShowInfo={() => setInfoOpen(true)}
-                open={menuOpen}
-                onOpenChange={setMenuOpen}
-              >
-                <button
-                  className="p-1 rounded-xl hover:bg-[var(--color-muted)]/40"
-                  aria-label="More"
-                  title="More"
-                >
-                  <MoreHorizontal className="w-4 h-4 text-[var(--chat-meta)]" />
-                </button>
+              <MessageMenu message={message} isOwn={isOwn} onShowInfo={() => setInfoOpen(true)} open={menuOpen} onOpenChange={setMenuOpen}>
+                <button className="p-1 rounded-xl hover:bg-[var(--color-muted)]/40" aria-label="More" title="More"><MoreHorizontal className="w-4 h-4 text-[var(--chat-meta)]" /></button>
               </MessageMenu>
             </div>
           )}
 
-          {/* Small device action bar */}
-          {(isSmall || isTouch) && !isDeletedForAll && (
-            <div
-              className={cn(
-                "absolute flex items-center gap-2 px-2 py-1 z-50 top-1/2 -translate-y-1/2",
-                isOwn ? "right-full mr-2" : "left-full ml-2"
-              )}
-            >
-              <button
-                onClick={() => setShowReact((s) => !s)}
-                className="p-1 rounded-lg bg-[var(--chat-other-bg)] border border-[var(--chat-other-fg)]/20 shadow-sm active:scale-95"
-              >
-                <SmilePlus className="w-4 h-4 text-[var(--chat-meta)]" />
-              </button>
-
-              <MessageMenu
-                message={message}
-                isOwn={isOwn}
-                onShowInfo={() => setInfoOpen(true)}
-                open={menuOpen}
-                onOpenChange={setMenuOpen}
-              >
-                <button className="p-1 rounded-lg bg-[var(--chat-other-bg)] border border-[var(--chat-other-fg)]/20 shadow-sm active:scale-95">
-                  <MoreHorizontal className="w-4 h-4 text-[var(--chat-meta)]" />
-                </button>
-              </MessageMenu>
+          {/* Small device action bar (hide for deleted messages) */}
+          {(isSmall || isTouch) && !isDeletedForAll && message.status !== "sending" && (
+            <div className={cn("absolute flex items-center gap-2 px-2 py-1 z-50 top-1/2 -translate-y-1/2", isOwn ? "right-full mr-2" : "left-full ml-2")}>
+              <button onClick={() => setShowReact((s) => !s)} className="p-1 rounded-lg bg-[var(--chat-other-bg)] border border-[var(--chat-other-fg)]/20 shadow-sm active:scale-95"><SmilePlus className="w-4 h-4 text-[var(--chat-meta)]" /></button>
+              <MessageMenu message={message} isOwn={isOwn} onShowInfo={() => setInfoOpen(true)} open={menuOpen} onOpenChange={setMenuOpen}><button className="p-1 rounded-lg bg-[var(--chat-other-bg)] border border-[var(--chat-other-fg)]/20 shadow-sm active:scale-95"><MoreHorizontal className="w-4 h-4 text-[var(--chat-meta)]" /></button></MessageMenu>
             </div>
           )}
 
-
-
-          {/* Deleted message tombstone */}
+          {/* Deleted message (tombstone) */}
           {(isDeletedForAll || showPersonalTombstone) && (
-            <div
-              className={cn(
-                "px-3 py-2 rounded-xl max-w-full text-xs italic opacity-80 border shadow-sm",
-                isOwn
-                  ? "bg-[var(--chat-own-bg)]/15 text-[var(--chat-own-fg)]/70 border border-[var(--color-primary)]/20"
-                  : "bg-[var(--chat-other-bg)]/40 text-[var(--chat-other-fg)]/70 border border-[var(--chat-border)]/30"
-              )}
-            >
-              {showPersonalTombstone
-                ? "You deleted this message"
-                : isOwn
-                  ? "You deleted this message"
-                  : "This message was deleted"}
+            <div className={cn("px-3 py-2 rounded-xl max-w-full text-sm italic opacity-85 border shadow-sm",
+              isOwn ? "bg-[var(--chat-own-bg)]/10 text-[var(--chat-own-fg)]/80 border border-[var(--color-primary)]/20" : "bg-[var(--chat-other-bg)]/30 text-[var(--chat-other-fg)]/80 border border-[var(--chat-border)]/30"
+            )}>
+              <div>
+                {showPersonalTombstone || isOwn ? "You deleted this message" : "This message was deleted"}
+              </div>
             </div>
           )}
 
           {/* TEXT bubble */}
           {!showPersonalTombstone && !isDeletedForAll && hasText && (
-            <div
-              ref={bubbleRef}
-              className={cn(
-                "px-4 py-3 rounded-xl text-sm shadow-sm border max-w-full wrap-break-word z-10",
-                isOwn
-                  ? "bg-[var(--chat-own-bg)] text-[var(--chat-own-fg)]"
-                  : "bg-[var(--chat-other-bg)] text-[var(--chat-other-fg)]",
-                pinned ? "ring-1 ring-[var(--color-primary)]/30 ring-offset-1" : "",
-                "border border-[var(--chat-border)]"
+            <div ref={bubbleRef} className={cn("px-4 py-3 rounded-xl text-sm shadow-sm border max-w-full wrap-break-word z-10",
+              isOwn ? "bg-[var(--chat-own-bg)] text-[var(--chat-own-fg)]" : "bg-[var(--chat-other-bg)] text-[var(--chat-other-fg)]",
+              pinned ? "ring-1 ring-[var(--color-primary)]/30 ring-offset-1" : "",
+              "border border-[var(--chat-border)]"
+            )} role="article" aria-label="text message">
+
+              {/* Name INSIDE bubble only for other people's messages in group chats */}
+              {isGroup && !isOwn && (
+                <div className="mb-1 text-xs font-semibold text-[var(--chat-meta)] truncate">{senderName}</div>
               )}
-              role="article"
-              aria-label="text message"
-            >
+
               {replyTo && (
-                <div
-                  className="mb-2 border-l-2 pl-3 text-xs opacity-80 cursor-pointer hover:opacity-100 transition border-l-[var(--chat-border)]"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (message.replyMessage?._id) {
-                      setScrollToMessage(message.replyMessage._id);
-                    }
-                  }}
-                >
+                <div className="mb-2 border-l-2 pl-3 text-xs opacity-80 cursor-pointer hover:opacity-100 transition border-l-[var(--chat-border)]" onClick={(e) => { e.stopPropagation(); if (message.replyMessage?._id) setScrollToMessage(message.replyMessage._id); }}>
                   {message.replyMessage?.deleted ? (
-                    <p className="italic opacity-75 text-[var(--chat-meta)]">
-                      {String(message.replyMessage?.senderId) === String(currentUserId)
-                        ? "You deleted this message"
-                        : "This message was deleted"}
-                    </p>
+                    <p className="italic opacity-75 text-[var(--chat-meta)]">{String(message.replyMessage?.senderId) === String(currentUserId) ? "You deleted this message" : "This message was deleted"}</p>
                   ) : (
                     <>
-                      {/* Username */}
-                      <p className="font-medium leading-tight text-[13px] text-[var(--chat-meta)]">
-                        {message.replyMessage?.senderProfile?.username || "User"}
-                      </p>
-
-                      {/* NEW pinned-style preview text */}
-                      <p className="truncate text-[12px] mt-1 opacity-90 text-[var(--chat-meta)]">
-                        {buildReplyPreviewText(message.replyMessage)}
-                      </p>
+                      <p className="font-medium leading-tight text-[13px] text-[var(--chat-meta)]">{message.replyMessage?.senderProfile?.username || "User"}</p>
+                      <p className="truncate text-[12px] mt-1 opacity-90 text-[var(--chat-meta)]">{buildReplyPreviewText(message.replyMessage)}</p>
                     </>
                   )}
                 </div>
               )}
 
+              <p className="whitespace-pre-wrap break-words text-[14px] leading-relaxed">{displayed || <span className="text-[var(--chat-meta)]">(Unable to decrypt)</span>}</p>
 
-
-              <p className="primaryspace-pre-wrap text-[14px] leading-relaxed">
-                {displayed || (
-                  <span className="text-[var(--chat-meta)]">(Unable to decrypt)</span>
-                )}
-              </p>
-
-              {long && (
-                <button
-                  onClick={() => setExpanded((s) => !s)}
-                  className="mt-2 text-xs underline underline-offset-2 text-[var(--chat-meta)]"
-                >
-                  {expanded ? "Show less" : "Show more"}
-                </button>
-              )}
+              {long && (<button onClick={() => setExpanded((s) => !s)} className="mt-2 text-xs underline underline-offset-2 text-[var(--chat-meta)]">{expanded ? "Show less" : "Show more"}</button>)}
             </div>
           )}
 
           {/* Attachments */}
           {!showPersonalTombstone && !isDeletedForAll && hasAttachments && (
-            <div
-              className={cn(
-                "mt-3 gap-3",
-                onlyImages && attachments.length > 1
-                  ? "grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-3"
-                  : "flex flex-col gap-3"
-              )}
-            >
+            <div className={cn("mt-3 gap-3", onlyImages && attachments.length > 1 ? "grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-3" : "flex flex-col gap-3")}>
               {attachments.map((att, i) => {
                 const key = getMediaSrc(att) + (att.filename || "");
                 const mediaIdx = mediaIndexMap.get(key);
-                const isMediaIndex =
-                  typeof mediaIdx === "number" && mediaIdx >= 0;
+                const isMediaIndex = typeof mediaIdx === "number" && mediaIdx >= 0;
 
                 return (
-                  <div
-                    key={`${att.filename || att._id || i}-${i}`}
-                    className={cn(isOwn ? "flex justify-end" : "flex justify-start")}
-                  >
-                    <AttachmentBubble
-                      att={att}
-                      compact={attachments.length > 1}
-                      index={mediaIdx}
-                      openFullscreen={openFullscreenAt}
-                      isMediaIndex={isMediaIndex}
-                      setFileViewerFile={setFileViewerFile}
-                      isSending={isSending}
-                      isOwn={isOwn}
-                    />
-
+                  <div key={`${att.filename || att._id || i}-${i}`} className={cn(isOwn ? "flex justify-end" : "flex justify-start")}>
+                    <AttachmentBubble att={att} compact={attachments.length > 1} index={mediaIdx} openFullscreen={openFullscreenAt} isMediaIndex={isMediaIndex} setFileViewerFile={setFileViewerFile} isSending={isSending} isOwn={isOwn} />
                   </div>
                 );
               })}
             </div>
           )}
 
-          {/* Time & ticks */}
-          {!showPersonalTombstone && !isDeletedForAll && (
-            <div className={cn("flex items-center gap-1 mt-2 opacity-70", isOwn ? "justify-end" : "justify-start")}>
-              <Time createdAt={createdAt} />
-              {ticks && <Tick state={ticks} />}
-            </div>
-          )}
+          {/* Time & ticks — hide ticks on deleted messages */}
+          <div className={cn("flex items-center gap-1 mt-2 opacity-70", isOwn ? "justify-end" : "justify-start")}>
+            <Time createdAt={createdAt} />
+            {!(isDeletedForAll || showPersonalTombstone) && ticks && <Tick state={ticks} />}
+          </div>
 
-          {/* Reaction bubbles */}
+          {/* Reaction bubbles (hide for deleted messages) */}
           {!showPersonalTombstone && !isDeletedForAll && reactionGroups.length > 0 && (
             <div className={cn("flex gap-1 mt-2", isOwn ? "justify-end" : "justify-start")}>
               {reactionGroups.map((grp) => (
-                <button
-                  key={grp.emoji}
-                  onClick={() => {
-                    setSelectedEmoji(grp.emoji);
-                    setEmojiInfoOpen(true);
-                  }}
-                  className="px-2 py-0.5 rounded-xl bg-[var(--chat-reaction-bg)] border border-[var(--chat-border)]/30 text-xs shadow hover:bg-[var(--chat-reaction-bg)]/60"
-                >
+                <button key={grp.emoji} onClick={() => { setSelectedEmoji(grp.emoji); setEmojiInfoOpen(true); }} className="px-2 py-0.5 rounded-xl bg-[var(--chat-reaction-bg)] border border-[var(--chat-border)]/30 text-xs shadow hover:bg-[var(--chat-reaction-bg)]/60">
                   <span className="text-[15px]">{grp.emoji}</span>
                   <span className="text-[11px] tabular-nums">{grp.count}</span>
                 </button>
@@ -746,54 +550,21 @@ export default React.memo(
           )}
 
           {showReact && (
-            <div
-              className={cn(
-                "absolute z-50 py-2 flex",
-                isOwn
-                  ? "-top-14 right-0"
-                  : "-top-14 left-0"
-              )}
-            >
-              <QuickReactions
-                message={message}
-                onClose={() => setShowReact(false)}
-                parentRef={bubbleRef}
-              />
+            <div className={cn("absolute z-50 py-2 flex", isOwn ? "-top-14 right-0" : "-top-14 left-0")}>
+              <QuickReactions message={message} onClose={() => setShowReact(false)} parentRef={bubbleRef} />
             </div>
           )}
-
 
         </div>
 
         <MessageInfoPanel open={infoOpen} onClose={() => setInfoOpen(false)} message={message} />
 
-        <EmojiInfoPanel
-          open={emojiInfoOpen}
-          onClose={() => {
-            setEmojiInfoOpen(false);
-            setSelectedEmoji(null);
-          }}
-          emoji={selectedEmoji}
-          message={message}
-        />
+        <EmojiInfoPanel open={emojiInfoOpen} onClose={() => { setEmojiInfoOpen(false); setSelectedEmoji(null); }} emoji={selectedEmoji} message={message} />
 
-        {fileViewerFile && (
-          <FileViewer
-            file={fileViewerFile}
-            onClose={() => setFileViewerFile(null)}
-          />
-        )}
+        {fileViewerFile && <FileViewer file={fileViewerFile} onClose={() => setFileViewerFile(null)} />}
 
         {fullscreenOpen && mediaAttachments.length > 0 && (
-          <FullscreenGallery
-            items={mediaAttachments}
-            index={fullscreenIndex}
-            onClose={() => setFullscreenOpen(false)}
-            selected={new Set()}
-            onToggleSelect={() => { }}
-            onDownloadZip={() => { }}
-            withinParent={false}
-          />
+          <FullscreenGallery items={mediaAttachments} index={fullscreenIndex} onClose={() => setFullscreenOpen(false)} selected={new Set()} onToggleSelect={() => { }} onDownloadZip={() => { }} withinParent={false} />
         )}
       </div>
     );

@@ -138,7 +138,7 @@ export function attachSocketHandlers(socket) {
 
     socket.on(ChatEventEnum.CHAT_DELETED_EVENT, (p) => {
         log(ChatEventEnum.CHAT_DELETED_EVENT, p);
-        chat.deleteChatSocket?.(p.chatId);
+        chat.deleteChatSocket?.(p);
     });
 
     /* -----------------------
@@ -162,6 +162,14 @@ export function attachSocketHandlers(socket) {
     socket.on(ChatEventEnum.GROUP_MEMBER_REMOVED_EVENT, (p) => {
         log(ChatEventEnum.GROUP_MEMBER_REMOVED_EVENT, p);
         chat.groupMemberRemovedSocket?.(p);
+    });
+
+    socket.on(ChatEventEnum.MEMBER_PROMOTED_EVENT, (p) => {
+        chat.updateGroupInfoSocket?.(p.chat);
+    });
+
+    socket.on(ChatEventEnum.MEMBER_DEMOTED_EVENT, (p) => {
+        chat.updateGroupInfoSocket?.(p.chat);
     });
 
     /* -----------------------

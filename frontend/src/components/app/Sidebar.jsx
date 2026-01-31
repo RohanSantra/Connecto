@@ -24,12 +24,13 @@ import ConnectoBrandAndSlogan from "../common/ConnectoBrandAndSlogan";
 import { cn } from "@/lib/utils";
 import { useResponsiveDrawer } from "@/hooks/useResponsiveDrawer";
 import { useNavigate } from "react-router-dom";
+import ChatListSkeleton from "../Skeleton/ChatListSkeleton";
 
 /* --------------------------
    Sidebar component
    -------------------------- */
 export default function Sidebar({ isDrawer = false }) {
-    const { chats, activeChatId, setActiveChatId } = useChatStore();
+    const { chats, activeChatId, setActiveChatId, loadingChats } = useChatStore();
     const { profile } = useProfileStore();
     const { logout } = useAuthStore();
     const { openNewChat, openNewGroup, openSettings, openProfile, openChatView } = useUIStore();
@@ -353,10 +354,22 @@ export default function Sidebar({ isDrawer = false }) {
 
             {/* CHAT LIST (accessible listbox) */}
             <ScrollArea className="flex-1 overflow-y-auto">
-                {filteredChats.length === 0 ? (
-                    <EmptyState icon={<MessageCircle className="w-8 h-8" />} title="No chats" message="Start a conversation" />
+                {loadingChats ? (
+                    <ChatListSkeleton count={10} />
+                ) : filteredChats.length === 0 ? (
+                    <EmptyState
+                        icon={<MessageCircle className="w-8 h-8" />}
+                        title="No chats"
+                        message="Start a conversation"
+                    />
                 ) : (
-                    <div role="listbox" aria-activedescendant={focusedIndex >= 0 ? `chat-item-${focusedIndex}` : undefined} className="flex flex-col">
+                    <div
+                        role="listbox"
+                        aria-activedescendant={
+                            focusedIndex >= 0 ? `chat-item-${focusedIndex}` : undefined
+                        }
+                        className="flex flex-col"
+                    >
                         {filteredChats.map((chat, idx) => {
                             const isFocused = idx === focusedIndex;
                             return (
@@ -368,7 +381,9 @@ export default function Sidebar({ isDrawer = false }) {
                                     ref={(el) => (itemRefs.current[idx] = el)}
                                     className={cn(
                                         "rounded-md mx-2 my-1",
-                                        isFocused ? "ring-2 ring-primary/60 bg-accent/40" : ""
+                                        isFocused
+                                            ? "ring-2 ring-primary/60 bg-accent/40"
+                                            : ""
                                     )}
                                 >
                                     <div onClick={() => handleSelectChat(chat)}>
@@ -384,6 +399,7 @@ export default function Sidebar({ isDrawer = false }) {
                     </div>
                 )}
             </ScrollArea>
+
 
             <Separator />
 
