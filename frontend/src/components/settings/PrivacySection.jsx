@@ -21,24 +21,22 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
 import { useProfileStore } from "@/store/useProfileStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { toast } from "sonner";
 
 export default function PrivacySection() {
-  const navigate = useNavigate();
 
   const { deleteProfile } = useProfileStore();
-  const { logout } = useAuthStore();
 
-  const handleDeleteAccount = async () => {
+  const handleDeactiveAccount = async () => {
     try {
-      await deleteProfile();
-      toast.success("Account deleted");
-      logout();
+      const ok = await deleteProfile();
+      if (ok) {
+        toast.success("Account deactivated");
+      }
     } catch {
-      toast.error("Failed to delete account");
+      toast.error("Failed to deactivate");
     }
   };
 
@@ -176,13 +174,13 @@ export default function PrivacySection() {
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="destructive" size="sm">
-                Delete account
+                Deactivate account
               </Button>
             </AlertDialogTrigger>
 
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Permanently delete account?</AlertDialogTitle>
+                <AlertDialogTitle>Deactivate your account?</AlertDialogTitle>
                 <AlertDialogDescription>
                   This will remove your profile, all devices, chat history,
                   sessions, and encryption keys. This cannot be undone.
@@ -193,9 +191,9 @@ export default function PrivacySection() {
                 <AlertDialogCancel className="p-2">Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   className="bg-destructive text-white hover:bg-destructive/90 p-2"
-                  onClick={handleDeleteAccount}
+                  onClick={handleDeactiveAccount}
                 >
-                  Delete forever
+                  Deactivate Account
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

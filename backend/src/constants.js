@@ -61,6 +61,7 @@ export const ChatEventEnum = Object.freeze({
   USER_ONLINE_EVENT: "user:online",
   USER_OFFLINE_EVENT: "user:offline",
   USER_DELETED_EVENT: "user:deleted",
+  USER_REACTIVATED_EVENT: "user:reactivated",
 
   // ----------------------------------
   // 🔹 Chat member roles

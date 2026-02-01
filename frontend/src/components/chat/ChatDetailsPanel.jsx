@@ -140,6 +140,16 @@ function ActionButton({ label, icon: Icon, danger, disabled, onClick }) {
   );
 }
 
+function DeactivatedBadge({ isDeactivated }) {
+  if (!isDeactivated) return null
+
+  return (
+    <span className="ml-2 inline-flex items-center px-2 py-0.5 text-[11px] rounded-full border border-destructive text-destructive bg-destructive/10 font-medium">
+      Deactivated
+    </span>
+  )
+}
+
 /* ----------------------
    small highlight util
    ---------------------- */
@@ -528,12 +538,12 @@ export default function ChatDetailsPanel() {
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
   }, []);
-  
+
 
   // Always compute chat (hooks must run consistently)
   const chat = chats.find((c) => String(c.chatId) === String(activeChatId));
   const isChatMissing = !chat;
-  
+
 
   // If the chat disappears while panel is open -> close panel & cleanup overlays/dialogs.
   useEffect(() => {
@@ -576,7 +586,7 @@ export default function ChatDetailsPanel() {
         ? `Last seen ${new Date(otherUser.lastSeenAt).toLocaleString()}`
         : "Offline"
     : null;
-    
+
 
   // fetch devices for 1:1 only; guard when chat missing
   useEffect(() => {
@@ -798,7 +808,7 @@ export default function ChatDetailsPanel() {
               <>
                 <div className="flex flex-col items-center text-center gap-4">
                   <div className="relative">
-                    <Avatar className="w-28 h-28 ring-4 ring-background shadow-md rounded-xl">
+                    <Avatar className="w-28 h-28 ring-4 ring-background shadow-md rounded-xl mt-2">
                       <AvatarImage src={avatar} />
                       <AvatarFallback className="rounded-xl">{name?.[0]}</AvatarFallback>
                     </Avatar>
@@ -806,7 +816,11 @@ export default function ChatDetailsPanel() {
                     {!isGroup && <OnlineDot isOnline={!!otherUser?.isOnline} />}
                   </div>
 
-                  <h2 className="text-xl font-semibold">{name}</h2>
+                  <h2 className="text-xl font-semibold flex items-center justify-center gap-2">
+                    {name}
+                    {!isGroup && <DeactivatedBadge isDeactivated={otherUser?.isDeactivated} />}
+                  </h2>
+
 
                 </div>
 
@@ -832,7 +846,7 @@ export default function ChatDetailsPanel() {
                       <InfoBox label="Name" value={otherUser?.username} icon={User} />
                       <InfoBox label="Bio" value={otherUser?.bio || "—"} icon={Info} />
                       <InfoBox label="Last Seen" value={
-                        lastSeenText!=="Online"
+                        lastSeenText !== "Online"
                           ? format(new Date(otherUser.lastSeenAt), "PPP") // date only
                           : "Online"
                       } icon={Clock} />
@@ -867,6 +881,8 @@ export default function ChatDetailsPanel() {
                                 <p className="font-medium flex items-center gap-2">
                                   <span className="truncate">{m.username}</span>
                                   <RoleBadge role={m.role} />
+                                  <DeactivatedBadge isDeactivated={m.isDeactivated} />
+
                                   {isMe && <span className="text-xs text-muted-foreground">(You)</span>}
                                 </p>
                                 <p className="text-xs text-muted-foreground">

@@ -55,7 +55,7 @@ export const useChatStore = create((set, get) => ({
   activeChatId: null,
   activeChat: null,
   loading: false,
-  loadingChats :false,
+  loadingChats: false,
 
   typing: {}, // { chatId: { userId: true } }
   activeChatDevices: [],
@@ -143,7 +143,7 @@ export const useChatStore = create((set, get) => ({
      FETCH ALL CHATS
   ========================================================== */
   fetchChats: async () => {
-    set({ loadingChats : true });
+    set({ loadingChats: true });
 
     try {
       const res = await api.get("/chats", { withCredentials: true });
@@ -162,7 +162,7 @@ export const useChatStore = create((set, get) => ({
 
       return [];
     } finally {
-      set({ loadingChats : false });
+      set({ loadingChats: false });
     }
   },
 
@@ -906,5 +906,44 @@ export const useChatStore = create((set, get) => ({
       });
     }
   },
+
+  markUserDeactivatedInChats: (userId) => {
+    const id = String(userId);
+
+    set((state) => ({
+      chats: state.chats.map((chat) => ({
+        ...chat,
+        participants: chat.participants?.map((m) =>
+          String(m.userId) === id
+            ? { ...m, isDeactivated: true, isOnline: false }
+            : m
+        ),
+        otherUser:
+          chat.otherUser && String(chat.otherUser.userId) === id
+            ? { ...chat.otherUser, isDeactivated: true, isOnline: false }
+            : chat.otherUser,
+      })),
+    }));
+  },
+
+  markUserReactivatedInChats: (userId) => {
+    const id = String(userId);
+
+    set((state) => ({
+      chats: state.chats.map((chat) => ({
+        ...chat,
+        participants: chat.participants?.map((m) =>
+          String(m.userId) === id
+            ? { ...m, isDeactivated: false }
+            : m
+        ),
+        otherUser:
+          chat.otherUser && String(chat.otherUser.userId) === id
+            ? { ...chat.otherUser, isDeactivated: false }
+            : chat.otherUser,
+      })),
+    }));
+  },
+
 
 }));

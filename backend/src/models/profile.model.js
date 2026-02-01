@@ -42,6 +42,11 @@ const ProfileSchema = new mongoose.Schema({
     default: null,
     match: /^[a-z]{2}$/,
   },
+  isDeactivated: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
 }, { timestamps: true });
 
 const Profile = mongoose.models.Profile || mongoose.model("Profile", ProfileSchema);

@@ -12,6 +12,8 @@ import { uploadOnCloudinary } from "../utils/cloudinary.js";
 
 import { emitSocketEvent } from "../socket/index.js";
 import { ChatEventEnum } from "../constants.js";
+import Device from "../models/device.model.js";
+import Session from "../models/session.model.js";
 
 /* ---------------------------------------------------------
    Utility – username suggestions
@@ -28,12 +30,21 @@ const generateSuggestions = (username) => {
   ];
 };
 
+const ensureActive = async (userId) => {
+  const user = await User.findById(userId).select("accountStatus");
+  if (user?.accountStatus === "deactivated") {
+    throw new ApiError(403, "Account is deactivated");
+  }
+};
+
 /* ---------------------------------------------------------
    1️⃣ SETUP PROFILE (after OTP/Google login)
 --------------------------------------------------------- */
 export const setupProfile = asyncHandler(async (req, res) => {
   const { username, bio, avatarUrl, primaryLanguage, secondaryLanguage } = req.body;
   const userId = req.user._id.toString();
+
+  await ensureActive(userId);
 
   if (!username || !username.trim()) throw new ApiError(400, "Username required");
   if (username.trim().length < 3) throw new ApiError(400, "Username too short");
@@ -118,14 +129,18 @@ export const getMyProfile = asyncHandler(async (req, res) => {
         avatarUrl: 1,
         isOnline: 1,
         lastSeen: 1,
-        primaryLanguage:1,
-        secondaryLanguage:1,
+        primaryLanguage: 1,
+        secondaryLanguage: 1,
         userId: 1,
         "user.email": 1,
         "user.authProvider": 1,
         "user.isBoarded": 1,
-        createdAt:1,
-        updatedAt:1
+        "user.accountStatus": 1,
+        "user.deactivatedAt": 1,
+        "isDeactivated": 1,
+        createdAt: 1,
+        updatedAt: 1,
+
       }
     }
   ]);
@@ -143,6 +158,7 @@ export const updateProfile = asyncHandler(async (req, res) => {
     req.body;
 
   const userId = req.user._id.toString();
+  await ensureActive(userId);
 
   if (username) {
     const exists = await Profile.findOne({
@@ -240,6 +256,7 @@ export const getProfileByUsername = asyncHandler(async (req, res) => {
       }
     },
     { $unwind: "$user" },
+    { $match: { "user.accountStatus": "active" } },
     {
       $project: {
         _id: 1,
@@ -286,7 +303,8 @@ export const searchProfiles = asyncHandler(async (req, res) => {
     {
       $match: {
         "user._id": { $ne: req.user._id },
-        "user.isActive": true
+        "user.isActive": true,
+        "user.accountStatus": "active"
       }
     },
     {
@@ -315,6 +333,7 @@ export const updateAvatar = asyncHandler(async (req, res) => {
   if (!req.file?.path) throw new ApiError(400, "Avatar file missing");
 
   const userId = req.user._id.toString();
+  await ensureActive(userId);
 
   const upload = await uploadOnCloudinary(req.file.path);
   if (!upload?.secure_url) throw new ApiError(500, "Upload failed");
@@ -352,6 +371,7 @@ export const updateOnlineStatus = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Boolean expected");
 
   const userId = req.user._id.toString();
+  await ensureActive(userId);
 
   const profile = await Profile.findOneAndUpdate(
     { userId },
@@ -382,26 +402,32 @@ export const updateOnlineStatus = asyncHandler(async (req, res) => {
    9️⃣ DELETE PROFILE (SOFT DELETE)
 --------------------------------------------------------- */
 export const deleteProfile = asyncHandler(async (req, res) => {
-  const userId = req.user._id.toString();
+  const userId = req.user._id;
 
-  const profile = await Profile.findOne({ userId });
-  if (!profile) throw new ApiError(404, "Profile not found");
-
-  profile.bio = "Account deactivated";
-  profile.isOnline = false;
-  await profile.save();
-
-  await User.updateOne({ _id: userId }, { isActive: false });
-
-  emitSocketEvent(
-    req,
-    "user",
-    userId,
-    ChatEventEnum.USER_DELETED_EVENT,
-    { userId, timestamp: new Date() }
+  await User.updateOne(
+    { _id: userId },
+    {
+      isActive: false,
+      accountStatus: "deactivated",
+      deactivatedAt: new Date()
+    }
   );
 
-  return res.json(new ApiResponse(200, null, "Profile deactivated"));
+  await Profile.updateOne(
+    { userId },
+    {
+      isOnline: false,
+      isDeactivated: true,
+      lastSeen: new Date()
+    }
+  );
+
+  emitSocketEvent(req, "global", null, ChatEventEnum.USER_DELETED_EVENT, {
+    userId,
+    timestamp: new Date()
+  });
+
+  return res.json(200, [], "Account deactivated");
 });
 
 /* ---------------------------------------------------------

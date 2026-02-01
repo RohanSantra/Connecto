@@ -41,6 +41,7 @@ async function buildParticipants(members, profileLookup) {
       avatarUrl: prof?.avatarUrl || null,
       bio: prof?.bio || null,
       isOnline: prof?.isOnline || false,
+      isDeactivated: prof?.isDeactivated || false,
     };
   });
 }
@@ -717,6 +718,7 @@ export const getAllChats = asyncHandler(async (req, res) => {
         isOnline: prof?.isOnline || false,
         lastSeenAt: prof?.lastSeenAt || null,
         bio: prof?.bio || null,
+        isDeactivated: prof?.isDeactivated || false,
       };
     }),
     lastMessage: x.lastMessage || null,
@@ -772,6 +774,7 @@ export const getGroupMembers = asyncHandler(async (req, res) => {
         avatarUrl: "$p.avatarUrl",
         isOnline: "$p.isOnline",
         lastSeenAt: "$p.lastSeenAt",
+        isDeactivated: "$p.isDeactivated"
       },
     },
   ]);

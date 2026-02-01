@@ -33,7 +33,7 @@ export default function MessageList({
   const prevFirstIdRef = useRef(messages?.[0]?._id || null);
   const prevLastIdRef = useRef(messages?.[messages.length - 1]?._id || null);
 
-  const { scrollToMessageId, setScrollToMessage } = useMessageStore();
+  const { scrollToMessageId, setScrollToMessage, loadingInitial } = useMessageStore();
 
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [localPage, setLocalPage] = useState(page);
@@ -181,20 +181,28 @@ export default function MessageList({
   }, [messages, hasMore]);
 
 
-
-  if (!messages.length) {
-    // show a decent initial skeleton list (tweak count as needed)
+  if (loadingInitial) {
     return (
-      <div className="h-full px-4 py-3 flex flex-col gap-3 overflow-y-auto">
+      <div className="h-full px-4 py-3 flex flex-col gap-3">
         <MessageListSkeleton initialCount={6} showGroup={isGroup} />
       </div>
     );
   }
 
+  if (!loadingInitial && messages.length === 0) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+        <p className="text-sm">No messages yet</p>
+        <p className="text-xs mt-1">Start the conversation 👋</p>
+      </div>
+    );
+  }
+
+
   return (
     <ScrollArea className="h-full">
       <div className="h-full px-4 py-3">
-        <div ref={scrollRef} className="h-full overflow-y-auto pr-2">
+        <div ref={scrollRef} className="h-full pr-2">
           {/* WHEN LOADING OLDER — show skeletons at the top so user knows more content is incoming */}
           {loadingOlder && (
             <div className="space-y-3 py-2">

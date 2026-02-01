@@ -191,7 +191,7 @@ export function attachSocketHandlers(socket) {
     });
 
     /* -----------------------
-       USER / PROFILE / DEVICE
+       USER / PROFILE 
     ------------------------*/
     socket.on(ChatEventEnum.USER_PROFILE_UPDATED, (p) => {
         log(ChatEventEnum.USER_PROFILE_UPDATED, p);
@@ -221,6 +221,25 @@ export function attachSocketHandlers(socket) {
         useChatStore.getState().setUserOnlineStatus?.(p.userId, false, p.lastSeen || p.timestamp);
         useProfileStore.getState().updateOnlineStatusSocket?.({ userId: p.userId, isOnline: false, lastSeen: p.lastSeen || p.timestamp });
     });
+
+    socket.on(ChatEventEnum.USER_DELETED_EVENT, (p) => {
+        console.log("[socket] USER_DELETED_EVENT", p);
+
+        useProfileStore.getState().markUserDeactivatedSocket(p);
+        useChatStore.getState().markUserDeactivatedInChats(p.userId);
+    });
+
+    socket.on(ChatEventEnum.USER_REACTIVATED_EVENT, (p) => {
+        console.log("[socket] USER_REACTIVATED_EVENT", p);
+
+        useProfileStore.getState().markUserReactivatedSocket(p);
+        useChatStore.getState().markUserReactivatedInChats(p.userId);
+    });
+
+
+    /* -----------------------
+        DEVICE
+    ------------------------*/
 
     socket.on(ChatEventEnum.DEVICE_REGISTERED_EVENT, (p) => {
         log(ChatEventEnum.DEVICE_REGISTERED_EVENT, p);

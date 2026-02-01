@@ -138,11 +138,18 @@ export const useProfileStore = create((set, get) => ({
   ========================================================== */
   deleteProfile: async () => {
     try {
-      await api.delete("/profile/delete", { withCredentials: true });
-      set({ profile: null });
-      toast.success("Profile deleted");
+      const data = await api.delete("/profile/delete", { withCredentials: true });
+      set({ profile: null, profiles: [] });
+
+      const { logout } = useAuthStore.getState();
+      logout();
+
+      toast.success("Account deactivated");
+
     } catch {
-      toast.error("Failed to delete profile");
+      const msg = err?.response?.data?.message || "Failed to deactivate account";
+      toast.error(msg);
+      return false;
     }
   },
 
@@ -293,4 +300,43 @@ export const useProfileStore = create((set, get) => ({
       lastSeen,
     });
   },
+
+  /* ---------------------------------------
+   USER_DELETED_EVENT
+--------------------------------------- */
+  markUserDeactivatedSocket: ({ userId }) => {
+    const id = String(userId);
+
+    set((state) => ({
+      profiles: state.profiles?.map((p) =>
+        String(p.userId) === id
+          ? { ...p, isDeactivated: true, isOnline: false }
+          : p
+      ) || [],
+
+      // if current user (rare case: admin deletes you)
+      profile:
+        String(state.profile?.userId) === id
+          ? { ...state.profile, isDeactivated: true, isOnline: false }
+          : state.profile,
+    }));
+  },
+  markUserReactivatedSocket: ({ userId }) => {
+    const id = String(userId);
+
+    set((state) => ({
+      profiles: state.profiles?.map((p) =>
+        String(p.userId) === id
+          ? { ...p, isDeactivated: false }
+          : p
+      ) || [],
+
+      profile:
+        String(state.profile?.userId) === id
+          ? { ...state.profile, isDeactivated: false }
+          : state.profile,
+    }));
+  },
+
 }));
+

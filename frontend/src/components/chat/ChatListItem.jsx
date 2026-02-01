@@ -356,6 +356,7 @@ export default function ChatListItem({ chat = {}, onClick, searchTerm = "" }) {
   const otherId = otherUser?.userId ? String(otherUser.userId) : null;
   const isTyping = isGroup ? Object.keys(tMap).length > 0 : !!tMap[otherId];
   const typingText = isGroup ? "Someone is typing…" : "typing…";
+  const isDeactivated = !isGroup && otherUser?.isDeactivated;
 
   const rawPreview = buildPreview(last, { isTyping, typingText });
   const preview = highlightMatches(rawPreview, searchTerm);
@@ -419,11 +420,23 @@ export default function ChatListItem({ chat = {}, onClick, searchTerm = "" }) {
       {/* Middle */}
       <div className="min-w-0">
         <div className="flex justify-between items-start gap-2">
-          <span className="text-sm font-semibold truncate">{highlightedName}</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-sm font-semibold truncate">
+              {highlightedName}
+            </span>
+
+            {isDeactivated && (
+              <span className="px-1.5 py-0.5 text-[9px] rounded-md bg-destructive text-primary font-medium shrink-0">
+                Deactivated
+              </span>
+            )}
+          </div>
+
           <span className="text-[11px] ml-2 text-muted-foreground whitespace-nowrap">
             {lastAt}
           </span>
         </div>
+
 
         <div className="flex items-center gap-2 mt-1 min-w-0 overflow-hidden">
           {/* tick */}

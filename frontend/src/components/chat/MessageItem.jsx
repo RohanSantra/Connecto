@@ -343,6 +343,14 @@ export default React.memo(
     const [fullscreenIndex, setFullscreenIndex] = useState(0);
     const [fileViewerFile, setFileViewerFile] = useState(null);
 
+    const hasValidText = typeof plaintext === "string" && plaintext.trim().length > 0;
+    const hasValidAttachments = Array.isArray(attachments) && attachments.length > 0;
+    const isCorrupt =
+      message.status !== "sending" &&
+      !hasValidText &&
+      !hasValidAttachments &&
+      !message.deleted;
+
     const reactionGroups = useMemo(() => {
       const map = new Map();
       (reactions || []).forEach((r) => {
@@ -448,7 +456,7 @@ export default React.memo(
           )}
 
           {/* Big device action bar (hide for deleted messages) */}
-          {!(isSmall || isTouch) && !isDeletedForAll && message.status !== "sending" && (
+          {!(isSmall || isTouch) && !isDeletedForAll && !isCorrupt && message.status !== "sending" && (
             <div className={cn("hidden md:flex absolute -top-10 gap-2 px-2 py-1 rounded-xl shadow-lg z-20",
               "bg-[var(--color-card)]/95 backdrop-blur-sm transition-all duration-150 opacity-0 md:group-hover:opacity-100",
               isOwn ? "right-0" : "left-0"
@@ -482,8 +490,21 @@ export default React.memo(
             </div>
           )}
 
+          {isCorrupt && (
+            <div
+              className={cn(
+                "px-4 py-3 rounded-xl text-sm border shadow-sm italic",
+                isOwn
+                  ? "bg-[var(--chat-own-bg)] text-[var(--chat-own-fg)] border-[var(--chat-border)]/30"
+                  : "bg-[var(--chat-other-bg)] text-[var(--chat-other-fg)] border-[var(--chat-border)]/30"
+              )}
+            >
+              ⚠️ Something went wrong while receiving this message
+            </div>
+          )}
+
           {/* TEXT bubble */}
-          {!showPersonalTombstone && !isDeletedForAll && hasText && (
+          {!showPersonalTombstone && !isDeletedForAll && hasText && !isCorrupt && (
             <div ref={bubbleRef} className={cn("px-4 py-3 rounded-xl text-sm shadow-sm border max-w-full wrap-break-word z-10",
               isOwn ? "bg-[var(--chat-own-bg)] text-[var(--chat-own-fg)]" : "bg-[var(--chat-other-bg)] text-[var(--chat-other-fg)]",
               pinned ? "ring-1 ring-[var(--color-primary)]/30 ring-offset-1" : "",
@@ -515,7 +536,7 @@ export default React.memo(
           )}
 
           {/* Attachments */}
-          {!showPersonalTombstone && !isDeletedForAll && hasAttachments && (
+          {!showPersonalTombstone && !isDeletedForAll && hasAttachments && !isCorrupt && (
             <div className={cn("mt-3 gap-3", onlyImages && attachments.length > 1 ? "grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-3" : "flex flex-col gap-3")}>
               {attachments.map((att, i) => {
                 const key = getMediaSrc(att) + (att.filename || "");
@@ -534,11 +555,11 @@ export default React.memo(
           {/* Time & ticks — hide ticks on deleted messages */}
           <div className={cn("flex items-center gap-1 mt-2 opacity-70", isOwn ? "justify-end" : "justify-start")}>
             <Time createdAt={createdAt} />
-            {!(isDeletedForAll || showPersonalTombstone) && ticks && <Tick state={ticks} />}
+            {!(isDeletedForAll || showPersonalTombstone || isCorrupt) && ticks && <Tick state={ticks} />}
           </div>
 
           {/* Reaction bubbles (hide for deleted messages) */}
-          {!showPersonalTombstone && !isDeletedForAll && reactionGroups.length > 0 && (
+          {!showPersonalTombstone && !isDeletedForAll && !isCorrupt && reactionGroups.length > 0 && (
             <div className={cn("flex gap-1 mt-2", isOwn ? "justify-end" : "justify-start")}>
               {reactionGroups.map((grp) => (
                 <button key={grp.emoji} onClick={() => { setSelectedEmoji(grp.emoji); setEmojiInfoOpen(true); }} className="px-2 py-0.5 rounded-xl bg-[var(--chat-reaction-bg)] border border-[var(--chat-border)]/30 text-xs shadow hover:bg-[var(--chat-reaction-bg)]/60">

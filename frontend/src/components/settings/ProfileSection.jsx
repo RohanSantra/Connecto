@@ -92,7 +92,6 @@ export default function ProfileSection() {
   } = useProfileStore();
 
   const { logout } = useAuthStore();
-
   /* local UI/edit state */
   const [editMode, setEditMode] = useState(false);
 
@@ -332,11 +331,12 @@ export default function ProfileSection() {
   /* -----------------------------------------------------
      Delete flow
   ----------------------------------------------------- */
-  const handleDeactivate = async () => {
+  const handleDeactivateAccount = async () => {
     try {
-      await deleteProfile();
-      toast.success("Profile deactivated");
-      logout();
+      const ok = await deleteProfile();
+      if (ok) {
+        toast.success("Account deactivated");
+      }
     } catch {
       toast.error("Failed to deactivate");
     }
@@ -414,13 +414,13 @@ export default function ProfileSection() {
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="destructive">
-                    <Trash className="w-4 h-4 mr-2" /> Delete Profile
+                    <Trash className="w-4 h-4 mr-2" /> Deactivate Account
                   </Button>
                 </AlertDialogTrigger>
 
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Delete your profile?</AlertDialogTitle>
+                    <AlertDialogTitle>Deactivate your account?</AlertDialogTitle>
                     <AlertDialogDescription>
                       This action is permanent. Your profile, devices, sessions,
                       and encrypted data will be erased forever. You will be signed out.
@@ -431,9 +431,9 @@ export default function ProfileSection() {
                     <AlertDialogCancel className="p-2">Cancel</AlertDialogCancel>
                     <AlertDialogAction
                       className="bg-destructive text-white hover:bg-destructive/90 p-2"
-                      onClick={handleDeactivate}
+                      onClick={handleDeactivateAccount}
                     >
-                      Yes, delete everything
+                      Deactivate Account
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>

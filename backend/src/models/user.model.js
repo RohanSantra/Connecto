@@ -27,6 +27,16 @@ const UserSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
+    accountStatus: {
+        type: String,
+        enum: ["active", "deactivated"],
+        default: "active",
+        index: true
+    },
+    deactivatedAt: {
+        type: Date,
+        default: null
+    },
     isBoarded: {
         type: Boolean,
         default: false

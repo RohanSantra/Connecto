@@ -130,6 +130,9 @@ export const useMessageStore = create(
         deletingMessageId: false,
         clearedAt: {},
         scrollToMessageId: null,
+        loadingInitial: false,
+        setLoadingInitial: (v) => set({ loadingInitial: v }),
+
 
         setScrollToMessage(id) {
           set({ scrollToMessageId: id });
@@ -143,7 +146,7 @@ export const useMessageStore = create(
         fetchMessages: async (chatId, page = 1, limit = 25) => {
           if (!chatId) return [];
 
-          if (page === 1) set({ loading: true });
+          if (page === 1) set({ loadingInitial: true });
 
           try {
             const res = await api.get(`/messages/${chatId}?page=${page}&limit=${limit}`, {
@@ -188,7 +191,7 @@ export const useMessageStore = create(
             toast.error(err?.response?.data?.message || "Failed to load messages");
             return [];
           } finally {
-            if (page === 1) set({ loading: false });
+            if (page === 1) set({ loadingInitial: false });
           }
         },
 

@@ -117,11 +117,37 @@ export const verifyOtp = asyncHandler(async (req, res) => {
       publicKey,
       lastLogin: new Date(),
     });
-  } else {
+  }
+  else {
+    // 🔥 NEW BLOCK
+    if (user.isActive === false) {
+      user.isActive = true;
+      user.accountStatus = "active";
+      user.deactivatedAt = null;
+      await user.save();
+
+      await Profile.updateOne(
+        { userId: user._id },
+        { isDeactivated: false, lastSeen: null }
+      );
+
+      emitSocketEvent(
+        req,
+        "global",
+        null,
+        ChatEventEnum.USER_REACTIVATED_EVENT,
+        {
+          userId: user._id.toString(),
+          timestamp: new Date(),
+        }
+      );
+    }
+
     user.isVerified = true;
     user.lastLogin = new Date();
     await user.save();
   }
+
 
   await Otp.deleteMany({ email });
 
@@ -305,6 +331,29 @@ export const googleCallback = asyncHandler(async (req, res) => {
     });
 
   } else {
+    // 🔥 NEW BLOCK
+    if (user.isActive === false) {
+      user.isActive = true;
+      user.accountStatus = "active";
+      user.deactivatedAt = null;
+      await user.save();
+
+      await Profile.updateOne(
+        { userId: user._id },
+        { isDeactivated: false, bio: "", lastSeen: null }
+      );
+
+      emitSocketEvent(
+        req,
+        "global",
+        null,
+        ChatEventEnum.USER_REACTIVATED_EVENT,
+        {
+          userId: user._id.toString(),
+          timestamp: new Date(),
+        }
+      );
+    }
     user.lastLogin = new Date();
     user.googleId = claims.sub;
     await user.save();
@@ -325,7 +374,7 @@ export const googleCallback = asyncHandler(async (req, res) => {
       deviceName,
       publicKey,
       status: "active",
-      isPrimary: !hasPrimary, 
+      isPrimary: !hasPrimary,
       lastSeen: new Date(),
     });
   } else {

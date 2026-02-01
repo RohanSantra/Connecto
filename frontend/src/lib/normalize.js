@@ -113,7 +113,8 @@ export function normalizeChat(chat) {
     avatarUrl: p.avatarUrl || null,
     isOnline: !!p.isOnline,
     lastSeenAt: p.lastSeenAt || p.lastSeen || null,
-    bio: p.bio || null
+    bio: p.bio || null,
+    isDeactivated: p.isDeactivated || false
   }));
 
   // If profiles (lookup) present, align them into participants entries
