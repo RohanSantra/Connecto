@@ -31,46 +31,52 @@ import {
   ImageIcon,
   Info,
   Trash2,
-  X,
   Loader2,
   Pin,
+  DoorOpen,
+  UserX,
+  UserCheck,
+  ShieldBan,
+  ShieldCheck,
 } from "lucide-react";
+
+import { useBlockStore } from "@/store/useBlockStore";
 
 export default function ChatMenuDropdown() {
   const { openMediaDocs, openDetailsPanel } = useUIStore();
   const { chats, deleteChat, leaveGroup, activeChatId, togglePin } = useChatStore();
   const { clearChatForUser } = useMessageStore();
   const { profile } = useProfileStore();
+  const {
+    blockChat,
+    blockUser,
+    isUserBlocked,
+    isChatBlocked,
+    unblockUser,
+    unblockChat,
+  } = useBlockStore();
 
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [loading, setLoading] = useState(null);
 
-  const [loading, setLoading] = useState(null); // "clear" | "delete" | "leave"
-
-  /* -------------------------------------------------- */
-  /* Derive chat safely                                 */
-  /* -------------------------------------------------- */
+  /* ---------------- SAFE CHAT FETCH ---------------- */
   const chat = useMemo(
     () => chats.find((c) => String(c.chatId) === String(activeChatId)),
     [chats, activeChatId]
   );
-
-  if (!chat) return null; // 🔥 prevents crashes
+  if (!chat) return null;
 
   const chatId = chat.chatId;
   const isGroup = chat.isGroup;
   const isPinned = !!chat.pinned;
 
-  const myMemberData = chat.participants?.find(
-    (p) => String(p.userId) === String(profile?.userId)
-  );
-  const isAdmin = myMemberData?.role === "admin";
-
   const members = chat.participants || [];
+  const myMemberData = members.find((p) => String(p.userId) === String(profile?.userId));
+  const isAdmin = myMemberData?.role === "admin";
   const adminCount = members.filter((m) => m.role === "admin").length;
 
-  /* Same logic as details panel */
   const canLeaveGroup = () => {
     if (!isGroup) return true;
     if (members.length < 3) return false;
@@ -78,11 +84,33 @@ export default function ChatMenuDropdown() {
     return true;
   };
 
+  const otherUser = !isGroup
+    ? members.find((p) => String(p.userId) !== String(profile?.userId))
+    : null;
 
-  /* -------------------------------------------------- */
-  /* ACTIONS                                            */
-  /* -------------------------------------------------- */
+  const blockedByMe = isGroup
+    ? isChatBlocked(chatId)
+    : otherUser
+      ? isUserBlocked(otherUser.userId)
+      : false;
 
+  // 🔥 IMPORTANT — this is the ONLY place we still use chat flag
+  // because "blocked by other" is not in block store (store = who YOU blocked)
+  const blockedByOther = !isGroup && chat?.otherUserBlockedMe;
+
+  const blocked = blockedByMe;
+
+
+  /* ---------------- BLOCK ICON ---------------- */
+  const BlockIcon = blocked
+    ? isGroup
+      ? ShieldCheck
+      : UserCheck
+    : isGroup
+      ? ShieldBan
+      : UserX;
+
+  /* ---------------- ACTION WRAPPER ---------------- */
   const runAction = async (type, fn, closeSetter) => {
     try {
       setLoading(type);
@@ -92,6 +120,24 @@ export default function ChatMenuDropdown() {
       closeSetter(false);
     }
   };
+
+  const handleBlockToggle = async () => {
+    if (loading === "block") return;
+    setLoading("block");
+
+    try {
+      if (isGroup) {
+        blocked ? await unblockChat(chatId) : await blockChat(chatId);
+      } else if (otherUser) {
+        blocked
+          ? await unblockUser(otherUser.userId)
+          : await blockUser(otherUser.userId);
+      }
+    } finally {
+      setLoading(null);
+    }
+  };
+
 
   return (
     <>
@@ -130,12 +176,30 @@ export default function ChatMenuDropdown() {
             {isPinned ? "Unpin Chat" : "Pin Chat"}
           </DropdownMenuItem>
 
+
           <DropdownMenuSeparator />
 
           {/* ---------- DANGER ---------- */}
           <DropdownMenuLabel className="text-xs text-destructive px-2">
             Danger Zone
           </DropdownMenuLabel>
+
+          {!blockedByOther && (
+            <DropdownMenuItem
+              onClick={handleBlockToggle}
+              className="text-destructive focus:text-destructive"
+              disabled={loading === "block"}
+            >
+              {loading === "block" ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <BlockIcon className="w-4 h-4 mr-2" />
+              )}
+              {blocked ? "Unblock" : isGroup ? "Block Group" : "Block User"}
+            </DropdownMenuItem>
+          )}
+
+
 
           <DropdownMenuItem
             className="text-destructive"
@@ -150,7 +214,7 @@ export default function ChatMenuDropdown() {
               className="text-destructive"
               onClick={() => setConfirmDelete(true)}
             >
-              <X className="w-4 h-4 mr-2" />
+              <Trash2 className="w-4 h-4 mr-2" />
               Delete Chat
             </DropdownMenuItem>
           )}
@@ -170,14 +234,14 @@ export default function ChatMenuDropdown() {
               className="text-destructive"
               onClick={() => setConfirmLeave(true)}
             >
-              <X className="w-4 h-4 mr-2" />
+              <DoorOpen className="w-4 h-4 mr-2" />
               Leave Group
             </DropdownMenuItem>
           )}
 
           {isGroup && !canLeaveGroup() && (
             <DropdownMenuItem disabled className="opacity-50 cursor-not-allowed">
-              <X className="w-4 h-4 mr-2" />
+              <DoorOpen className="w-4 h-4 mr-2" />
               Cannot Leave Group
             </DropdownMenuItem>
           )}

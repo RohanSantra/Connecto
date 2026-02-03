@@ -16,7 +16,7 @@ import PinnedMessagesBar from "@/components/chat/PinnedMessagesBar";
 import MessageList from "@/components/chat/MessageList";
 import MessageComposer from "@/components/chat/MessageComposer";
 import MediaDocsOverlay from "@/components/chat/MediaDocsOverlay";
-import ChatMenuDropdown from "@/components/chat/ChatMenuDropdown";
+import ChatMenuDropdown from "@/components/chat/ChatMenuDropdown.jsx";
 
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,8 @@ import { Separator } from "@/components/ui/separator";
 
 import { formatDistanceToNowStrict } from "date-fns";
 import { ChatEventEnum } from "@/constants";
-
+import { useBlockStore } from "@/store/useBlockStore";
+import BlockBanner from "@/components/chat/BlockBanner";
 export default function ChatArea() {
   const {
     activeChatId,
@@ -55,6 +56,9 @@ export default function ChatArea() {
 
   const { isMobile } = useResponsiveDrawer();
 
+  const { isUserBlocked, isChatBlocked } = useBlockStore();
+
+
   useKeyboardShortcuts({
     onCloseChat: () => {
       setActiveChatId(null);
@@ -78,43 +82,6 @@ export default function ChatArea() {
     joinChat(activeChatId);
     return () => leaveChat(activeChatId);
   }, [activeChatId]);
-
-  /* ---------------- AUTO READ ---------------- */
-  useEffect(() => {
-    if (!activeChatId) return;
-
-    const el = document.getElementById("msg-end");
-    if (!el) return;
-
-    const observer = new IntersectionObserver(async ([entry]) => {
-      if (!entry.isIntersecting) return;
-
-      const socket = getSocket();
-      const lastMsgId = activeChat?.lastMessage?._id
-        ? String(activeChat.lastMessage._id)
-        : null;
-
-      if (socket) {
-        socket.emit(ChatEventEnum.MESSAGE_READ_EVENT, {
-          chatId: activeChatId,
-          readUpToId: lastMsgId || undefined,
-        });
-      }
-
-      try {
-        await api.patch(
-          `/messages/${activeChatId}/read`,
-          lastMsgId ? { readUpToId: lastMsgId } : {},
-          { withCredentials: true }
-        );
-      } catch (err) {
-        console.warn("read patch failed:", err?.message);
-      }
-    });
-
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [activeChatId, messages, activeChat]);
 
   /* ---------------- OLDER MESSAGE FETCHER (🔥 IMPORTANT) ---------------- */
   const fetchOlder = useCallback(
@@ -142,6 +109,62 @@ export default function ChatArea() {
     if (!activeChat || activeChat.isGroup) return null;
     return participants.find((u) => String(u.userId) !== String(profile.userId));
   }, [activeChat, participants, profile]);
+
+  const chatBlocked = isChatBlocked(activeChatId);
+  const userBlocked =
+    otherUser &&
+    (
+      isUserBlocked(otherUser.userId) ||
+      activeChat?.otherUserBlockedMe
+    );
+
+  const isRestricted = chatBlocked || userBlocked;
+
+  const shouldHideComposer = chatBlocked || userBlocked;
+
+  /* ---------------- AUTO READ (SAFE) ---------------- */
+  useEffect(() => {
+    if (!activeChatId || isRestricted) return;   // 🚫 STOP when blocked
+
+    const el = document.getElementById("msg-end");
+    if (!el) return;
+
+    let isProcessing = false; // prevents rapid fire
+
+    const observer = new IntersectionObserver(async ([entry]) => {
+      if (!entry.isIntersecting || isProcessing) return;
+
+      isProcessing = true;
+
+      const socket = getSocket();
+      const lastMsgId = activeChat?.lastMessage?._id
+        ? String(activeChat.lastMessage._id)
+        : null;
+
+      try {
+        if (socket) {
+          socket.emit(ChatEventEnum.MESSAGE_READ_EVENT, {
+            chatId: activeChatId,
+            readUpToId: lastMsgId || undefined,
+          });
+        }
+
+        await api.patch(
+          `/messages/${activeChatId}/read`,
+          lastMsgId ? { readUpToId: lastMsgId } : {},
+          { withCredentials: true }
+        );
+      } catch {
+        // silent — no console spam
+      }
+
+      setTimeout(() => (isProcessing = false), 1500); // throttle
+    });
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [activeChatId, activeChat?.lastMessage?._id, isRestricted]);
+
 
   const chatName = activeChat?.isGroup
     ? activeChat?.name
@@ -190,13 +213,13 @@ export default function ChatArea() {
   return (
     <div className="flex flex-col h-full w-full bg-background">
       {/* HEADER */}
-      <div className="flex items-center justify-between px-4 py-3 border-b bg-card">
+      <div className="flex items-center justify-between px-4 py-3 border-b bg-card/60 backdrop-blur-md">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={closeChat}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
 
-          <Avatar className="w-10 h-10 rounded-xl">
+          <Avatar className={`w-10 h-10 rounded-xl ${isRestricted ? "opacity-60 grayscale" : ""}`}>
             <AvatarImage src={chatAvatar} />
             <AvatarFallback className="rounded-xl">
               {chatName?.[0]}
@@ -206,14 +229,15 @@ export default function ChatArea() {
           <div className="leading-tight">
             <p className="font-medium text-[15px]">{chatName}</p>
             <p className="text-xs text-muted-foreground">
-              {isTyping ? (
-                <span className="text-primary font-medium">
-                  {typingText}
-                </span>
+              {isRestricted ? (
+                <span className="text-destructive font-medium">Messaging disabled</span>
+              ) : isTyping ? (
+                <span className="text-primary font-medium">{typingText}</span>
               ) : (
                 statusText
               )}
             </p>
+
           </div>
         </div>
 
@@ -259,8 +283,19 @@ export default function ChatArea() {
       </div>
 
       <div className="border-t bg-card">
-        <MessageComposer chatId={activeChatId} />
+        {shouldHideComposer ? (
+          <BlockBanner
+            chatBlocked={chatBlocked}
+            userBlocked={isUserBlocked(otherUser?.userId)}
+            blockedByOther={activeChat?.otherUserBlockedMe}
+            chatId={activeChatId}
+            userId={otherUser?.userId}
+          />
+        ) : (
+          <MessageComposer chatId={activeChatId} />
+        )}
       </div>
+
 
       {mediaDocsOpen && (
         <MediaDocsOverlay

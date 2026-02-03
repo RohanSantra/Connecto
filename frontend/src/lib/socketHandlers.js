@@ -5,6 +5,7 @@ import { useChatStore } from "@/store/useChatStore";
 import { useProfileStore } from "@/store/useProfileStore";
 import { useDeviceStore } from "@/store/useDeviceStore";
 import { useCallStore } from "@/store/useCallStore";
+import { useBlockStore } from "@/store/useBlockStore";
 
 /**
  * Attach all handlers (call once, after initSocket/getSocket())
@@ -24,7 +25,14 @@ export function attachSocketHandlers(socket) {
        MESSAGES
     ------------------------*/
     socket.on(ChatEventEnum.MESSAGE_RECEIVED_EVENT, (p) => {
-        log(ChatEventEnum.MESSAGE_RECEIVED_EVENT, p);
+        const { blockedUsers, blockedChats } = useBlockStore.getState();
+
+        const senderId = p?.message?.sender?.userId || p?.message?.senderId;
+        const chatId = p?.chatId;
+
+        const { isUserBlocked } = useBlockStore.getState();
+        if (isUserBlocked(senderId)) return;
+
         message.receiveMessage?.(p);
     });
 
@@ -177,6 +185,10 @@ export function attachSocketHandlers(socket) {
     ------------------------*/
     socket.on(ChatEventEnum.TYPING_EVENT, (p) => {
         log(ChatEventEnum.TYPING_EVENT, p);
+
+        const senderId = p?.userId;
+        const { isUserBlocked } = useBlockStore.getState();
+        if (isUserBlocked(senderId)) return;
         // p: { chatId, userId, timestamp }
         if (p?.chatId && p?.userId) {
             useChatStore.getState().setTyping(p.chatId, String(p.userId), true);
@@ -205,6 +217,11 @@ export function attachSocketHandlers(socket) {
 
     socket.on(ChatEventEnum.USER_STATUS_UPDATED, (p) => {
         log(ChatEventEnum.USER_STATUS_UPDATED, p);
+
+        const senderId = p?.userId;
+        const { isUserBlocked } = useBlockStore.getState();
+        if (isUserBlocked(senderId)) return;
+
         useProfileStore.getState().updateOnlineStatusSocket?.(p);
         // update chats too
         useChatStore.getState().setUserOnlineStatus?.(p.userId, !!p.isOnline, p.lastSeen);
@@ -235,6 +252,43 @@ export function attachSocketHandlers(socket) {
         useProfileStore.getState().markUserReactivatedSocket(p);
         useChatStore.getState().markUserReactivatedInChats(p.userId);
     });
+
+
+    /* -----------------------
+        BLOCKED
+    ------------------------*/
+    socket.on("BLOCK_LIST_UPDATED", async () => {
+        const blockStore = useBlockStore.getState();
+        const chatStore = useChatStore.getState();
+
+        await blockStore.onBlockListUpdatedSocket();
+
+        const { blockedUsers, blockedChats } = useBlockStore.getState();
+
+        chatStore.syncBlockedStateToChats?.(blockedUsers, blockedChats);
+    });
+
+
+    socket.on("YOU_WERE_BLOCKED", ({ by }) => {
+        console.log("[socket] YOU_WERE_BLOCKED by", by);
+
+        const chatStore = useChatStore.getState();
+
+        // update ALL chats with that user
+        chatStore.markUserAsBlockedByOther?.(by);
+    });
+
+
+    socket.on("YOU_WERE_UNBLOCKED", ({ by }) => {
+        console.log("[socket] YOU_WERE_UNBLOCKED by", by);
+
+        const chatStore = useChatStore.getState();
+
+        chatStore.markUserAsUnblockedByOther?.(by);
+    });
+
+
+
 
 
     /* -----------------------

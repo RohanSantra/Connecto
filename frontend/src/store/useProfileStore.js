@@ -180,7 +180,7 @@ export const useProfileStore = create((set, get) => ({
   /* ==========================================================
      SEARCH PROFILES
   ========================================================== */
-  searchProfiles: async (query) => {
+  searchProfiles: async (query, chatId = null) => {
     if (!query || query.trim().length < 2) {
       set({ searchResults: [] });
       return [];
@@ -189,10 +189,10 @@ export const useProfileStore = create((set, get) => ({
     set({ searchLoading: true });
 
     try {
-      const res = await api.get(
-        `/profile/search?query=${encodeURIComponent(query)}`,
-        { withCredentials: true }
-      );
+      const res = await api.get("/profile/search", {
+        params: { query, chatId },
+        withCredentials: true,
+      });
 
       const results = res.data?.data || [];
       set({ searchResults: results });
@@ -205,6 +205,7 @@ export const useProfileStore = create((set, get) => ({
       set({ searchLoading: false });
     }
   },
+
 
   /* ==========================================================
      SOCKET HANDLERS — MATCH NEW BACKEND EXACTLY

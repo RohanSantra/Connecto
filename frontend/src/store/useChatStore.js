@@ -8,6 +8,7 @@ import { ChatEventEnum } from "@/constants";
 import { useProfileStore } from "./useProfileStore";
 // NEW: need clearedAt persisted in message store to compute tombstones
 import { useMessageStore } from "./useMessageStore";
+import { useBlockStore } from "./useBlockStore";
 
 /* ---------------------------------------------
    Utility — dedupe chats by chatId
@@ -151,10 +152,33 @@ export const useChatStore = create((set, get) => ({
 
       const normalized = raw.map((c) => normalizeChat(c));
 
+      const blockStore = useBlockStore.getState();
+      const withBlockState = normalized.map(chat => {
+        const existing = get().chats.find(c => String(c.chatId) === String(chat.chatId));
+
+        const userBlocked = !chat.isGroup && blockStore.isUserBlocked(chat.otherUser?.userId);
+        const chatBlocked = chat.isGroup && blockStore.isChatBlocked(chat.chatId);
+
+        const hide = userBlocked || chatBlocked;
+
+        return {
+          ...chat,
+
+          // 🔴 BLOCK FLAGS (PERSISTED)
+          iBlockedOtherUser: existing?.iBlockedOtherUser ?? userBlocked,
+          chatBlockedByMe: existing?.chatBlockedByMe ?? chatBlocked,
+          otherUserBlockedMe: existing?.otherUserBlockedMe ?? chat.otherUserBlockedMe ?? false,
+
+          // 🔴 PREVIEW WIPE IF BLOCKED
+          lastMessage: hide ? null : chat.lastMessage,
+          unreadCount: hide ? 0 : chat.unreadCount,
+        };
+      });
+
       // apply clearedAt to each chat so lastMessage won't show
       const normalizedWithClear = normalized.map((ch) => applyClearedToLastMessage(ch));
 
-      set({ chats: mergeChats(normalizedWithClear) });
+      set({ chats: mergeChats(withBlockState) });
       return normalizedWithClear;
     } catch (err) {
       toast.error("Failed to load chats");
@@ -170,12 +194,26 @@ export const useChatStore = create((set, get) => ({
      FETCH CHAT DETAILS
   ========================================================== */
   fetchChatDetails: async (chatId) => {
-    if (!chatId) return null;
+    if (!chatId) return null;    
 
     try {
       const res = await api.get(`/chats/${chatId}`, { withCredentials: true });
       const chat = normalizeChat(res.data?.data);
-      set({ activeChat: applyClearedToLastMessage(chat) });
+      const blockedFlag = res.data.data.otherUserBlockedMe || false;
+      set({
+        activeChat: {
+          ...applyClearedToLastMessage(chat),
+          otherUserBlockedMe: blockedFlag
+        }
+      });
+
+      set(state => ({
+        chats: state.chats.map(c =>
+          String(c.chatId) === String(chatId)
+            ? { ...c, otherUserBlockedMe: blockedFlag }
+            : c
+        )
+      }));
       return chat;
     } catch (err) {
 
@@ -944,6 +982,65 @@ export const useChatStore = create((set, get) => ({
       })),
     }));
   },
+
+  markUserAsBlockedByOther: (blockerId) => {
+    const id = String(blockerId);
+
+    set((state) => ({
+      chats: state.chats.map((chat) => {
+        // Only affects 1:1 chats
+        if (chat.isGroup) return chat;
+
+        if (String(chat.otherUser?.userId) === id) {
+          return {
+            ...chat,
+            otherUserBlockedMe: true,
+            lastMessage: null,
+            unreadCount: 0,
+          };
+        }
+        return chat;
+      }),
+      activeChat:
+        state.activeChat &&
+          !state.activeChat.isGroup &&
+          String(state.activeChat.otherUser?.userId) === id
+          ? {
+            ...state.activeChat,
+            otherUserBlockedMe: true,
+            lastMessage: null,
+          }
+          : state.activeChat,
+    }));
+  },
+
+  markUserAsUnblockedByOther: (blockerId) => {
+    const id = String(blockerId);
+
+    set((state) => ({
+      chats: state.chats.map((chat) => {
+        if (chat.isGroup) return chat;
+
+        if (String(chat.otherUser?.userId) === id) {
+          return {
+            ...chat,
+            otherUserBlockedMe: false,
+          };
+        }
+        return chat;
+      }),
+      activeChat:
+        state.activeChat &&
+          !state.activeChat.isGroup &&
+          String(state.activeChat.otherUser?.userId) === id
+          ? {
+            ...state.activeChat,
+            otherUserBlockedMe: false,
+          }
+          : state.activeChat,
+    }));
+  },
+
 
 
 }));

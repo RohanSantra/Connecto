@@ -27,6 +27,7 @@ import PrivacyPolicyPage from "./pages/legal/PrivacyPolicyPage";
 import TermsOfServicePage from "./pages/legal/TermsOfServicePage";
 
 import { useThemeStore } from "./store/useThemeStore";
+import { useBlockStore } from "./store/useBlockStore";
 
 
 export default function App() {
@@ -37,6 +38,10 @@ export default function App() {
   // TO get the theme selected
   useEffect(() => {
     initTheme();
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.classList.add("scroll-thumb-only");
   }, []);
 
   /* ------------------------------------------------------------

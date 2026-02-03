@@ -273,14 +273,6 @@ export default function NewGroupOverlay() {
                                             <div className="font-medium text-sm truncate">{highlightMatches(user.username || "Unknown", search)}</div>
                                             <div className="text-xs text-muted-foreground whitespace-nowrap">{user.isOnline ? "Online" : user.lastSeen ? new Date(user.lastSeen).toLocaleDateString() : ""}</div>
                                         </div>
-
-                                        <div className="text-xs text-muted-foreground truncate">
-                                            {user.isOnline
-                                                ? "Online"
-                                                : user.lastSeen
-                                                    ? `Last seen ${new Date(user.lastSeen).toLocaleString()}`
-                                                    : "Offline"}
-                                        </div>
                                     </div>
 
                                     {selected && <span className="text-xs font-medium text-primary ml-2">Added</span>}

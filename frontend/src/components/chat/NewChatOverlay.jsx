@@ -204,9 +204,6 @@ export default function NewChatOverlay() {
                         {results.map((u, i) => {
                             const isFocused = i === focusedIndex;
                             const label = u.username || (u.user && u.user.username) || "Unknown";
-                            const preview = u.lastSeen
-                                ? `Last seen ${new Date(u.lastSeen).toLocaleString()}`
-                                : "Offline";
                             return (
                                 <div
                                     id={`nc-item-${i}`}
@@ -232,10 +229,6 @@ export default function NewChatOverlay() {
                                                 <div className="text-xs text-muted-foreground whitespace-nowrap">
                                                     {u.isOnline ? "Online" : u.lastSeen ? formatDistanceToNowStrict(new Date(u.lastSeen), { addSuffix: true }) : ""}
                                                 </div>
-                                            </div>
-
-                                            <div className="text-xs text-muted-foreground truncate mt-0.5">
-                                                {preview}
                                             </div>
                                         </div>
                                     </div>

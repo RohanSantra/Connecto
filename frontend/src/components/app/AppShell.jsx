@@ -21,6 +21,7 @@ import LoaderScreen from "@/components/common/LoaderScreen";
 
 import NewChatOverlay from "@/components/chat/NewChatOverlay";
 import NewGroupOverlay from "@/components/chat/NewGroupOverlay";
+import { useBlockStore } from "@/store/useBlockStore";
 
 export default function AppShell() {
     const navigate = useNavigate();
@@ -56,10 +57,20 @@ export default function AppShell() {
        2️⃣ Fetch chats ONLY after profile is loaded
     ------------------------------------------------------- */
     useEffect(() => {
-        if (!profileLoading && profile) {
-            fetchChats();
-        }
-    }, [profile, profileLoading]);
+        const init = async () => {
+            if (profileLoading || !profile) return;
+
+            const blockStore = useBlockStore.getState();
+
+            await blockStore.fetchBlocks();          // 1️⃣ load blocks first
+            await fetchChats();                      // 2️⃣ then load chats
+
+            const { blockedUsers, blockedChats } = useBlockStore.getState();
+            blockStore.syncBlockedStateToChats(blockedUsers, blockedChats); // 3️⃣ apply block state
+        };
+
+        init();
+    }, [profileLoading, profile]);
 
     /* -------------------------------------------------------
        3️⃣ Global keyboard shortcuts

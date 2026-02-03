@@ -10,6 +10,9 @@ import Message from "../models/message.model.js";
 import Chat from "../models/chat.model.js";
 import ChatMember from "../models/chatMember.model.js";
 import { ChatEventEnum } from "../constants.js";
+import Block from "../models/block.model.js";
+import { loadBlockedSetsForUser, isUserBlockedBetween, isChatBlockedForUser } from "../utils/block.utils.js";
+
 import mongoose from "mongoose";
 
 /* -------------------------
@@ -38,6 +41,21 @@ async function tryAuthenticateSocket(socket) {
       socket.handshake.auth?.deviceId ||
       socket.handshake.query?.deviceId ||
       null;
+
+    // Load block sets for this user into socket.data for fast checks
+    try {
+      const sets = await loadBlockedSetsForUser(user._id);
+      socket.data = socket.data || {};
+      socket.data.blockedUsersSet = sets.blockedUsersSet;
+      socket.data.usersWhoBlockedMeSet = sets.usersWhoBlockedMeSet;
+      socket.data.blockedChatsSet = sets.blockedChatsSet;
+    } catch (err) {
+      // swallow; not critical
+      socket.data = socket.data || {};
+      socket.data.blockedUsersSet = new Set();
+      socket.data.usersWhoBlockedMeSet = new Set();
+      socket.data.blockedChatsSet = new Set();
+    }
 
     return user;
   } catch (err) {
@@ -131,18 +149,49 @@ async function markDeviceOnline(io, userId, deviceId, socketId) {
           .lean();
 
         if (undelivered.length > 0) {
+          // Load blocks relevant to this user once (outgoing user-blocks, incoming user-blocks, and chat-blocks)
+          const blocks = await Block.find({
+            $or: [
+              { blockedBy: objectUserId },          // chats & users this user blocked
+              { blockedUser: objectUserId, type: "user" } // users who blocked this user
+            ],
+          }).lean();
+
+          const blockedUsersSet = new Set();
+          const usersWhoBlockedMeSet = new Set();
+          const blockedChatsSet = new Set();
+
+          for (const b of blocks) {
+            if (b.type === "user") {
+              if (String(b.blockedBy) === String(objectUserId) && b.blockedUser) blockedUsersSet.add(String(b.blockedUser));
+              if (String(b.blockedUser) === String(objectUserId) && b.blockedBy) usersWhoBlockedMeSet.add(String(b.blockedBy));
+            } else if (b.type === "chat") {
+              if (String(b.blockedBy) === String(objectUserId) && b.blockedChat) blockedChatsSet.add(String(b.blockedChat));
+            }
+          }
+
+          // filter messages user should not receive
+          const filtered = undelivered.filter((m) => {
+            // if this chat is blocked by this user -> skip
+            if (blockedChatsSet.has(String(m.chatId))) return false;
+            // if sender is in sender-block list (either user blocked sender or sender blocked user) -> skip
+            const senderIdStr = String(m.senderId);
+            if (blockedUsersSet.has(senderIdStr)) return false;
+            if (usersWhoBlockedMeSet.has(senderIdStr)) return false;
+            return true;
+          });
+
           const deliveredAt = new Date();
-          const msgIds = undelivered.map((m) => m._id);
+          const msgIds = filtered.map((m) => m._id);
 
           // Persist: push deliveredTo entry only for messages that don't already have it
-          // (use a filter so timestamps are only set once and duplicates avoided)
           await Message.updateMany(
             { _id: { $in: msgIds }, "deliveredTo.userId": { $ne: objectUserId } },
             { $push: { deliveredTo: { userId: objectUserId, deliveredAt } } }
           );
 
-          // Emit events using the same deliveredAt timestamp
-          for (const msg of undelivered) {
+          // Emit events for filtered messages only
+          for (const msg of filtered) {
             const payload = {
               messageId: msg._id,
               chatId: msg.chatId,
@@ -162,13 +211,14 @@ async function markDeviceOnline(io, userId, deviceId, socketId) {
               payload
             );
 
-            // notify the recipient userRoom too (optional/redundant but safe)
+            // notify the recipient userRoom too
             io.in(userRoom(String(userId))).emit(
               ChatEventEnum.MESSAGE_DELIVERED_EVENT,
               payload
             );
           }
         }
+
       }
     } catch (err) {
       console.warn("markDeviceOnline deliver failed:", err && err.stack ? err.stack : err);
@@ -268,6 +318,139 @@ function mountMessageEvents(socket, io) {
   forwardToChat(io, socket, ChatEventEnum.MESSAGE_REACTION_ADDED_EVENT);
   forwardToChat(io, socket, ChatEventEnum.MESSAGE_REACTION_REMOVED_EVENT);
 }
+
+function mountSendMessageEvent(socket, io) {
+  socket.on(ChatEventEnum.MESSAGE_SEND_EVENT, async (payload = {}, ack) => {
+    try {
+      const user = socket.user;
+      if (!user || !user._id) {
+        return ack?.({ error: "not_authenticated" });
+      }
+
+      const senderId = String(user._id);
+      const {
+        chatId,
+        clientTempId = null,
+        ciphertext,
+        ciphertextNonce,
+        type = "text",
+        attachments = [],
+        encryptedKeys = [],
+        senderDeviceId = socket.deviceId || null,
+      } = payload;
+
+      if (!chatId) return ack?.({ error: "chatId required" });
+
+      // fetch chat and members
+      const chat = await Chat.findById(chatId).lean();
+      if (!chat) return ack?.({ error: "invalid_chat" });
+
+      const memberDocs = await ChatMember.find({ chatId }).select("userId role").lean();
+      const memberIds = memberDocs.map(m => String(m.userId));
+      if (!memberIds.includes(senderId)) return ack?.({ error: "not_a_member" });
+
+      // 1) Direct chat: block if user pair blocked (either direction)
+      if (!chat.isGroup) {
+        // find the other participant
+        const other = memberIds.find(id => id !== senderId);
+        if (!other) return ack?.({ error: "invalid_direct_chat" });
+
+        const blocked = await isUserBlockedBetween(senderId, other);
+        if (blocked) {
+          return ack?.({ error: "blocked_pair" });
+        }
+      } else {
+        // 2) Group chat: block if sender blocked this group
+        const senderBlockedChat = await isChatBlockedForUser(chatId, senderId);
+        if (senderBlockedChat) return ack?.({ error: "you_blocked_chat" });
+      }
+
+      // Create message (we won't attempt to push deliveredTo for everyone now)
+      const message = await Message.create({
+        chatId,
+        senderId,
+        senderDeviceId: senderDeviceId || socket.deviceId || null,
+        ciphertext,
+        ciphertextNonce,
+        type,
+        attachments,
+        encryptedKeys,
+        clientTempId,
+      });
+
+      // Prepare payload to deliver (lean shape)
+      const out = {
+        _id: message._id,
+        chatId: String(message.chatId),
+        senderId: String(message.senderId),
+        ciphertext: message.ciphertext,
+        ciphertextNonce: message.ciphertextNonce,
+        type: message.type,
+        attachments: message.attachments || [],
+        createdAt: message.createdAt,
+        clientTempId,
+        senderDeviceId: message.senderDeviceId,
+      };
+
+      // Determine recipients:
+      // For groups: deliver to each member individually unless:
+      //  - that member blocked this chat (they won't see it)
+      //  - that member blocked the sender (they won't see it)
+      // For direct: deliver to the other user only if pair not blocked (we already checked)
+      const recipients = [];
+
+      for (const m of memberDocs) {
+        const rid = String(m.userId);
+        if (rid === senderId) continue;
+
+        // if recipient blocked this chat? check Block.exists per-recipient
+        const recipientBlockedChat = await Block.exists({
+          type: "chat",
+          blockedBy: mongoose.Types.ObjectId(rid),
+          blockedChat: mongoose.Types.ObjectId(chatId),
+        });
+        if (recipientBlockedChat) continue;
+
+        // if recipient blocked sender OR sender blocked recipient => skip (mutual semantics)
+        const pairBlocked = await Block.exists({
+          type: "user",
+          $or: [
+            { blockedBy: mongoose.Types.ObjectId(rid), blockedUser: mongoose.Types.ObjectId(senderId) },
+            { blockedBy: mongoose.Types.ObjectId(senderId), blockedUser: mongoose.Types.ObjectId(rid) },
+          ],
+        });
+        if (pairBlocked) continue;
+
+        recipients.push(rid);
+      }
+
+      // Emit message to each recipient's user room individually (so we can skip excluded users)
+      for (const rid of recipients) {
+        io.in(userRoom(rid)).emit(ChatEventEnum.MESSAGE_RECEIVED_EVENT, out);
+      }
+
+      // Also emit to sender's own user room so sender UI sees the message created
+      io.in(userRoom(senderId)).emit(ChatEventEnum.MESSAGE_RECEIVED_EVENT, out);
+
+      // Persist deliveredTo for recipients who are currently online and received it
+      // We'll check onlineUsers map for presence
+      const onlineRecipientIds = recipients.filter((rid) => onlineUsers.has(rid));
+      if (onlineRecipientIds.length) {
+        await Message.updateOne(
+          { _id: message._id },
+          { $push: { deliveredTo: { $each: onlineRecipientIds.map(id => ({ userId: mongoose.Types.ObjectId(id), deliveredAt: new Date() })) } } }
+        );
+      }
+
+      // Acknowledge success with created message id
+      ack?.({ ok: true, messageId: message._id });
+    } catch (err) {
+      console.warn("send-message failed:", err && err.stack ? err.stack : err);
+      ack?.({ error: "send_failed", detail: err.message });
+    }
+  });
+}
+
 
 /*
 function mountGroupEvents(socket, io) {
@@ -380,6 +563,7 @@ export function initializeSocket(server, app) {
     // mount features
     mountTypingEvents(socket, io);
     mountMessageEvents(socket, io);
+    mountSendMessageEvent(socket, io);
     // mountGroupEvents(socket, io);
     mountProfileEvents(socket, io);
     mountCallEvents(socket, io);
@@ -448,6 +632,14 @@ export function initializeSocket(server, app) {
         console.warn("deliver-event persist failed:", err);
       }
     });
+
+    socket.on("BLOCK_LIST_REFRESH", async () => {
+      const sets = await loadBlockedSetsForUser(socket.user._id);
+      socket.data.blockedUsersSet = sets.blockedUsersSet;
+      socket.data.usersWhoBlockedMeSet = sets.usersWhoBlockedMeSet;
+      socket.data.blockedChatsSet = sets.blockedChatsSet;
+    });
+
 
 
     /* ----------------------------

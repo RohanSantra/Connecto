@@ -51,11 +51,17 @@ import {
   Upload,
   MessageSquare,
   Clock,
+  DoorOpen,
+  UserX,
+  ShieldBan,
+  ShieldCheck,
+  UserCheck,
 } from "lucide-react";
 
 import { toast } from "sonner";
 import { useMessageStore } from "@/store/useMessageStore";
 import { format } from "date-fns";
+import { useBlockStore } from "@/store/useBlockStore";
 
 /* ----------------------
    tiny UI helpers: OnlineDot + RoleBadge
@@ -237,7 +243,7 @@ function EditGroupOverlay({ open, onOpenChange, initial = {}, onSave }) {
     }
     const t = setTimeout(async () => {
       try {
-        const d = await searchProfiles(search);
+        const d = await searchProfiles(search, initial.chatId);
         setResults(d || []);
         setFocusedIndex(d && d.length ? 0 : -1);
         setShowAllResults(false);
@@ -562,14 +568,26 @@ export default function ChatDetailsPanel() {
 
   // use safe optional chaining everywhere below
   const isGroup = !!chat?.isGroup;
+  const {
+    blockChat,
+    unblockChat,
+    blockUser,
+    unblockUser,
+    isChatBlocked,
+    isUserBlocked,
+  } = useBlockStore();
+  const groupBlocked = isGroup && isChatBlocked(chat?.chatId);
+
   const otherUser = !isGroup ? chat?.otherUser : null;
   const members = isGroup ? (chat?.participants || []) : [];
+  const userBlocked = !isGroup && otherUser && isUserBlocked(otherUser.userId);
+  const blockedByOther = chat?.otherUserBlockedMe;
 
   const name = isGroup ? chat?.name : otherUser?.username;
   const avatar = isGroup ? chat?.groupAvatarUrl : otherUser?.avatarUrl;
 
   const myMember = members.find((m) => String(m.userId) === String(profile.userId));
-  const amAdmin = myMember?.role === "admin";
+  const amAdmin = myMember?.role === "admin" && !groupBlocked;
   const adminCount = members.filter((m) => m.role === "admin").length;
 
   const canLeaveGroup = () => {
@@ -699,6 +717,7 @@ export default function ChatDetailsPanel() {
     }));
 
     setEditingInitial({
+      chatId: chat.chatId,
       name: chat.name,
       description: chat.description,
       members: initialMembers,
@@ -782,6 +801,23 @@ export default function ChatDetailsPanel() {
     if (t === "demote") return confirmPayload?.label || "Demote this member from admin?";
     return confirmPayload?.label || "Are you sure? This action cannot be undone.";
   })();
+
+  const handleBlockToggle = async () => {
+    try {
+      if (isGroup) {
+        groupBlocked
+          ? await unblockChat(chat.chatId)
+          : await blockChat(chat.chatId);
+      } else if (otherUser) {
+        userBlocked
+          ? await unblockUser(otherUser.userId)
+          : await blockUser(otherUser.userId);
+      }
+    } catch (err) {
+      console.warn("Block toggle failed", err);
+    }
+  };
+
 
 
   return (
@@ -934,8 +970,13 @@ export default function ChatDetailsPanel() {
                 )}
 
                 <Section title="Chat Settings" icon={Settings}>
-                  {isGroup && amAdmin && (
-                    <ActionButton onClick={openEdit} label="Edit Group" icon={Edit3} />
+                  {isGroup && (
+                    <ActionButton
+                      onClick={openEdit}
+                      label="Edit Group"
+                      icon={Edit3}
+                      disabled={!amAdmin}
+                    />
                   )}
 
                   <ActionButton
@@ -952,17 +993,47 @@ export default function ChatDetailsPanel() {
                 </Section>
 
                 <Section title="Danger Zone" icon={Trash2} danger>
+                  {/* Block / Unblock */}
+                  {!blockedByOther && (
+                    <ActionButton
+                      label={
+                        isGroup
+                          ? groupBlocked
+                            ? "Unblock Group"
+                            : "Block Group"
+                          : userBlocked
+                            ? "Unblock User"
+                            : "Block User"
+                      }
+                      icon={
+                        isGroup
+                          ? groupBlocked
+                            ? ShieldCheck
+                            : ShieldBan
+                          : userBlocked
+                            ? UserCheck
+                            : UserX
+                      }
+                      danger
+                      onClick={handleBlockToggle}
+                    />
+                  )}
                   {isGroup ? (
                     <>
                       <ActionButton
                         label={canLeaveGroup() ? "Leave Group" : "Cannot Leave (Admin/Small Group)"}
-                        icon={LogOut}
+                        icon={DoorOpen}
                         danger
-                        disabled={!canLeaveGroup()}
+                        disabled={!canLeaveGroup() || groupBlocked}
                         onClick={() => openConfirm("leave", { label: "Leave this group?" })}
                       />
-                      {amAdmin && (
-                        <ActionButton label="Delete Group" icon={Trash2} danger onClick={() => openConfirm("delete", { label: "Delete this group? This cannot be undone." })} />
+                      {amAdmin && !groupBlocked && (
+                        <ActionButton
+                          label="Delete Group"
+                          icon={Trash2}
+                          danger
+                          onClick={() => openConfirm("delete", { label: "Delete this group? This cannot be undone." })}
+                        />
                       )}
                     </>
                   ) : (

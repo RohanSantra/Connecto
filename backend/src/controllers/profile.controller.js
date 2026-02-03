@@ -14,6 +14,7 @@ import { emitSocketEvent } from "../socket/index.js";
 import { ChatEventEnum } from "../constants.js";
 import Device from "../models/device.model.js";
 import Session from "../models/session.model.js";
+import Block from "../models/block.model.js";
 
 /* ---------------------------------------------------------
    Utility – username suggestions
@@ -282,12 +283,36 @@ export const getProfileByUsername = asyncHandler(async (req, res) => {
    6️⃣ SEARCH PROFILES
 --------------------------------------------------------- */
 export const searchProfiles = asyncHandler(async (req, res) => {
-  const { query } = req.query;
+  const { query, chatId } = req.query;
 
   if (!query || query.trim().length < 2)
     throw new ApiError(400, "Query must be 2+ chars");
 
+  const me = new mongoose.Types.ObjectId(req.user._id);
   const regex = new RegExp(query.trim(), "i");
+
+  /* 🔒 USER BLOCK RELATIONS */
+  const userBlocks = await Block.find({
+    type: "user",
+    $or: [{ blockedBy: me }, { blockedUser: me }]
+  }).lean();
+
+  const excluded = new Set();
+  userBlocks.forEach(b => {
+    excluded.add(String(b.blockedBy));
+    excluded.add(String(b.blockedUser));
+  });
+  excluded.add(String(me));
+
+  /* 🔒 GROUP BLOCK RELATIONS */
+  if (chatId) {
+    const chatBlockers = await Block.find({
+      type: "chat",
+      blockedChat: chatId
+    }).select("blockedBy").lean();
+
+    chatBlockers.forEach(b => excluded.add(String(b.blockedBy)));
+  }
 
   const results = await Profile.aggregate([
     { $match: { username: { $regex: regex } } },
@@ -302,7 +327,9 @@ export const searchProfiles = asyncHandler(async (req, res) => {
     { $unwind: "$user" },
     {
       $match: {
-        "user._id": { $ne: req.user._id },
+        "user._id": {
+          $nin: [...excluded].map(id => new mongoose.Types.ObjectId(id))
+        },
         "user.isActive": true,
         "user.accountStatus": "active"
       }
@@ -315,16 +342,15 @@ export const searchProfiles = asyncHandler(async (req, res) => {
         bio: 1,
         isOnline: 1,
         lastSeen: 1,
-        userId: "$user._id",
-        email: "$user.email"
+        userId: "$user._id"
       }
     },
-    { $sort: { username: 1 } },
     { $limit: 15 }
   ]);
 
   return res.json(new ApiResponse(200, results, "Search results"));
 });
+
 
 /* ---------------------------------------------------------
    7️⃣ UPDATE AVATAR

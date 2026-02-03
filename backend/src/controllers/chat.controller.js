@@ -14,6 +14,7 @@ import {
 } from "../utils/cloudinary.js";
 import { emitSocketEvent } from "../socket/index.js";
 import { ChatEventEnum } from "../constants.js";
+import Block from "../models/block.model.js";
 
 /* ============================================================
    HELPER — Emit chat update to ALL members (by user room)
@@ -354,25 +355,29 @@ export const addGroupMember = asyncHandler(async (req, res) => {
   const chat = await Chat.findById(chatId);
   if (!chat || !chat.isGroup) throw new ApiError(404, "Group not found");
 
-  const me = await ChatMember.findOne({
-    chatId,
-    userId: req.user._id,
-  });
-
+  const me = await ChatMember.findOne({ chatId, userId: req.user._id });
   const canAdd =
     me?.role === "admin" ||
     (chat.settings && chat.settings.allowAnyoneToAddMembers);
 
   if (!canAdd) throw new ApiError(403, "No permission");
 
+  /* 🛑 BLOCK CHECK */
+  const blockExists = await Block.exists({
+    type: "user",
+    $or: [
+      { blockedBy: req.user._id, blockedUser: userId }, // I blocked them
+      { blockedBy: userId, blockedUser: req.user._id }  // They blocked me
+    ]
+  });
+
+  if (blockExists)
+    throw new ApiError(403, "Cannot add user due to block relationship");
+
   const exists = await ChatMember.findOne({ chatId, userId });
   if (exists) throw new ApiError(400, "Already in group");
 
-  await ChatMember.create({
-    chatId,
-    userId,
-    role: "member",
-  });
+  await ChatMember.create({ chatId, userId, role: "member" });
 
   const updated = await getFullChat(chatId, req.user._id);
 
@@ -383,15 +388,13 @@ export const addGroupMember = asyncHandler(async (req, res) => {
     { chat: updated }
   );
 
-  // notify the newly added user about the chat
   emitSocketEvent(req, "user", userId, ChatEventEnum.NEW_CHAT_EVENT, {
     chat: updated,
   });
 
-  return res
-    .status(200)
-    .json(new ApiResponse(200, updated, "Member added"));
+  return res.status(200).json(new ApiResponse(200, updated, "Member added"));
 });
+
 
 /* ============================================================
    6️⃣ REMOVE MEMBER
@@ -629,31 +632,45 @@ export const unpinChat = asyncHandler(async (req, res) => {
 export const getAllChats = asyncHandler(async (req, res) => {
   const userId = new mongoose.Types.ObjectId(req.user._id);
 
+  /* -------------------------------------------------- */
+  /* 1️⃣ LOAD BLOCK RELATIONS                           */
+  /* -------------------------------------------------- */
+  const blocks = await Block.find({
+    $or: [
+      { blockedBy: userId },
+      { blockedUser: userId, type: "user" }
+    ]
+  }).lean();
+
+  const blockedUsers = new Set();      // users I blocked
+  const blockedChats = new Set();      // chats I blocked
+  const blockedByOthers = new Set();   // users who blocked me
+
+  blocks.forEach(b => {
+    if (b.type === "user" && String(b.blockedBy) === String(userId)) {
+      blockedUsers.add(String(b.blockedUser));
+    }
+
+    if (b.type === "chat" && String(b.blockedBy) === String(userId)) {
+      blockedChats.add(String(b.blockedChat));
+    }
+
+    if (b.type === "user" && String(b.blockedUser) === String(userId)) {
+      blockedByOthers.add(String(b.blockedBy));
+    }
+  });
+
+  /* -------------------------------------------------- */
+  /* 2️⃣ FETCH CHATS                                    */
+  /* -------------------------------------------------- */
   const result = await ChatMember.aggregate([
     { $match: { userId } },
 
-    /* JOIN CHAT */
-    {
-      $lookup: {
-        from: "chats",
-        localField: "chatId",
-        foreignField: "_id",
-        as: "chat",
-      },
-    },
+    { $lookup: { from: "chats", localField: "chatId", foreignField: "_id", as: "chat" }},
     { $unwind: "$chat" },
 
-    /* JOIN MEMBERS */
-    {
-      $lookup: {
-        from: "chatmembers",
-        localField: "chatId",
-        foreignField: "chatId",
-        as: "members",
-      },
-    },
+    { $lookup: { from: "chatmembers", localField: "chatId", foreignField: "chatId", as: "members" }},
 
-    /* JOIN PROFILES */
     {
       $lookup: {
         from: "profiles",
@@ -663,7 +680,6 @@ export const getAllChats = asyncHandler(async (req, res) => {
       },
     },
 
-    /* ONLY FETCH LAST MESSAGE (NOT ALL) */
     {
       $lookup: {
         from: "messages",
@@ -678,7 +694,6 @@ export const getAllChats = asyncHandler(async (req, res) => {
     },
     { $unwind: { path: "$lastMessage", preserveNullAndEmptyArrays: true } },
 
-    /* PROJECT */
     {
       $project: {
         chatId: 1,
@@ -696,39 +711,74 @@ export const getAllChats = asyncHandler(async (req, res) => {
       },
     },
 
-    /* SORT BY RECENT ACTIVITY */
     { $sort: { updatedAt: -1 } },
   ]);
 
-  const chats = result.map((x) => ({
-    chatId: x.chatId,
-    isGroup: x.isGroup,
-    name: x.name,
-    description: x.description,
-    groupAvatarUrl: x.groupAvatarUrl,
-    participants: x.members.map((m) => {
-      const prof = x.profileLookup.find(
-        (p) => String(p.userId) === String(m.userId)
+  /* -------------------------------------------------- */
+  /* 3️⃣ MAP + APPLY BLOCK LOGIC                        */
+  /* -------------------------------------------------- */
+  const chats = result.map((x) => {
+    const isDirect = !x.isGroup;
+
+    let hideLastMessage = false;
+    let otherUserBlockedMe = false;
+
+    // chat blocked by me
+    if (blockedChats.has(String(x.chatId))) {
+      hideLastMessage = true;
+    }
+
+    if (isDirect) {
+      const other = x.members.find(
+        m => String(m.userId) !== String(userId)
       );
-      return {
-        userId: m.userId,
-        role: m.role,
-        username: prof?.username || "Unknown",
-        avatarUrl: prof?.avatarUrl || null,
-        isOnline: prof?.isOnline || false,
-        lastSeenAt: prof?.lastSeenAt || null,
-        bio: prof?.bio || null,
-        isDeactivated: prof?.isDeactivated || false,
-      };
-    }),
-    lastMessage: x.lastMessage || null,
-    pinned: Boolean(x.pinned),
-    unreadCount: Number(x.unreadCount) || 0,
-    createdAt: x.createdAt,
-  }));
+
+      if (other) {
+        // I blocked them
+        if (blockedUsers.has(String(other.userId))) {
+          hideLastMessage = true;
+        }
+
+        // They blocked me
+        if (blockedByOthers.has(String(other.userId))) {
+          otherUserBlockedMe = true;
+          hideLastMessage = true;
+        }
+      }
+    }
+
+    return {
+      chatId: x.chatId,
+      isGroup: x.isGroup,
+      name: x.name,
+      description: x.description,
+      groupAvatarUrl: x.groupAvatarUrl,
+      otherUserBlockedMe,
+      participants: x.members.map((m) => {
+        const prof = x.profileLookup.find(
+          (p) => String(p.userId) === String(m.userId)
+        );
+        return {
+          userId: m.userId,
+          role: m.role,
+          username: prof?.username || "Unknown",
+          avatarUrl: prof?.avatarUrl || null,
+          isOnline: prof?.isOnline || false,
+          lastSeenAt: prof?.lastSeenAt || null,
+          bio: prof?.bio || null,
+          isDeactivated: prof?.isDeactivated || false,
+        };
+      }),
+      lastMessage: hideLastMessage ? null : x.lastMessage || null,
+      pinned: Boolean(x.pinned),
+      unreadCount: hideLastMessage ? 0 : Number(x.unreadCount) || 0,
+      createdAt: x.createdAt,
+    };
+  });
 
   res.status(200).json(new ApiResponse(200, chats, "Chats fetched"));
 });
+
 
 /* ============================================================
    1️⃣2️⃣ GET CHAT DETAILS
@@ -745,7 +795,26 @@ export const getChatDetails = asyncHandler(async (req, res) => {
   const chat = await getFullChat(chatId, req.user._id);
   if (!chat) throw new ApiError(404, "Chat not found");
 
-  res.status(200).json(new ApiResponse(200, chat, "Chat details fetched"));
+  let otherUserId = null;
+
+  if (!chat.isGroup) {
+    const other = chat.participants.find(
+      p => String(p.userId) !== String(req.user._id)
+    );
+    otherUserId = other?.userId;
+  }
+
+  let isBlockedByOther = false;
+
+  if (otherUserId) {
+    isBlockedByOther = await Block.exists({
+      blockedBy: otherUserId,
+      blockedUser: req.user._id,
+      type: "user"
+    });
+  }
+
+  res.status(200).json(new ApiResponse(200, { ...chat, otherUserBlockedMe: !!isBlockedByOther }, "Chat details fetched"));
 });
 
 /* ============================================================

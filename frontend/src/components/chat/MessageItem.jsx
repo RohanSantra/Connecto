@@ -31,6 +31,7 @@ import { detectKind } from "@/lib/detectKind";
 import FileViewer from "./FileViewer";
 import formatSize from "@/lib/formatSize.js";
 import { useChatStore } from "@/store/useChatStore";
+import { useBlockStore } from "@/store/useBlockStore";
 
 const SHOW_MORE = 350;
 
@@ -324,6 +325,15 @@ export default React.memo(
     const { profile } = useProfileStore();
     const { activeChat } = useChatStore();
     const currentUserId = profile?.userId;
+    const { isUserBlocked, isChatBlocked } = useBlockStore();
+
+    const otherUserId = activeChat?.otherUser?.userId;
+
+    const isBlocked =
+      isChatBlocked(chatId) ||
+      (otherUserId && isUserBlocked(otherUserId)) ||
+      activeChat?.otherUserBlockedMe;
+
 
     /** ---- Delete State ---- **/
     const isDeletedForAll = !!message.deleted;
@@ -456,14 +466,14 @@ export default React.memo(
           )}
 
           {/* Big device action bar (hide for deleted messages) */}
-          {!(isSmall || isTouch) && !isDeletedForAll && !isCorrupt && message.status !== "sending" && (
+          {!(isSmall || isTouch) && !isDeletedForAll && !isCorrupt && message.status !== "sending" && !isBlocked && (
             <div className={cn("hidden md:flex absolute -top-10 gap-2 px-2 py-1 rounded-xl shadow-lg z-20",
               "bg-[var(--color-card)]/95 backdrop-blur-sm transition-all duration-150 opacity-0 md:group-hover:opacity-100",
               isOwn ? "right-0" : "left-0"
             )} style={{ transformOrigin: isOwn ? "right center" : "left center" }} aria-hidden>
-              <button onClick={handleReply} className="p-1 rounded-xl hover:bg-[var(--color-muted)]/40" aria-label="Reply" title="Reply"><ReplyIcon className="w-4 h-4 text-[var(--chat-meta)]" /></button>
+              <button onClick={handleReply} disabled={isBlocked} className="p-1 rounded-xl hover:bg-[var(--color-muted)]/40" aria-label="Reply" title="Reply"><ReplyIcon className="w-4 h-4 text-[var(--chat-meta)]" /></button>
               <button onClick={() => setShowReact((s) => !s)} className="p-1 rounded-xl hover:bg-[var(--color-muted)]/40" aria-label="React" title="React"><SmilePlus className="w-4 h-4 text-[var(--chat-meta)]" /></button>
-              <button onClick={handlePinToggle} className={cn("p-1 rounded-xl hover:bg-[var(--color-muted)]/40", pinned && "text-[var(--color-primary)]")} aria-label={pinned ? "Unpin message" : "Pin message"} title={pinned ? "Unpin" : "Pin"}>{pinned ? <PinOff className="w-4 h-4 text-[var(--chat-meta)]" /> : <PinIcon className="w-4 h-4 text-[var(--chat-meta)]" />}</button>
+              <button onClick={handlePinToggle} disabled={isBlocked} className={cn("p-1 rounded-xl hover:bg-[var(--color-muted)]/40", pinned && "text-[var(--color-primary)]")} aria-label={pinned ? "Unpin message" : "Pin message"} title={pinned ? "Unpin" : "Pin"}>{pinned ? <PinOff className="w-4 h-4 text-[var(--chat-meta)]" /> : <PinIcon className="w-4 h-4 text-[var(--chat-meta)]" />}</button>
 
               <MessageMenu message={message} isOwn={isOwn} onShowInfo={() => setInfoOpen(true)} open={menuOpen} onOpenChange={setMenuOpen}>
                 <button className="p-1 rounded-xl hover:bg-[var(--color-muted)]/40" aria-label="More" title="More"><MoreHorizontal className="w-4 h-4 text-[var(--chat-meta)]" /></button>
@@ -472,7 +482,7 @@ export default React.memo(
           )}
 
           {/* Small device action bar (hide for deleted messages) */}
-          {(isSmall || isTouch) && !isDeletedForAll && message.status !== "sending" && (
+          {(isSmall || isTouch) && !isDeletedForAll && message.status !== "sending" && !isBlocked && (
             <div className={cn("absolute flex items-center gap-2 px-2 py-1 z-50 top-1/2 -translate-y-1/2", isOwn ? "right-full mr-2" : "left-full ml-2")}>
               <button onClick={() => setShowReact((s) => !s)} className="p-1 rounded-lg bg-[var(--chat-other-bg)] border border-[var(--chat-other-fg)]/20 shadow-sm active:scale-95"><SmilePlus className="w-4 h-4 text-[var(--chat-meta)]" /></button>
               <MessageMenu message={message} isOwn={isOwn} onShowInfo={() => setInfoOpen(true)} open={menuOpen} onOpenChange={setMenuOpen}><button className="p-1 rounded-lg bg-[var(--chat-other-bg)] border border-[var(--chat-other-fg)]/20 shadow-sm active:scale-95"><MoreHorizontal className="w-4 h-4 text-[var(--chat-meta)]" /></button></MessageMenu>
@@ -562,7 +572,7 @@ export default React.memo(
           {!showPersonalTombstone && !isDeletedForAll && !isCorrupt && reactionGroups.length > 0 && (
             <div className={cn("flex gap-1 mt-2", isOwn ? "justify-end" : "justify-start")}>
               {reactionGroups.map((grp) => (
-                <button key={grp.emoji} onClick={() => { setSelectedEmoji(grp.emoji); setEmojiInfoOpen(true); }} className="px-2 py-0.5 rounded-xl bg-[var(--chat-reaction-bg)] border border-[var(--chat-border)]/30 text-xs shadow hover:bg-[var(--chat-reaction-bg)]/60">
+                <button key={grp.emoji} disabled={isBlocked} onClick={() => { setSelectedEmoji(grp.emoji); setEmojiInfoOpen(true); }} className="px-2 py-0.5 rounded-xl bg-[var(--chat-reaction-bg)] border border-[var(--chat-border)]/30 text-xs shadow hover:bg-[var(--chat-reaction-bg)]/60">
                   <span className="text-[15px]">{grp.emoji}</span>
                   <span className="text-[11px] tabular-nums">{grp.count}</span>
                 </button>

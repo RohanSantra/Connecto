@@ -8,6 +8,7 @@ import Message from "../models/message.model.js";
 import Chat from "../models/chat.model.js";
 import ChatMember from "../models/chatMember.model.js";
 import Pin from "../models/pin.model.js";
+import Block from "../models/block.model.js";
 
 import {
   uploadMultipleOnCloudinary,
@@ -16,6 +17,8 @@ import {
 
 import { chatRoom, emitSocketEvent, userRoom } from "../socket/index.js";
 import { ChatEventEnum } from "../constants.js";
+import { isUserBlockedBetween, isChatBlockedForUser } from "../utils/block.utils.js";
+
 
 /* ====================================================================
    Helper: robust populateMessage (aggregation to guarantee fields)
@@ -181,7 +184,22 @@ export const sendMessage = asyncHandler(async (req, res) => {
 
   const chat = await Chat.findById(chatId);
   if (!chat) throw new ApiError(404, "Chat not found");
+  const senderId = req.user._id.toString();
 
+  const members = await ChatMember.find({ chatId }).select("userId").lean();
+  const memberIds = members.map(m => String(m.userId));
+
+  // ✅ BLOCK CHECK BEFORE SAVE
+  if (!chat.isGroup) {
+    const other = memberIds.find(id => id !== senderId);
+    if (other && await isUserBlockedBetween(senderId, other)) {
+      throw new ApiError(403, "Messaging blocked");
+    }
+  } else {
+    if (await isChatBlockedForUser(chatId, senderId)) {
+      throw new ApiError(403, "You blocked this group");
+    }
+  }
   /* Parse encryptedKeys */
   let encryptedKeys = [];
   if (req.body.encryptedKeys) {
@@ -276,10 +294,6 @@ export const sendMessage = asyncHandler(async (req, res) => {
   // DELIVERY snapshot + persistence
   const io = req.app.get("io");
   const onlineMap = io?.socketUserMap;
-  const members = await ChatMember.find({ chatId }).select("userId").lean();
-  const memberIds = members
-    .map((m) => String(m.userId))
-    .filter((id) => id !== String(req.user._id));
 
   const now = new Date();
   const deliveredSnapshot = []; // { userId, deliveredAt }
@@ -309,8 +323,21 @@ export const sendMessage = asyncHandler(async (req, res) => {
   // Emit NEW message (chat room + each user's userRoom)
   emitSocketEvent(req, "chat", chatId.toString(), ChatEventEnum.MESSAGE_RECEIVED_EVENT, messagePayload);
   for (const uid of memberIds) {
+    if (uid === senderId) continue;
+
+    const pairBlocked = await isUserBlockedBetween(senderId, uid);
+    if (pairBlocked) continue;
+
+    const recipientBlockedChat = await Block.exists({
+      type: "chat",
+      blockedBy: uid,
+      blockedChat: chatId
+    });
+    if (recipientBlockedChat) continue;
+
     emitSocketEvent(req, "user", uid, ChatEventEnum.MESSAGE_RECEIVED_EVENT, messagePayload);
   }
+
   // also emit to sender devices so sender UI updates consistently
   emitSocketEvent(req, "user", req.user._id.toString(), ChatEventEnum.MESSAGE_RECEIVED_EVENT, messagePayload);
 
@@ -572,6 +599,14 @@ export const clearChatForUser = asyncHandler(async (req, res) => {
 export const getMessages = asyncHandler(async (req, res) => {
   const { chatId } = req.params;
   const { page = 1, limit = 25 } = req.query;
+
+  const chat = await Chat.findById(chatId);
+  if (!chat) throw new ApiError(404, "Chat not found");
+
+  const senderId = req.user._id.toString();
+  const members = await ChatMember.find({ chatId }).select("userId").lean();
+  const memberIds = members.map(m => String(m.userId));
+
 
   const skip = (page - 1) * limit;
 

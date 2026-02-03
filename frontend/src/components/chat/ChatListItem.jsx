@@ -1,4 +1,3 @@
-// src/components/chat/ChatListItem.jsx
 "use client";
 
 import React, { useState } from "react";
@@ -10,7 +9,22 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Pin, Trash2, EllipsisVertical, Check, CheckCheck, X, Loader2 } from "lucide-react";
+import {
+  Pin,
+  Trash2,
+  EllipsisVertical,
+  Check,
+  CheckCheck,
+  Loader2,
+  DoorOpen,
+  UserX,
+  UserCheck,
+  ShieldBan,
+  ShieldCheck,
+  Ban,
+} from "lucide-react";
+
+import { useBlockStore } from "@/store/useBlockStore";
 
 import { cn } from "@/lib/utils";
 import { useChatStore } from "@/store/useChatStore";
@@ -205,16 +219,37 @@ function ChatListMenu({ chat }) {
   const { clearChatForUser } = useMessageStore();
   const { profile } = useProfileStore();
 
-  const [confirm, setConfirm] = useState(null); // "clear" | "delete" | "leave"
+  const {
+    blockChat,
+    unblockChat,
+    blockUser,
+    unblockUser,
+    isUserBlocked,
+    isChatBlocked,
+  } = useBlockStore();
+
+  const [confirm, setConfirm] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const isGroup = chat.isGroup;
   const isPinned = !!chat.pinned;
 
-  const members = chat.participants || [];
-  const myMember = members.find(m => String(m.userId) === String(profile.userId));
+  const participants = chat.participants || [];
+  const otherUser = !isGroup
+    ? chat.otherUser ||
+    participants.find((p) => String(p.userId) !== String(profile.userId))
+    : null;
+
+  const chatBlocked = isChatBlocked(chat.chatId);
+  const userBlocked = otherUser && isUserBlocked(otherUser.userId);
+  const blockedByOther = chat.otherUserBlockedMe;
+
+  const blocked = chatBlocked || userBlocked;
+
+  const members = participants;
+  const myMember = members.find((m) => String(m.userId) === String(profile.userId));
   const isAdmin = myMember?.role === "admin";
-  const adminCount = members.filter(m => m.role === "admin").length;
+  const adminCount = members.filter((m) => m.role === "admin").length;
 
   const canLeaveGroup = () => {
     if (!isGroup) return true;
@@ -223,10 +258,20 @@ function ChatListMenu({ chat }) {
     return true;
   };
 
-  const run = async (type, fn) => {
+  const run = async (fn) => {
     setLoading(true);
     try { await fn(); }
     finally { setLoading(false); setConfirm(null); }
+  };
+
+  const handleBlockToggle = async () => {
+    if (blockedByOther) return;
+
+    if (isGroup) {
+      blocked ? await unblockChat(chat.chatId) : await blockChat(chat.chatId);
+    } else if (otherUser) {
+      blocked ? await unblockUser(otherUser.userId) : await blockUser(otherUser.userId);
+    }
   };
 
   return (
@@ -240,9 +285,39 @@ function ChatListMenu({ chat }) {
 
         <DropdownMenuContent side="left" align="end" className="w-44">
 
-          <DropdownMenuItem onClick={() => togglePin(chat.chatId)}>
+          {/* PIN */}
+          <DropdownMenuItem
+            onClick={() => togglePin(chat.chatId)}
+          >
             <Pin className="w-4 h-4 mr-2" />
             {isPinned ? "Unpin" : "Pin"}
+          </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+
+          {/* BLOCK / UNBLOCK */}
+          <DropdownMenuItem
+            onClick={handleBlockToggle}
+            disabled={blockedByOther}
+            className="text-destructive"
+          >
+            {blocked ? (
+              isGroup ? (
+                <ShieldCheck className="w-4 h-4 mr-2" />
+              ) : (
+                <UserCheck className="w-4 h-4 mr-2" />
+              )
+            ) : isGroup ? (
+              <ShieldBan className="w-4 h-4 mr-2" />
+            ) : (
+              <UserX className="w-4 h-4 mr-2" />
+            )}
+
+            {blocked
+              ? "Unblock"
+              : isGroup
+                ? "Block Group"
+                : "Block User"}
           </DropdownMenuItem>
 
           <DropdownMenuSeparator />
@@ -280,15 +355,8 @@ function ChatListMenu({ chat }) {
               className="text-destructive"
               onClick={() => setConfirm("leave")}
             >
-              <X className="w-4 h-4 mr-2" />
+              <DoorOpen className="w-4 h-4 mr-2" />
               Leave Group
-            </DropdownMenuItem>
-          )}
-
-          {isGroup && !canLeaveGroup() && (
-            <DropdownMenuItem disabled className="opacity-50">
-              <X className="w-4 h-4 mr-2" />
-              Cannot Leave
             </DropdownMenuItem>
           )}
         </DropdownMenuContent>
@@ -315,9 +383,9 @@ function ChatListMenu({ chat }) {
             <AlertDialogAction
               className="px-2"
               onClick={() => {
-                if (confirm === "clear") run("clear", () => clearChatForUser(chat.chatId));
-                if (confirm === "delete") run("delete", () => deleteChat(chat.chatId));
-                if (confirm === "leave") run("leave", () => leaveGroup(chat.chatId));
+                if (confirm === "clear") run(() => clearChatForUser(chat.chatId));
+                if (confirm === "delete") run(() => deleteChat(chat.chatId));
+                if (confirm === "leave") run(() => leaveGroup(chat.chatId));
               }}
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirm"}
@@ -336,6 +404,7 @@ function ChatListMenu({ chat }) {
 export default function ChatListItem({ chat = {}, onClick, searchTerm = "" }) {
   const { togglePin, deleteChat, activeChatId, typing } = useChatStore();
   const { profile } = useProfileStore();
+  const { isUserBlocked, isChatBlocked } = useBlockStore();
 
   const isGroup = chat.isGroup;
   const isActive = activeChatId === chat.chatId;
@@ -358,7 +427,24 @@ export default function ChatListItem({ chat = {}, onClick, searchTerm = "" }) {
   const typingText = isGroup ? "Someone is typing…" : "typing…";
   const isDeactivated = !isGroup && otherUser?.isDeactivated;
 
-  const rawPreview = buildPreview(last, { isTyping, typingText });
+  // Block state (from local block store and server flag)
+  const chatBlocked = isChatBlocked(chat.chatId);
+  const userBlocked = otherUser && isUserBlocked(otherUser.userId);
+  const blockedByOther = !!chat.otherUserBlockedMe;
+  const blocked = chatBlocked || userBlocked || blockedByOther;
+
+  // Preview logic: if blocked show appropriate message, otherwise normal preview
+  let rawPreview;
+  if (blockedByOther) {
+    rawPreview = "This user blocked you";
+  } else if (userBlocked) {
+    rawPreview = "You blocked this user";
+  } else if (chatBlocked) {
+    rawPreview = "You blocked this group";
+  } else {
+    rawPreview = buildPreview(last, { isTyping, typingText });
+  }
+
   const preview = highlightMatches(rawPreview, searchTerm);
   const highlightedName = highlightMatches(chatName, searchTerm);
 
@@ -395,7 +481,9 @@ export default function ChatListItem({ chat = {}, onClick, searchTerm = "" }) {
         // fixed avatar column (48px), flexible middle, right auto
         "w-full grid grid-cols-[48px_1fr_auto] gap-3 p-3 rounded-xl",
         "transition-all focus:outline-none overflow-hidden cursor-pointer",
-        isActive ? "bg-accent/70 border border-border" : "hover:bg-accent/40"
+        isActive ? "bg-accent/70 border border-border" : "hover:bg-accent/40",
+        // blocked visual treatment: greyed + moved to bottom
+        blocked ? "opacity-60 grayscale order-last" : ""
       )}
     >
       {/* Avatar */}
@@ -408,6 +496,13 @@ export default function ChatListItem({ chat = {}, onClick, searchTerm = "" }) {
         {/* 📌 PIN ICON */}
         {chat.pinned && (
           <Pin className="absolute -top-1 -right-1 w-4 h-4 text-primary bg-background rounded-full p-[2px] shadow-sm" />
+        )}
+
+        {/* blocked badge on avatar */}
+        {blocked && (
+          <span className="absolute -top-1 -left-1 bg-destructive/10 text-destructive rounded-full p-[2px]">
+            <Ban className="w-3 h-3" />
+          </span>
         )}
 
         {/* 🟢 ONLINE DOT */}
@@ -444,8 +539,8 @@ export default function ChatListItem({ chat = {}, onClick, searchTerm = "" }) {
             {tick}
           </div>
 
-          {/* thumbnails */}
-          {hasAttachments && <MiniThumbStrip message={last} />}
+          {/* thumbnails (only shown when not blocked) */}
+          {!blocked && hasAttachments && <MiniThumbStrip message={last} />}
 
           {/* preview */}
           <span className="text-xs text-muted-foreground truncate w-full block">
@@ -457,7 +552,7 @@ export default function ChatListItem({ chat = {}, onClick, searchTerm = "" }) {
       {/* Right column: badge (top) + menu (bottom) */}
       <div className="relative flex items-start justify-end shrink-0 w-8">
 
-        {/* unread badge */}
+        {/* unread badge (still visible even if blocked — change if you want it hidden) */}
         {Number(chat?.unreadCount) > 0 && (
           <span
             className={cn(

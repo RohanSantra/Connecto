@@ -12,6 +12,8 @@ import profileRoutes from "./routes/profile.routes.js";
 import chatRoutes from "./routes/chat.routes.js";
 import messageRoutes from "./routes/message.routes.js";
 import callRoutes from "./routes/call.routes.js";
+import blockRoutes from "./routes/block.routes.js";
+
 import { errorHandler } from "./middlewares/error.middleware.js";
 
 const app = express();
@@ -27,6 +29,7 @@ app.use("/api/v1/profile", profileRoutes);
 app.use("/api/v1/chats", chatRoutes);
 app.use("/api/v1/messages", messageRoutes);
 app.use("/api/v1/calls", callRoutes);
+app.use("/api/v1/blocks", blockRoutes);
 
 // health
 app.get("/health", (req, res) => res.json({ ok: true, uptime: process.uptime() }));
