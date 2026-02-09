@@ -2,7 +2,7 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
-import { Toaster } from "sonner";
+import { Toaster } from "./components/ui/sonner";
 import App from "./App";
 
 /* Base styles */
@@ -70,7 +70,7 @@ createRoot(document.getElementById("root")).render(
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
         <BrowserRouter>
             <App />
-            <Toaster position="top-center" richColors />
+            <Toaster position="top-center" />
         </BrowserRouter>
     </ThemeProvider>
 );
