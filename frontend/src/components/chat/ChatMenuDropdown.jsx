@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 
 import { useBlockStore } from "@/store/useBlockStore";
+import { Button } from "../ui/button";
 
 export default function ChatMenuDropdown() {
   const { openMediaDocs, openDetailsPanel } = useUIStore();
@@ -143,9 +144,11 @@ export default function ChatMenuDropdown() {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="p-1 rounded-md hover:bg-accent">
+          <Button size="icon"
+            variant="outline"
+            className="p-1 rounded-md hover:bg-accent">
             <MoreVertical className="w-5 h-5" />
-          </button>
+          </Button>
         </DropdownMenuTrigger>
 
         <DropdownMenuContent align="end" className="w-48">

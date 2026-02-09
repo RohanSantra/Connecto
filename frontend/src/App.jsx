@@ -28,6 +28,7 @@ import TermsOfServicePage from "./pages/legal/TermsOfServicePage";
 
 import { useThemeStore } from "./store/useThemeStore";
 import { useBlockStore } from "./store/useBlockStore";
+import CallHistoryPage from "./pages/Call/CallHistoryPage";
 
 
 export default function App() {
@@ -117,6 +118,18 @@ export default function App() {
         element={
           <ProtectedRoute>
             <HomeLayout />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ------------------------------------------------------------
+         🔹 Calls History
+      ------------------------------------------------------------ */}
+      <Route
+        path="/calls/history"
+        element={
+          <ProtectedRoute>
+            <CallHistoryPage />
           </ProtectedRoute>
         }
       />

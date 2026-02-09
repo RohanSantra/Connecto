@@ -9,7 +9,8 @@ import {
   updateAvatar,
   deleteProfile,
   updateOnlineStatus,
-  getOnlineStatuses
+  getOnlineStatuses,
+  getProfilesBulk
 } from "../controllers/profile.controller.js";
 
 import { authMiddleware } from "../middlewares/auth.middleware.js";
@@ -30,6 +31,8 @@ router.get("/check-username/:username", authMiddleware, checkUsernameAvailabilit
 // 🧑‍🤝‍🧑 Public profile and search
 router.get("/search", authMiddleware, searchProfiles);
 router.get("/:username", authMiddleware, getProfileByUsername);
+router.post("/bulk", authMiddleware, getProfilesBulk);
+
 
 // 🖼️ Avatar upload (multer + cloudinary)
 router.post("/avatar", authMiddleware, upload.single("avatar"), updateAvatar);

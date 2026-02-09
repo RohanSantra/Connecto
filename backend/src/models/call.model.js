@@ -1,3 +1,4 @@
+// src/models/call.model.js
 import mongoose from "mongoose";
 
 const CallSchema = new mongoose.Schema({
@@ -15,7 +16,7 @@ const CallSchema = new mongoose.Schema({
     calleeIds: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: "User"
-    }], // participants
+    }],
     type: {
         type: String,
         enum: ["audio", "video"],
@@ -40,9 +41,8 @@ const CallSchema = new mongoose.Schema({
     }, // seconds
     metadata: {
         type: Object
-    } // e.g., rtc channel id, server region, quality stats
+    }, // e.g., rtc channel id, region, provider info
 }, { timestamps: true });
-
 
 CallSchema.index({ chatId: 1, startedAt: -1 });
 const Call = mongoose.models.Call || mongoose.model("Call", CallSchema);

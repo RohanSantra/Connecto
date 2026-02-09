@@ -27,6 +27,8 @@ import { formatDistanceToNowStrict } from "date-fns";
 import { ChatEventEnum } from "@/constants";
 import { useBlockStore } from "@/store/useBlockStore";
 import BlockBanner from "@/components/chat/BlockBanner";
+import { CallButton } from "../calls/CallButton";
+
 export default function ChatArea() {
   const {
     activeChatId,
@@ -213,9 +215,9 @@ export default function ChatArea() {
   return (
     <div className="flex flex-col h-full w-full bg-background">
       {/* HEADER */}
-      <div className="flex items-center justify-between px-4 py-3 border-b bg-card/60 backdrop-blur-md">
+      <div className="flex items-center justify-between px-4 py-3 border-b bg-card overflow-visible">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={closeChat}>
+          <Button variant="outline" aria-label="Close the window" title="Close the window" size="icon" onClick={closeChat}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
 
@@ -240,24 +242,30 @@ export default function ChatArea() {
 
           </div>
         </div>
+        <div className="flex items-center gap-1">
 
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" disabled>
-            <Phone className="w-4 h-4 opacity-40" />
-          </Button>
-          <Button variant="outline" size="icon" disabled>
-            <Video className="w-4 h-4 opacity-40" />
-          </Button>
+          {/* CALL CONTROLS (audio + video + dropdown inside) */}
+          <CallButton
+            chatId={activeChatId}
+            isGroup={activeChat?.isGroup}
+            members={participants}
+            disabled={isRestricted}
+          />
+
+          <Separator orientation="vertical" className="h-6 mx-1" />
 
           <Button
-            onClick={() =>
-              isMobile ? openDetailsView() : openDetailsPanel()
-            }
+            size="icon"
+            variant="outline"
+            onClick={() => isMobile ? openDetailsView() : openDetailsPanel()}
+            aria-label="View chat details" 
+            title="View chat details"
           >
-            <Info className="w-4 h-4" />
+            <Info className="w-5 h-5" />
           </Button>
 
           <ChatMenuDropdown />
+
         </div>
       </div>
 

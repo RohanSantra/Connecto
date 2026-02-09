@@ -206,6 +206,44 @@ export const useProfileStore = create((set, get) => ({
     }
   },
 
+  /* ==========================================================
+   FETCH MULTIPLE PROFILES BY IDS (FOR CALLS)
+========================================================== */
+  fetchProfilesByIds: async (ids = []) => {
+    if (!ids.length) return;
+
+    const state = get();
+    const existingIds = new Set((state.profiles || []).map(p => String(p.userId)));
+
+    const missing = ids.filter(id => !existingIds.has(String(id)));
+    if (!missing.length) return;
+
+    try {
+      const res = await api.post(
+        "/profile/bulk",
+        { userIds: missing },
+        { withCredentials: true }
+      );
+
+      const fetched = res.data?.data || [];
+
+      set({
+        profiles: [...state.profiles, ...fetched],
+      });
+    } catch (err) {
+      console.warn("Bulk profile fetch failed", err);
+    }
+  },
+
+  /* ==========================================================
+     GET PROFILE BY ID (FOR CALL TILES)
+  ========================================================== */
+  getProfileById: (userId) => {
+    const state = get();
+    return state.profiles?.find(p => String(p.userId) === String(userId));
+  },
+
+
 
   /* ==========================================================
      SOCKET HANDLERS — MATCH NEW BACKEND EXACTLY

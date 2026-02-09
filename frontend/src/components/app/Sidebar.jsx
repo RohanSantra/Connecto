@@ -15,7 +15,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
-import { Search, Plus, Users, MoreVertical, MessageCircle, LogOut, Settings, User as UserIcon } from "lucide-react";
+import { Search, Plus, Users, MoreVertical, MessageCircle, LogOut, Settings, User as UserIcon, Clock } from "lucide-react";
 
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import EmptyState from "@/components/common/EmptyState";
@@ -424,6 +424,9 @@ export default function Sidebar({ isDrawer = false }) {
                         </DropdownMenuTrigger>
 
                         <DropdownMenuContent className="w-48">
+                            <DropdownMenuItem onClick={() => navigate("/calls/history")}>
+                                <Clock className="w-4 h-4 mr-2" /> Call history
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => navigate("/settings")}>
                                 <Settings className="w-4 h-4 mr-2" /> Settings
                             </DropdownMenuItem>

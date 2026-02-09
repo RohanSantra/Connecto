@@ -11,9 +11,10 @@ import Chat from "../models/chat.model.js";
 import ChatMember from "../models/chatMember.model.js";
 import { ChatEventEnum } from "../constants.js";
 import Block from "../models/block.model.js";
-import { loadBlockedSetsForUser, isUserBlockedBetween, isChatBlockedForUser } from "../utils/block.utils.js";
+import { loadBlockedSetsForUser, isUserBlockedBetween, isChatBlockedForUser, isUserMemberOfChat } from "../utils/block.utils.js";
 
 import mongoose from "mongoose";
+import Call from "../models/call.model.js";
 
 /* -------------------------
    Room helpers
@@ -451,6 +452,53 @@ function mountSendMessageEvent(socket, io) {
   });
 }
 
+function mountCallEventsWithChecks(socket, io) {
+  // Generic forward with quick permission check
+  socket.on("call:signal", async (payload = {}) => {
+    try {
+      const user = socket.user;
+      if (!user || !user._id) return socket.emit(ChatEventEnum.SOCKET_ERROR_EVENT, { message: "not_authenticated" });
+
+      const { callId, chatId, toUserId, data } = payload;
+      if (!chatId || !callId || !toUserId || !data) return;
+
+      // membership check
+      const isMember = await isUserMemberOfChat(user._id, chatId);
+      if (!isMember) return socket.emit(ChatEventEnum.SOCKET_ERROR_EVENT, { message: "not_a_member" });
+
+      // check if recipient is member
+      const recipientIsMember = await isUserMemberOfChat(toUserId, chatId);
+      if (!recipientIsMember) return socket.emit(ChatEventEnum.SOCKET_ERROR_EVENT, { message: "recipient_not_member" });
+
+      // check pair-blocks (direct) or chat-blocks (group)
+      const chat = await Chat.findById(chatId).lean();
+      if (!chat) return socket.emit(ChatEventEnum.SOCKET_ERROR_EVENT, { message: "invalid_chat" });
+
+      if (!chat.isGroup) {
+        // ensure neither side blocked the other
+        const blocked = await isUserBlockedBetween(String(user._id), String(toUserId));
+        if (blocked) return socket.emit(ChatEventEnum.SOCKET_ERROR_EVENT, { message: "blocked_pair" });
+      } else {
+        // if recipient blocked this chat or sender blocked chat -> don't forward
+        const recipientBlockedChat = await isChatBlockedForUser(chatId, toUserId);
+        const senderBlockedChat = await isChatBlockedForUser(chatId, user._id);
+        if (recipientBlockedChat || senderBlockedChat) return socket.emit(ChatEventEnum.SOCKET_ERROR_EVENT, { message: "chat_blocked" });
+      }
+
+      // pass through: emit to recipient's user room (so all their devices receive signaling)
+      io.in(`user:${toUserId}`).emit("call:signal", {
+        callId,
+        chatId,
+        fromUserId: String(user._id),
+        data,
+        timestamp: new Date(),
+      });
+    } catch (err) {
+      console.warn("call:signal failed:", err);
+      socket.emit(ChatEventEnum.SOCKET_ERROR_EVENT, { message: "call_signal_failed", detail: String(err?.message || err) });
+    }
+  });
+}
 
 /*
 function mountGroupEvents(socket, io) {
@@ -503,13 +551,13 @@ function mountTypingEvents(socket, io) {
   });
 }
 
-function mountCallEvents(socket, io) {
-  forwardToChat(io, socket, ChatEventEnum.CALL_RINGING_EVENT);
-  forwardToChat(io, socket, ChatEventEnum.CALL_ACCEPTED_EVENT);
-  forwardToChat(io, socket, ChatEventEnum.CALL_REJECTED_EVENT);
-  forwardToChat(io, socket, ChatEventEnum.CALL_ENDED_EVENT);
-  forwardToChat(io, socket, ChatEventEnum.CALL_MISSED_EVENT);
-}
+// function mountCallEvent(socket, io) {
+//   forwardToChat(io, socket, ChatEventEnum.CALL_RINGING_EVENT);
+//   forwardToChat(io, socket, ChatEventEnum.CALL_ACCEPTED_EVENT);
+//   forwardToChat(io, socket, ChatEventEnum.CALL_REJECTED_EVENT);
+//   forwardToChat(io, socket, ChatEventEnum.CALL_ENDED_EVENT);
+//   forwardToChat(io, socket, ChatEventEnum.CALL_MISSED_EVENT);
+// }
 
 /* -------------------------
    Main initializer (exported)
@@ -530,6 +578,8 @@ export function initializeSocket(server, app) {
 
   // attach io to app so controllers can access it via req.app.get('io')
   app.set("io", io);
+
+  global.io = io;
 
   // also attach maps for external access
   io.socketUserMap = onlineUsers;
@@ -566,7 +616,7 @@ export function initializeSocket(server, app) {
     mountSendMessageEvent(socket, io);
     // mountGroupEvents(socket, io);
     mountProfileEvents(socket, io);
-    mountCallEvents(socket, io);
+    mountCallEventsWithChecks(socket, io);
 
     /* ----------------------------
        Useful: get user status
@@ -639,6 +689,59 @@ export function initializeSocket(server, app) {
       socket.data.usersWhoBlockedMeSet = sets.usersWhoBlockedMeSet;
       socket.data.blockedChatsSet = sets.blockedChatsSet;
     });
+
+    socket.on("call:rejoin", async ({ callId }) => {
+  try {
+    if (!callId) return;
+
+    const call = await Call.findById(callId);
+    if (!call) return;
+
+    // call must be in accepted state to rejoin
+    if (String(call.status) !== "accepted") return;
+
+    // make sure socket is authenticated & member
+    const userObj = socket.user;
+    if (!userObj || !userObj._id) return;
+
+    const userId = String(userObj._id);
+
+    const participants = [
+      String(call.callerId),
+      ...(call.calleeIds || []).map((x) => String(x)),
+    ];
+
+    if (!participants.includes(userId)) return;
+
+    // notify participants that this user has (re)joined
+    io.in(userRoom(userId)).emit(ChatEventEnum.CALL_ACCEPTED_EVENT, {
+      callId: call._id.toString(),
+      userId,
+      timestamp: new Date(),
+    });
+
+    // also broadcast to other participants' user rooms and chat room
+    // (so UI + any connected devices get the event)
+    participants.forEach((uid) => {
+      if (uid === userId) return;
+      io.in(userRoom(uid)).emit(ChatEventEnum.CALL_ACCEPTED_EVENT, {
+        callId: call._id.toString(),
+        userId,
+        timestamp: new Date(),
+      });
+    });
+
+    // also emit to the chat room
+    io.in(chatRoom(String(call.chatId))).emit(ChatEventEnum.CALL_ACCEPTED_EVENT, {
+      callId: call._id.toString(),
+      userId,
+      timestamp: new Date(),
+    });
+  } catch (err) {
+    console.warn("call:rejoin handler failed:", err && err.stack ? err.stack : err);
+  }
+});
+
 
 
 

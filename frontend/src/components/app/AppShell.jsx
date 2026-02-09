@@ -23,6 +23,10 @@ import NewChatOverlay from "@/components/chat/NewChatOverlay";
 import NewGroupOverlay from "@/components/chat/NewGroupOverlay";
 import { useBlockStore } from "@/store/useBlockStore";
 
+import { initSocket, getSocket } from "@/lib/socket";
+import { attachSocketHandlers } from "@/lib/socketHandlers";
+import GlobalCallUI from "../calls/GlobalCallUI";
+
 export default function AppShell() {
     const navigate = useNavigate();
     const { isMobile } = useResponsiveDrawer();
@@ -31,7 +35,6 @@ export default function AppShell() {
     const { fetchChats } = useChatStore();
 
     const { profile, profileLoading } = useProfileStore();
-
     const {
         openCommandPalette,
         openNewChat,
@@ -43,6 +46,7 @@ export default function AppShell() {
         detailsPanelOpen,
         closeDetailsPanel,
     } = useUIStore();
+
 
     /* -------------------------------------------------------
        1️⃣ Redirect if profile is missing (security guard)
@@ -71,6 +75,18 @@ export default function AppShell() {
 
         init();
     }, [profileLoading, profile]);
+
+    useEffect(() => {
+        if (!profile) return;
+
+        const socket = initSocket({
+            accessToken: profile.accessToken || null, // or from auth store if stored there
+            userId: profile.userId,
+            deviceId: profile.deviceId,
+        });
+
+        attachSocketHandlers(socket); // 🔥 Connects calls, messages, etc.
+    }, [profile]);
 
     /* -------------------------------------------------------
        3️⃣ Global keyboard shortcuts
@@ -155,6 +171,9 @@ export default function AppShell() {
                     </div>
                 </>
             )}
+            {/* 🌍 GLOBAL CALL LAYER */}
+            <GlobalCallUI />
+
         </div>
     );
 }

@@ -63,15 +63,14 @@ import "./styles/themes/vercel.css";
 import "./styles/themes/vintagePaper.css";
 import "./styles/themes/violetBloom.css";
 import "./styles/themes/warmNeutrals.css";
-
-
+import useCallStore from "./store/useCallStore";
 
 
 createRoot(document.getElementById("root")).render(
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
         <BrowserRouter>
-          <App />
-          <Toaster position="top-center" richColors />
+            <App />
+            <Toaster position="top-center" richColors />
         </BrowserRouter>
     </ThemeProvider>
 );

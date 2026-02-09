@@ -352,6 +352,19 @@ export const searchProfiles = asyncHandler(async (req, res) => {
 });
 
 
+// GET MANY PROFILES
+export const getProfilesBulk = asyncHandler(async (req, res) => {
+  const { userIds = [] } = req.body;
+  if (!userIds.length) return res.json(new ApiResponse(200, []));
+
+  const profiles = await Profile.find({
+    userId: { $in: userIds }
+  }).select("userId username avatarUrl isOnline lastSeen");
+
+  res.json(new ApiResponse(200, profiles));
+});
+
+
 /* ---------------------------------------------------------
    7️⃣ UPDATE AVATAR
 --------------------------------------------------------- */
