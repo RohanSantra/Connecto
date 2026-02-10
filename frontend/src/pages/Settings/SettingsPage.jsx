@@ -5,16 +5,15 @@ import {
   ArrowLeft,
   User,
   Brush,
-  Bell,
   Shield,
   Smartphone,
   Info,
   Ban,
+  Keyboard,
 } from "lucide-react";
 
 import ProfileSection from "@/components/settings/ProfileSection";
 import AppearanceSection from "@/components/settings/appearance/AppearanceSection";
-import NotificationsSection from "@/components/settings/NotificationsSection";
 import PrivacySection from "@/components/settings/PrivacySection";
 import DevicesSection from "@/components/settings/DevicesSection";
 import AboutSection from "@/components/settings/AboutSection";
@@ -24,14 +23,15 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useSearchParams } from "react-router-dom";
+import ShortcutsSection from "@/components/settings/ShortcutsSection";
 
 const sections = [
   { key: "profile", label: "Profile", icon: User },
   { key: "appearance", label: "Appearance", icon: Brush },
   { key: "blocked", label: "Blocked", icon: Ban },
-  { key: "notifications", label: "Notifications", icon: Bell },
   { key: "privacy", label: "Privacy & Security", icon: Shield },
   { key: "devices", label: "Devices & Sessions", icon: Smartphone },
+  { key: "shortcuts", label: "Keyboard Shortcuts", icon: Keyboard },
   { key: "about", label: "About", icon: Info },
 ];
 
@@ -53,9 +53,9 @@ export default function SettingsPage() {
       case "profile": return <ProfileSection />;
       case "appearance": return <AppearanceSection />;
       case "blocked": return <BlockedSection />;
-      case "notifications": return <NotificationsSection />;
       case "privacy": return <PrivacySection />;
       case "devices": return <DevicesSection />;
+      case "shortcuts": return <ShortcutsSection />;
       case "about": return <AboutSection />;
       default: return null;
     }

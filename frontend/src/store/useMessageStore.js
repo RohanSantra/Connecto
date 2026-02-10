@@ -560,6 +560,15 @@ export const useMessageStore = create(
           const chatId = payload.chatId || full?.chatId;
           if (!full?._id || !chatId) return;
 
+          const msgId = String(full?._id);
+          if (!msgId) return;
+
+          // 🚫 DUPLICATE GUARD
+          const existing = get().messages.find(
+            (m) => String(m._id) === msgId
+          );
+          if (existing) return;
+
           let decrypted;
           try {
             decrypted = decryptIncomingMessageWithReply(full);

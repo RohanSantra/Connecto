@@ -26,6 +26,7 @@ import { useBlockStore } from "@/store/useBlockStore";
 import { initSocket, getSocket } from "@/lib/socket";
 import { attachSocketHandlers } from "@/lib/socketHandlers";
 import GlobalCallUI from "../calls/GlobalCallUI";
+import ShortcutsModal from "../common/ShortcutsModal";
 
 export default function AppShell() {
     const navigate = useNavigate();
@@ -113,6 +114,7 @@ export default function AppShell() {
             {/* ------------ Global overlays ALWAYS mounted ------------ */}
             <NewChatOverlay />
             <NewGroupOverlay />
+            <ShortcutsModal/>
 
             {/* ------------ DESKTOP LAYOUT ------------ */}
             {!isMobile ? (

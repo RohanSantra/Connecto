@@ -13,7 +13,7 @@ import ConnectoBrandAndSlogan from "@/components/common/ConnectoBrandAndSlogan.j
 
 import { toast } from "sonner";
 import { useOtpStore } from "@/store/useOtpStore.js";
-import { Loader2 } from "lucide-react";
+import { Loader2, TriangleAlert } from "lucide-react";
 
 import {
   getOrCreateDeviceKeypair,
@@ -64,19 +64,28 @@ export default function AuthEmailForm() {
      GOOGLE REDIRECT (with valid device keys)
   --------------------------------------------------- */
   const handleGoogleRedirect = () => {
-    const deviceId = getOrCreateDeviceId();
-    const { publicKeyBase64 } = getOrCreateDeviceKeypair();
-    const deviceName = navigator.userAgent;
+    setError(null);
 
-    const api = import.meta.env.VITE_API_BASE_URL;
+    if (!accepted) return setError("Please accept the Privacy Policy & Terms");
 
-    const url =
-      `${api}/auth/google?` +
-      `deviceId=${encodeURIComponent(deviceId)}` +
-      `&deviceName=${encodeURIComponent(deviceName)}` +
-      `&publicKey=${encodeURIComponent(publicKeyBase64)}`;
+    try {
+      const deviceId = getOrCreateDeviceId();
+      const { publicKeyBase64 } = getOrCreateDeviceKeypair();
+      const deviceName = navigator.userAgent;
 
-    window.location.href = url;
+      const api = import.meta.env.VITE_API_BASE_URL;
+
+      const url =
+        `${api}/auth/google?` +
+        `deviceId=${encodeURIComponent(deviceId)}` +
+        `&deviceName=${encodeURIComponent(deviceName)}` +
+        `&publicKey=${encodeURIComponent(publicKeyBase64)}`;
+
+      window.location.href = url;
+    } catch (err) { } finally {
+      setIsSending(false);
+    }
+
   };
 
   /* ---------------------------------------------------
@@ -101,7 +110,8 @@ export default function AuthEmailForm() {
 
         <form onSubmit={handleSendOtp} className="space-y-5">
           {error && (
-            <div className="p-2 text-sm text-destructive bg-destructive/10 rounded-md">
+            <div className="p-2 flex items-center gap-2 text-sm text-destructive bg-destructive/10 rounded-md">
+            <TriangleAlert className="size-4"/>
               {error}
             </div>
           )}
@@ -122,20 +132,39 @@ export default function AuthEmailForm() {
             />
           </div>
 
-          <div className="flex items-start space-x-2">
+          <div className="flex items-start gap-2">
             <Checkbox
               id="accept"
               checked={accepted}
               onCheckedChange={(v) => setAccepted(!!v)}
+              aria-label="Accept Privacy Policy and Terms of Service"
             />
-            <Label htmlFor="accept" className="text-sm leading-snug text-muted-foreground">
-              I agree to the{" "}
-              <a href="/legal/privacy-policy" className="underline">Privacy Policy</a> and{" "}
-              <a href="/legal/terms-of-service" className="underline">Terms of Service</a>.
+
+            <Label
+              htmlFor="accept"
+              className="text-sm leading-relaxed text-muted-foreground"
+            >
+              <span className="whitespace-normal">
+                I agree to the{" "}
+                <a
+                  href="/legal/privacy-policy"
+                  className="underline underline-offset-2 hover:text-foreground inline-block"
+                >
+                  Privacy Policy
+                </a>{" "}
+                and{" "}
+                <a
+                  href="/legal/terms-of-service"
+                  className="underline underline-offset-2 hover:text-foreground inline-block"
+                >
+                  Terms of Service
+                </a>.
+              </span>
             </Label>
           </div>
 
-          <Button type="submit" className="w-full" disabled={isSending}>
+
+          <Button type="submit" className="w-full" disabled={isSending || !accepted}>
             {isSending ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />

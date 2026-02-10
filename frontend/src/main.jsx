@@ -4,7 +4,6 @@ import { BrowserRouter } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "./components/ui/sonner";
 import App from "./App";
-
 /* Base styles */
 import "./styles/index.css";
 
@@ -13,7 +12,7 @@ import "./styles/themes/default.css";
 import "./styles/themes/amberMinimal.css";
 import "./styles/themes/amethystHaze.css";
 import "./styles/themes/aurora.css";
-import "./styles/themes/autumGlow.css";
+import "./styles/themes/autumnGlow.css";
 import "./styles/themes/boldTech.css";
 import "./styles/themes/bubblegum.css";
 import "./styles/themes/caffeine.css";

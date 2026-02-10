@@ -285,13 +285,27 @@ export default function Sidebar({ isDrawer = false }) {
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" size="icon" onClick={openNewChat}>
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={openNewChat}
+                        aria-label="Start a new chat"
+                        title="New chat (Alt + N)"
+                    >
                         <Plus className="w-4 h-4" />
                     </Button>
-                    <Button variant="outline" size="icon" onClick={openNewGroup}>
+
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={openNewGroup}
+                        aria-label="Create a new group"
+                        title="New group (Ctrl + G)"
+                    >
                         <Users className="w-4 h-4" />
                     </Button>
                 </div>
+
             </div>
 
             {/* SEARCH */}
@@ -359,8 +373,6 @@ export default function Sidebar({ isDrawer = false }) {
                 ) : filteredChats.length === 0 ? (
                     <EmptyState
                         icon={<MessageCircle className="w-8 h-8" />}
-                        title="No chats"
-                        message="Start a conversation"
                     />
                 ) : (
                     <div

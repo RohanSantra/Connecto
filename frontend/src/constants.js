@@ -89,18 +89,70 @@ export const ChatEventEnum = Object.freeze({
 });
 
 
+export const SHORTCUTS = [
+  {
+    group: "Global",
+    items: [
+      { keys: ["Ctrl", "K"], description: "Open command palette / global search" },
+      { keys: ["Ctrl", "/"], description: "Open Help / Shortcuts overlay" },
+    ],
+  },
+  {
+    group: "Create",
+    items: [
+      { keys: ["Alt", "N"], description: "New chat" },
+      { keys: ["Ctrl", "G"], description: "New group" },
+    ],
+  },
+  {
+    group: "Navigation & Panels",
+    items: [
+      { keys: ["Ctrl", "D"], description: "Toggle details panel" },
+      { keys: ["Ctrl", ","], description: "Open Settings" },
+      { keys: ["Ctrl", "X"], description: "Close chat / close chat area" },
+      { keys: ["/"], description: "Focus sidebar search" },
+      { keys: ["Arrow ↑ / Arrow ↓"], description: "Navigate results in sidebar search" },
+      { keys: ["Enter"], description: "Open selected chat in sidebar search" },
+      { keys: ["Esc"], description: "Blur search / clear focus" },
+    ],
+  },
+  {
+    group: "Composer",
+    items: [
+      { keys: ["Enter"], description: "Send message" },
+      { keys: ["Shift", "Enter"], description: "Insert newline" },
+      { keys: ["Ctrl/Meta", "Enter"], description: "Insert newline (also supported)" },
+    ],
+  },
+  {
+    group: "Calls",
+    items: [
+      { keys: ["Enter"], description: "Answer incoming call" },
+      { keys: ["Esc"], description: "Reject incoming / cancel outgoing call" },
+      { keys: ["Esc"], description: "Cancel outgoing call (also shown in call UI)" },
+    ],
+  },
+  {
+    group: "Dialogs & Overlays",
+    items: [
+      { keys: ["Esc"], description: "Close alert dialogs, modals, and overlays (when focused)" },
+      { keys: ["Ctrl", "/"], description: "Open this Shortcuts overlay" }
+    ],
+  },
+];
+
 
 export const LANGUAGES = [
-    { code: "en", name: "English" },
-    { code: "es", name: "Spanish" },
-    { code: "fr", name: "French" },
-    { code: "de", name: "German" },
-    { code: "it", name: "Italian" },
-    { code: "pt", name: "Portuguese" },
-    { code: "hi", name: "Hindi" },
-    { code: "zh", name: "Chinese" },
-    { code: "ja", name: "Japanese" },
-    { code: "ar", name: "Arabic" },
+  { code: "en", name: "English" },
+  { code: "es", name: "Spanish" },
+  { code: "fr", name: "French" },
+  { code: "de", name: "German" },
+  { code: "it", name: "Italian" },
+  { code: "pt", name: "Portuguese" },
+  { code: "hi", name: "Hindi" },
+  { code: "zh", name: "Chinese" },
+  { code: "ja", name: "Japanese" },
+  { code: "ar", name: "Arabic" },
 ];
 
 export const APP_INFO = {
