@@ -6,6 +6,7 @@ import { useProfileStore } from "@/store/useProfileStore";
 import { useDeviceStore } from "@/store/useDeviceStore";
 import { useCallStore } from "@/store/useCallStore";
 import { useBlockStore } from "@/store/useBlockStore";
+import { useAuthStore } from "@/store/useAuthStore";
 
 /**
  * Attach all handlers (call once, after initSocket/getSocket())
@@ -251,6 +252,21 @@ export function attachSocketHandlers(socket) {
 
         useProfileStore.getState().markUserReactivatedSocket(p);
         useChatStore.getState().markUserReactivatedInChats(p.userId);
+    });
+
+    socket.on(ChatEventEnum.USER_ROLE_UPDATED, (p) => {
+        const { userId, isAdmin } = p || {};
+        if (!userId) return;
+
+        const authStore = useAuthStore.getState();
+        const currentUser = authStore.user;
+
+        if (currentUser && String(currentUser._id) === String(userId)) {
+            authStore.setUser({
+                ...currentUser,
+                isAdmin: !!isAdmin,
+            });
+        }
     });
 
 

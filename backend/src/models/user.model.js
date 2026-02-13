@@ -48,6 +48,11 @@ const UserSchema = new mongoose.Schema({
     lastLogin: {
         type: Date,
         default: null
+    },
+    isAdmin: {
+        type: Boolean,
+        default: false,
+        index: true
     }
 }, { timestamps: true });
 

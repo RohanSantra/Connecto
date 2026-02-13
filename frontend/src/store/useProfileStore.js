@@ -13,7 +13,7 @@ export const useProfileStore = create((set, get) => ({
   error: null,
   searchResults: [],
   usernameSuggestions: [],
-
+  
   /* ==========================================================
      FETCH MY PROFILE
   ========================================================== */
@@ -146,7 +146,7 @@ export const useProfileStore = create((set, get) => ({
 
       toast.success("Account deactivated");
 
-    } catch {
+    } catch(err) {
       const msg = err?.response?.data?.message || "Failed to deactivate account";
       toast.error(msg);
       return false;

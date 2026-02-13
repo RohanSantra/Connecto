@@ -15,7 +15,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
-import { Search, Plus, Users, MoreVertical, MessageCircle, LogOut, Settings, User as UserIcon, Clock } from "lucide-react";
+import { Search, Plus, Users, MoreVertical, MessageCircle, LogOut, Settings, User as UserIcon, Clock, ChartLine } from "lucide-react";
 
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import EmptyState from "@/components/common/EmptyState";
@@ -32,7 +32,7 @@ import ChatListSkeleton from "../Skeleton/ChatListSkeleton";
 export default function Sidebar({ isDrawer = false }) {
     const { chats, activeChatId, setActiveChatId, loadingChats } = useChatStore();
     const { profile } = useProfileStore();
-    const { logout } = useAuthStore();
+    const { logout, user } = useAuthStore();
     const { openNewChat, openNewGroup, openSettings, openProfile, openChatView } = useUIStore();
 
     const { isMobile } = useResponsiveDrawer();
@@ -47,6 +47,7 @@ export default function Sidebar({ isDrawer = false }) {
     const inputRef = useRef(null);
     const [isSearchFocused, setIsSearchFocused] = useState(false);
     const navigate = useNavigate();
+    const isAdmin = user?.isAdmin;
 
     /* --------------------------
        Socket connection status
@@ -272,6 +273,7 @@ export default function Sidebar({ isDrawer = false }) {
         }
     };
 
+
     /* --------------------------
        Render
        -------------------------- */
@@ -436,6 +438,11 @@ export default function Sidebar({ isDrawer = false }) {
                         </DropdownMenuTrigger>
 
                         <DropdownMenuContent className="w-48">
+                            {isAdmin && (
+                                <DropdownMenuItem onClick={() => navigate("/admin/analytics")}>
+                                    <ChartLine className="w-4 h-4 mr-2" /> Analytics
+                                </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem onClick={() => navigate("/calls/history")}>
                                 <Clock className="w-4 h-4 mr-2" /> Call history
                             </DropdownMenuItem>

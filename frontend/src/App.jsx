@@ -29,6 +29,8 @@ import TermsOfServicePage from "./pages/legal/TermsOfServicePage";
 import { useThemeStore } from "./store/useThemeStore";
 import { useBlockStore } from "./store/useBlockStore";
 import CallHistoryPage from "./pages/Call/CallHistoryPage";
+import AdminRoute from "./routes/AdminRoute";
+import AdminAnalyticsPage from "./pages/admin/AdminAnalyticsPage";
 
 
 export default function App() {
@@ -160,6 +162,17 @@ export default function App() {
         path="/legal/terms-of-service"
         element={
           <TermsOfServicePage />
+        }
+      />
+      {/* ------------------------------------------------------------
+         🔹 Admin Analytical page
+      ------------------------------------------------------------ */}
+      <Route
+        path="/admin/analytics"
+        element={
+          <AdminRoute>
+            <AdminAnalyticsPage />
+          </AdminRoute>
         }
       />
 
