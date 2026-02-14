@@ -8,7 +8,7 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
-import { PieWrapper } from "./chart-wrappers";
+import { PieWrapper } from "./Chart-wrappers";
 
 /* ================= Helpers ================= */
 

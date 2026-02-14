@@ -9,7 +9,7 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
-import { AreaWrapper, PieWrapper } from "./chart-wrappers";
+import { AreaWrapper, PieWrapper } from "./Chart-wrappers";
 
 /* ================= Helpers ================= */
 

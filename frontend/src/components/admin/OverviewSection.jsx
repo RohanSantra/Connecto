@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { AreaWrapper, PieWrapper } from "./chart-wrappers";
+import { AreaWrapper, PieWrapper } from "./Chart-wrappers";
 import {
   Users,
   MessageSquare,

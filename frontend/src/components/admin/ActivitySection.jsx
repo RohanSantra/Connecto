@@ -9,7 +9,7 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AreaWrapper } from "./chart-wrappers";
+import { AreaWrapper } from "./Chart-wrappers";
 import { Activity, TrendingUp, CalendarDays } from "lucide-react";
 
 /* ================= Helpers ================= */
