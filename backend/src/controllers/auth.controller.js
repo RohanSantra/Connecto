@@ -35,8 +35,8 @@ export const googleOAuth = new arctic.Google(
  * ---------------------------------------------------------- */
 const cookieBase = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
+  secure: true,
+  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
   path: "/",
 };
 
