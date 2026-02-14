@@ -562,60 +562,136 @@ export const getActivityTimeline = asyncHandler(async (req, res) => {
    /admin/stats/top?type=chats|users&limit=10&from=&to=&summaryOnly=true
    ====================================================== */
 export const getTopEntities = asyncHandler(async (req, res) => {
-    const { from, to } = parseRange(req.query);
+    const { from, to } = parseRange(req.query); // ensure parseRange returns Date objects
     const type = req.query.type === "users" ? "users" : "chats";
-    const limit = Number(req.query.limit) || 10;
-    const summaryOnly = String(req.query.summaryOnly) === "true";
+    const limit = Math.min(Number(req.query.limit) || 20, 200);
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const q = (req.query.q || "").trim();
     const includeProfile = String(req.query.includeProfile) === "true";
 
     if (type === "chats") {
+        // keep your existing chat pipeline (unchanged)
         const pipeline = [
             { $match: { createdAt: { $gte: from, $lte: to }, deleted: false } },
             { $group: { _id: "$chatId", count: { $sum: 1 } } },
             { $sort: { count: -1 } },
             { $limit: limit },
-            { $lookup: { from: "chats", localField: "_id", foreignField: "_id", as: "chat" } },
+            {
+                $lookup: {
+                    from: "chats",
+                    localField: "_id",
+                    foreignField: "_id",
+                    as: "chat",
+                },
+            },
             { $unwind: { path: "$chat", preserveNullAndEmptyArrays: true } },
-            { $project: { chatId: "$_id", isGroup: "$chat.isGroup", name: "$chat.name", count: 1 } },
+            {
+                $project: {
+                    chatId: "$_id",
+                    isGroup: "$chat.isGroup",
+                    name: "$chat.name",
+                    count: 1,
+                },
+            },
         ];
 
         const top = await Message.aggregate(pipeline);
 
-        if (summaryOnly) {
-            const groups = top.filter((t) => t.isGroup).length;
-            const directs = top.length - groups;
-            return res.json(new ApiResponse(200, { total: top.length, groups, directs }, "Top chats summary"));
-        }
+        const summary = {
+            total: top.length,
+            groups: top.filter((t) => t.isGroup).length,
+        };
 
-        return res.json(new ApiResponse(200, { top, summary: { total: top.length, groups: top.filter((t) => t.isGroup).length } }, "Top chats"));
-    } else {
-        // users
-        const pipeline = [
-            { $match: { createdAt: { $gte: from, $lte: to }, deleted: false } },
-            { $group: { _id: "$senderId", count: { $sum: 1 } } },
-            { $sort: { count: -1 } },
-            { $limit: limit },
-            { $lookup: { from: "profiles", localField: "_id", foreignField: "userId", as: "profile" } },
-            { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
-            { $project: { userId: "$_id", username: "$profile.username", avatarUrl: "$profile.avatarUrl", isDeactivated: "$profile.isDeactivated", lastSeen: "$profile.lastSeen", count: 1 } },
-        ];
-
-        const top = await Message.aggregate(pipeline);
-
-        if (summaryOnly) {
-            return res.json(new ApiResponse(200, { total: top.length }, "Top users summary"));
-        }
-
-        if (includeProfile && top.length) {
-            const ids = top.map((t) => t.userId).filter(Boolean);
-            const users = await User.find({ _id: { $in: ids } }).select("email isActive createdAt isAdmin").lean();
-            const map = new Map(users.map((u) => [String(u._id), u]));
-            const enriched = top.map((t) => ({ ...t, user: map.get(String(t.userId)) || null }));
-            return res.json(new ApiResponse(200, { top: enriched }, "Top users (enriched)"));
-        }
-
-        return res.json(new ApiResponse(200, { top }, "Top users"));
+        return res.json(new ApiResponse(200, { top, summary }, "Top chats"));
     }
+
+    // ---------- USERS: grouped by senderId, with pagination & search ----------
+    // step 1: group messages by senderId (reduce doc count)
+    const matchStage = { $match: { createdAt: { $gte: from, $lte: to }, deleted: false } };
+    const groupStage = { $group: { _id: "$senderId", count: { $sum: 1 } } };
+
+    // step 2: look up profile + user and project helpful fields
+    const lookupProfileStage = {
+        $lookup: {
+            from: "profiles",
+            localField: "_id",
+            foreignField: "userId",
+            as: "profile",
+        },
+    };
+    const unwindProfile = { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } };
+
+    const lookupUserStage = {
+        $lookup: {
+            from: "users",
+            localField: "_id",
+            foreignField: "_id",
+            as: "user",
+        },
+    };
+    const unwindUser = { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } };
+
+    const projectStage = {
+        $project: {
+            userId: "$_id",
+            count: 1,
+            "profile.username": 1,
+            "profile.avatarUrl": 1,
+            "profile.isDeactivated": 1,
+            "profile.lastSeen": 1,
+            "user.isAdmin": 1,
+            "user.createdAt": 1,
+            "user.email": 1,
+        },
+    };
+
+    // build pipeline
+    const pipeline = [matchStage, groupStage, lookupProfileStage, unwindProfile, lookupUserStage, unwindUser, projectStage];
+
+    // optional server-side search (username or email)
+    if (q) {
+        const regex = { $regex: q, $options: "i" };
+        pipeline.push({
+            $match: {
+                $or: [
+                    { "profile.username": regex },
+                    { "user.email": regex },
+                ],
+            },
+        });
+    }
+
+    // sort, then facet for pagination & total count
+    pipeline.push({ $sort: { count: -1 } });
+
+    const skip = (page - 1) * limit;
+    pipeline.push({
+        $facet: {
+            data: [{ $skip: skip }, { $limit: limit }],
+            meta: [{ $count: "total" }],
+        },
+    });
+
+    const agg = await Message.aggregate(pipeline);
+    const facet = agg[0] || { data: [], meta: [] };
+    const data = facet.data || [];
+    const total = (facet.meta && facet.meta[0] && facet.meta[0].total) || 0;
+    const pages = Math.ceil(total / limit);
+
+    // normalize shape: map fields up
+    const top = data.map((d) => ({
+        userId: d.userId,
+        username: d.profile?.username ?? null,
+        avatarUrl: d.profile?.avatarUrl ?? null,
+        isDeactivated: d.profile?.isDeactivated ?? false,
+        lastSeen: d.profile?.lastSeen ?? null,
+        isAdmin: d.user?.isAdmin ?? false,
+        email: d.user?.email ?? null,
+        createdAt: d.user?.createdAt ?? null,
+        count: d.count,
+    }));
+
+    return res.json(new ApiResponse(200, { top, total, page, perPage: limit, pages }, "Top users (paginated)"));
 });
 
 /* ======================================================

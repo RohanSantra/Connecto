@@ -23,16 +23,21 @@ function generateDateRange(from, to) {
   const end = new Date(to);
   const arr = [];
 
-  for (
-    let d = new Date(start);
-    d <= end;
-    d.setDate(d.getDate() + 1)
-  ) {
-    arr.push(d.toISOString().slice(0, 10));
+  const current = new Date(start);
+
+  while (current <= end) {
+    const year = current.getFullYear();
+    const month = String(current.getMonth() + 1).padStart(2, "0");
+    const day = String(current.getDate()).padStart(2, "0");
+
+    arr.push(`${year}-${month}-${day}`);
+
+    current.setDate(current.getDate() + 1);
   }
 
   return arr;
 }
+
 
 /* ================= Component ================= */
 
@@ -58,20 +63,20 @@ export default function ActivitySection({ activityTimeline }) {
       }
 
       const map = new Map(
-        timeline.map((t) => [t._id, t.count])
+        timeline.map((t) => [
+          String(t._id).slice(0, 10),
+          Number(t.count || 0),
+        ])
       );
 
       const fullRange = generateDateRange(from, to);
 
       const filled = fullRange.map((date) => ({
         bucket: date,
-        count: map.get(date) || 0,
+        count: map.get(date) ?? 0,
       }));
 
-      const total = filled.reduce(
-        (sum, d) => sum + d.count,
-        0
-      );
+      const total = filled.reduce((sum, d) => sum + d.count, 0);
 
       const peak =
         filled.length > 0
@@ -90,6 +95,7 @@ export default function ActivitySection({ activityTimeline }) {
         avgPerDay: avg,
       };
     }, [timeline, from, to]);
+
 
   if (!filledData.length) {
     return (
@@ -158,7 +164,8 @@ export default function ActivitySection({ activityTimeline }) {
             title=" "
             data={filledData}
             xKey="bucket"
-            series={[{ key: "count" }]}
+            series={[{ key: "count", name: "Messages" }]}
+            showLegend={false}
           />
         </CardContent>
       </Card>

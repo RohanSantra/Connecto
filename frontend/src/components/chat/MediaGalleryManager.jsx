@@ -593,7 +593,7 @@ export function FullscreenGallery({ items = [], index = 0, onClose, selected = n
                     <div className="flex h-full w-full items-center justify-center">
                         {kind === "image" && <img src={src} alt={cur.filename} className="max-h-[90vh] max-w-full select-none" draggable={false} />}
                         {kind === "video" && (
-                            <div className="flex h-full max-h-[90vh] w-full max-w-3xl flex-col items-center justify-center gap-3 px-3">
+                            <div className="flex h-full max-h-[90vh] w-full flex-col items-center justify-center gap-3 px-3">
                                 <video ref={videoRef} src={src} className="max-h-[70vh] w-full rounded-xl bg-background" controls onLoadedMetadata={onVideoLoaded} onTimeUpdate={onVideoTimeUpdate} />
                                 {videoDuration > 0 && (
                                     <div className="w-full text-[11px] text-muted-foreground">

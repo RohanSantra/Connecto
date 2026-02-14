@@ -50,7 +50,7 @@ function tryFormatDateLabel(v) {
   try {
     const d = typeof v === "string" && v.length >= 8 ? parseISO(v) : new Date(v);
     if (isValidDate(d)) return format(d, "MMM d");
-  } catch {}
+  } catch { }
   // fallback
   return String(v).slice(0, 12);
 }
@@ -298,7 +298,7 @@ export function PieWrapper({
   outerRadius = 90,
 }) {
   const safeData = safeArray(data).filter((d) => Number(d?.[dataKey] ?? 0) > 0);
-  const height = overrideHeight ?? useResponsiveHeight({ sm: 200, md: 260, lg: 320 });
+  const height = overrideHeight ?? useResponsiveHeight({ sm: 300, md: 300, lg: 320 });
 
   if (!safeData.length) {
     return (

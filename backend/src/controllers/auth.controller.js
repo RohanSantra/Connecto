@@ -31,6 +31,17 @@ export const googleOAuth = new arctic.Google(
 );
 
 /* ----------------------------------------------------------
+ * Cookie base data
+ * ---------------------------------------------------------- */
+const cookieBase = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
+  path: "/",
+};
+
+
+/* ----------------------------------------------------------
  * SEND OTP
  * ---------------------------------------------------------- */
 export const sendOtp = asyncHandler(async (req, res) => {
@@ -208,12 +219,6 @@ export const verifyOtp = asyncHandler(async (req, res) => {
   /* -----------------------------------------
    * COOKIES
    * ----------------------------------------- */
-  const cookieBase = {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-    path: "/",
-  };
 
   res.cookie("accessToken", accessToken, {
     ...cookieBase,
@@ -222,7 +227,7 @@ export const verifyOtp = asyncHandler(async (req, res) => {
 
   res.cookie("refreshToken", refreshToken, {
     ...cookieBase,
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    maxAge: 30 * 24 * 60 * 60 * 1000,
   });
 
   /* -----------------------------------------
@@ -267,15 +272,13 @@ export const googleRedirect = asyncHandler(async (req, res) => {
   url.searchParams.set("access_type", "offline");
 
   res.cookie("google_state", state, {
-    httpOnly: true,
-    secure: true,
+    ...cookieBase,
     sameSite: "lax",
     maxAge: 600_000,
   });
 
   res.cookie("google_verifier", verifier, {
-    httpOnly: true,
-    secure: true,
+    ...cookieBase,
     sameSite: "lax",
     maxAge: 600_000,
   });
@@ -284,8 +287,7 @@ export const googleRedirect = asyncHandler(async (req, res) => {
     "google_device",
     JSON.stringify({ deviceId, deviceName, publicKey }),
     {
-      httpOnly: true,
-      secure: true,
+      ...cookieBase,
       sameSite: "lax",
       maxAge: 600_000,
     }
@@ -411,13 +413,6 @@ export const googleCallback = asyncHandler(async (req, res) => {
     await session.save();
   }
 
-  const cookieBase = {
-    httpOnly: true,
-    secure: true,
-    sameSite: "strict",
-    path: "/",
-  };
-
   res.cookie("accessToken", accessToken, {
     ...cookieBase,
     maxAge: 15 * 60 * 1000,
@@ -425,7 +420,7 @@ export const googleCallback = asyncHandler(async (req, res) => {
 
   res.cookie("refreshToken", refreshToken, {
     ...cookieBase,
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    maxAge: 30 * 24 * 60 * 60 * 1000,
   });
 
   res.clearCookie("google_state");
@@ -450,6 +445,7 @@ export const checkAuth = asyncHandler(async (req, res) => {
   );
 });
 
+
 /* ----------------------------------------------------------
  * REFRESH TOKENS
  * ---------------------------------------------------------- */
@@ -457,7 +453,11 @@ export const refreshTokens = asyncHandler(async (req, res) => {
   const refreshToken = req.cookies?.refreshToken;
   if (!refreshToken) throw new ApiError(401, "Refresh token missing");
 
-  const sessions = await Session.find({ revoked: false }).lean();
+  // Only fetch non-revoked AND non-expired sessions
+  const sessions = await Session.find({
+    revoked: false,
+    expiresAt: { $gt: new Date() },
+  }).lean();
 
   let matched = null;
 
@@ -468,7 +468,12 @@ export const refreshTokens = asyncHandler(async (req, res) => {
     }
   }
 
-  if (!matched) throw new ApiError(401, "Invalid refresh token");
+  if (!matched) throw new ApiError(401, "Invalid or expired refresh token");
+
+  // Double check expiration (extra safety)
+  if (matched.expiresAt < new Date()) {
+    throw new ApiError(401, "Refresh token expired");
+  }
 
   const newAccessToken = generateAccessToken({ userId: matched.userId });
   const newRefreshToken = generateRefreshToken();
@@ -479,15 +484,9 @@ export const refreshTokens = asyncHandler(async (req, res) => {
     {
       hashedRefreshToken: hashed,
       expiresAt: dayjs().add(7, "days").toDate(),
+      revoked: false,
     }
   );
-
-  const cookieBase = {
-    httpOnly: true,
-    secure: true,
-    sameSite: "strict",
-    path: "/",
-  };
 
   res.cookie("accessToken", newAccessToken, {
     ...cookieBase,
@@ -496,13 +495,14 @@ export const refreshTokens = asyncHandler(async (req, res) => {
 
   res.cookie("refreshToken", newRefreshToken, {
     ...cookieBase,
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    maxAge: 30 * 24 * 60 * 60 * 1000,
   });
 
   return res.json(
     new ApiResponse(200, { accessToken: newAccessToken }, "Token refreshed")
   );
 });
+
 
 /* ----------------------------------------------------------
  * LOGOUT
@@ -548,8 +548,9 @@ export const logout = asyncHandler(async (req, res) => {
   );
 
   // 5️⃣ Clear cookies
-  res.clearCookie("accessToken");
-  res.clearCookie("refreshToken");
+  res.clearCookie("accessToken", cookieBase);
+  res.clearCookie("refreshToken", cookieBase);
+
 
   return res.json(new ApiResponse(200, null, "Logged out"));
 });
