@@ -18,6 +18,7 @@ import adminRoutes from "./routes/admin.routes.js"
 import { errorHandler } from "./middlewares/error.middleware.js";
 
 const app = express();
+app.set("trust proxy", 1);
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());

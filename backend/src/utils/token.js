@@ -68,7 +68,7 @@ export const compareTokenHash = async (token, hash) => {
    ==========================================================
    (not currently used, but can be swapped in later easily)
    ========================================================== */
-export const generateJwtRefreshToken = (payload, expires = "7d") => {
+export const generateJwtRefreshToken = (payload, expires = "30d") => {
     return jwt.sign(payload, REFRESH_SECRET, { expiresIn: expires });
 };
 
