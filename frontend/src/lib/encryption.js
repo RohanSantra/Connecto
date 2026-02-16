@@ -1,6 +1,5 @@
 // src/lib/encryption.js
 import nacl from "tweetnacl";
-import { getOrCreateDeviceKeypair } from "./deviceKeys";
 
 /* base64 helpers that normalize URL-safe + padding */
 function toBase64(u8) {
@@ -57,7 +56,7 @@ function encryptKeyForDevice(symmetricKey, recipientPublicKeyBase64) {
 
 /**
  * devices: [{ userId, deviceId, publicKey }]
- * returns { ciphertext, ciphertextNonce, encryptedKeys: [ {recipientUserId, recipientDeviceId, encryptedKey, senderEphemeralPublicKey, nonce} ] }
+ * returns { ciphertext, ciphertextNonce, encryptedKeys: [ {recipientUserId, encryptedKey, senderEphemeralPublicKey, nonce} ] }
  */
 export function encryptOutgoingMessage(plaintext, devices = []) {
   if (!Array.isArray(devices)) devices = [];
@@ -71,7 +70,6 @@ export function encryptOutgoingMessage(plaintext, devices = []) {
     const ek = encryptKeyForDevice(symmetricKey, dev.publicKey);
     return {
       recipientUserId: dev.userId,
-      recipientDeviceId: dev.deviceId,
       encryptedKey: ek.encryptedKey,
       senderEphemeralPublicKey: ek.senderEphemeralPublicKey,
       nonce: ek.nonce

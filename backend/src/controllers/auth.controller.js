@@ -100,10 +100,10 @@ export const cancelOtp = asyncHandler(async (req, res) => {
  * VERIFY OTP → SIGNUP / LOGIN
  * ---------------------------------------------------------- */
 export const verifyOtp = asyncHandler(async (req, res) => {
-  const { email, otp, deviceId, deviceName = "Unknown", publicKey } = req.body;
+  const { email, otp, deviceId } = req.body;
 
-  if (!email || !otp || !deviceId || !publicKey)
-    throw new ApiError(400, "Email, OTP, deviceId, publicKey required");
+  if (!email || !otp || !deviceId)
+    throw new ApiError(400, "Email, OTP, deviceId required");
 
   const record = await Otp.findOne({ email });
   if (!record) throw new ApiError(404, "OTP not found");
@@ -117,83 +117,27 @@ export const verifyOtp = asyncHandler(async (req, res) => {
   }
 
   /* -----------------------------------------
-   * USER UPSERT
-   * ----------------------------------------- */
+     USER UPSERT
+  ----------------------------------------- */
   let user = await User.findOne({ email });
 
   if (!user) {
     user = await User.create({
       email,
       isVerified: true,
-      publicKey,
       lastLogin: new Date(),
     });
-  }
-  else {
-    // 🔥 NEW BLOCK
-    if (user.isActive === false) {
-      user.isActive = true;
-      user.accountStatus = "active";
-      user.deactivatedAt = null;
-      await user.save();
-
-      await Profile.updateOne(
-        { userId: user._id },
-        { isDeactivated: false, lastSeen: null }
-      );
-
-      emitSocketEvent(
-        req,
-        "global",
-        null,
-        ChatEventEnum.USER_REACTIVATED_EVENT,
-        {
-          userId: user._id.toString(),
-          timestamp: new Date(),
-        }
-      );
-    }
-
+  } else {
     user.isVerified = true;
     user.lastLogin = new Date();
     await user.save();
   }
 
-
   await Otp.deleteMany({ email });
 
-
-  let device = await Device.findOne({ userId: user._id, deviceId });
-
-  if (!device) {
-    const hasPrimary = await Device.exists({
-      userId: user._id,
-      isPrimary: true,
-    });
-
-    device = await Device.create({
-      userId: user._id,
-      deviceId,
-      deviceName,
-      publicKey,
-      status: "active",
-      isPrimary: !hasPrimary, // ✅ ONLY FIRST DEVICE
-      lastSeen: new Date(),
-    });
-  } else {
-    if (device.publicKey && device.publicKey !== publicKey) {
-      throw new ApiError(403, "Device public key mismatch");
-    }
-
-    device.status = "active";
-    device.lastSeen = new Date();
-    await device.save();
-  }
-
-
   /* -----------------------------------------
-   * SESSION UPSERT
-   * ----------------------------------------- */
+     SESSION (TIED TO DEVICE)
+  ----------------------------------------- */
   const accessToken = generateAccessToken({ userId: user._id });
   const refreshToken = generateRefreshToken();
   const hashed = await hashToken(refreshToken);
@@ -201,6 +145,7 @@ export const verifyOtp = asyncHandler(async (req, res) => {
   const expiresAt = dayjs().add(7, "days").toDate();
 
   let session = await Session.findOne({ userId: user._id, deviceId });
+
   if (!session) {
     await Session.create({
       userId: user._id,
@@ -217,9 +162,8 @@ export const verifyOtp = asyncHandler(async (req, res) => {
   }
 
   /* -----------------------------------------
-   * COOKIES
-   * ----------------------------------------- */
-
+     COOKIES
+  ----------------------------------------- */
   res.cookie("accessToken", accessToken, {
     ...cookieBase,
     maxAge: 15 * 60 * 1000,
@@ -230,26 +174,11 @@ export const verifyOtp = asyncHandler(async (req, res) => {
     maxAge: 30 * 24 * 60 * 60 * 1000,
   });
 
-  /* -----------------------------------------
-   * SOCKET PRESENCE EVENT
-   * ----------------------------------------- */
-  emitSocketEvent(
-    req,
-    "user",
-    user._id.toString(),
-    ChatEventEnum.USER_ONLINE_EVENT,
-    {
-      userId: user._id.toString(),
-      deviceId: deviceId,
-      lastLogin: user.lastLogin,
-      timestamp: new Date(),
-    }
-  );
-
   return res.json(
     new ApiResponse(200, { user, accessToken }, "OTP verified")
   );
 });
+
 
 /* ----------------------------------------------------------
  * GOOGLE REDIRECT

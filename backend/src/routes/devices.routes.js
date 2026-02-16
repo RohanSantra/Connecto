@@ -8,13 +8,19 @@ import {
   logoutDevice,
   deleteDevice,
   rotatePreKeys,
-  syncDevices
+  syncDevices,
+  backupPrivateKey,
+  getBackupPrivateKey
 } from "../controllers/devices.controller.js";
 
 const router = express.Router();
 
 // Register a new device
 router.post("/register", authMiddleware, registerDevice);
+
+// Backup and get private keys
+router.post("/backup-key", authMiddleware, backupPrivateKey);
+router.get("/backup-key", authMiddleware, getBackupPrivateKey);
 
 // Get all user devices
 router.get("/", authMiddleware, getDevices);

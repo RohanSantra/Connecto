@@ -1,6 +1,7 @@
 // src/lib/deviceKeys.js
 import nacl from "tweetnacl";
 import api from "@/api/axios";
+import CryptoJS from "crypto-js";
 
 /* ---------------------------------------------------------
    BASE64 HELPERS (FULLY SAFE)
@@ -121,4 +122,55 @@ export async function registerDeviceWithServer({
     await api.post("/devices/register", payload, { withCredentials: true });
 
     return { deviceId, publicKey: publicKeyBase64 };
+}
+
+
+export async function backupPrivateKeyToServer(password) {
+    const stored = localStorage.getItem("connecto_device_keypair_v1");
+    if (!stored) return;
+
+    const parsed = JSON.parse(stored);
+    const privateKeyBase64 = parsed.privateKey;
+
+    const encrypted = CryptoJS.AES.encrypt(
+        privateKeyBase64,
+        password
+    ).toString();
+
+    await api.post(
+        "/devices/backup-key",
+        { encryptedPrivateKey: encrypted },
+        { withCredentials: true }
+    );
+}
+
+
+export async function restorePrivateKeyFromServer(password) {
+    const res = await api.get("/devices/backup-key", {
+        withCredentials: true,
+    });
+
+    const encrypted = res.data?.data?.encryptedPrivateKey;
+    if (!encrypted) return false;
+
+    const decrypted = CryptoJS.AES.decrypt(encrypted, password)
+        .toString(CryptoJS.enc.Utf8);
+
+    if (!decrypted) {
+        throw new Error("Wrong backup password");
+    }
+
+    const keyPair = nacl.box.keyPair.fromSecretKey(
+        fromBase64(decrypted)
+    );
+
+    localStorage.setItem(
+        "connecto_device_keypair_v1",
+        JSON.stringify({
+            publicKey: toBase64(keyPair.publicKey),
+            privateKey: decrypted,
+        })
+    );
+
+    return true;
 }

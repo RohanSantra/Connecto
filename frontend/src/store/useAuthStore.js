@@ -17,7 +17,7 @@ import { useChatStore } from "./useChatStore";
 import { useProfileStore } from "./useProfileStore";
 import { useDeviceStore } from "./useDeviceStore";
 import { useCallStore } from "./useCallStore";
-import { getOrCreateDeviceKeypair } from "@/lib/deviceKeys";
+import { backupPrivateKeyToServer, getOrCreateDeviceKeypair, restorePrivateKeyFromServer } from "@/lib/deviceKeys";
 import { ChatEventEnum } from "@/constants.js";
 
 /* ==========================================================
@@ -78,16 +78,14 @@ export const useAuthStore = create((set, get) => ({
   verifyOtp: async ({ email, otp }) => {
     try {
       const { deviceId } = get();
-      const { publicKeyBase64 } = getOrCreateDeviceKeypair();
 
+      // 1️⃣ LOGIN FIRST
       const res = await api.post(
         "/auth/verify-otp",
         {
           email,
           otp,
           deviceId,
-          deviceName: navigator.userAgent,
-          publicKey: publicKeyBase64,
         },
         { withCredentials: true }
       );
@@ -97,22 +95,56 @@ export const useAuthStore = create((set, get) => ({
 
       set({ user, isAuthenticated: true });
 
-      // init socket (will attempt connect) and attach handlers
+      // 2️⃣ RESTORE OR CREATE ENCRYPTION IDENTITY
+      let restored = false;
+
+      try {
+        restored = await restorePrivateKeyFromServer(email);
+      } catch (e) {
+        console.log("Restore failed:", e.message);
+      }
+
+      let publicKeyBase64;
+
+      if (restored) {
+        const kp = getOrCreateDeviceKeypair();
+        publicKeyBase64 = kp.publicKeyBase64;
+      } else {
+        const kp = getOrCreateDeviceKeypair();
+        publicKeyBase64 = kp.publicKeyBase64;
+
+        await backupPrivateKeyToServer(email);
+      }
+
+      // 3️⃣ REGISTER DEVICE (ENCRYPTION IDENTITY)
+      await api.post(
+        "/devices/register",
+        {
+          deviceId,
+          deviceName: navigator.userAgent,
+          publicKey: publicKeyBase64,
+        },
+        { withCredentials: true }
+      );
+
+      // 4️⃣ START SOCKET
       initSocket({ accessToken, userId: user._id, deviceId });
       get().ensureAttachSocket();
 
-      // cache last email for UX
-      try {
-        localStorage.setItem(EMAIL_CACHE_KEY, email);
-      } catch {}
+      localStorage.setItem("connecto_last_email", email);
 
       toast.success("OTP Verified");
       return { success: true };
+
     } catch (err) {
-      toast.error(err?.response?.data?.message || "OTP verification failed");
+      console.error(err);
+      toast.error("OTP verification failed");
       return { success: false };
     }
   },
+
+
+
 
   /* ==========================================================
      CHECK AUTH ON PAGE LOAD
@@ -128,7 +160,7 @@ export const useAuthStore = create((set, get) => ({
         // detach + disconnect to be safe
         const detach = get().socketDetach;
         if (detach) {
-          try { detach(); } catch {}
+          try { detach(); } catch { }
           set({ socketDetach: null });
         }
         disconnectSocket();
@@ -152,7 +184,7 @@ export const useAuthStore = create((set, get) => ({
       // on failure detach + disconnect to prevent stale handlers
       const detach = get().socketDetach;
       if (detach) {
-        try { detach(); } catch {}
+        try { detach(); } catch { }
         set({ socketDetach: null });
       }
       disconnectSocket();

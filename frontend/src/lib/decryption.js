@@ -1,6 +1,7 @@
 // src/lib/decryption.js
 import nacl from "tweetnacl";
-import { getOrCreateDeviceKeypair, getLocalDeviceId } from "./deviceKeys";
+import { getOrCreateDeviceKeypair } from "./deviceKeys";
+import { useAuthStore } from "@/store/useAuthStore";
 
 function fromBase64(s) {
     if (!s) return null;
@@ -23,11 +24,15 @@ export function decryptIncomingMessage(msg) {
             return msg;
         }
 
-        const myDeviceId = getLocalDeviceId();
+        const myUserId = useAuthStore.getState().user?._id;
+
         const { privateKey } = getOrCreateDeviceKeypair();
 
         // find the target key for this device
-        const myKeyObj = encryptedKeys.find(k => k.recipientDeviceId === myDeviceId);
+        const myKeyObj = encryptedKeys.find(
+            k => String(k.recipientUserId) === String(myUserId)
+        );
+
         if (!myKeyObj) {
             msg.plaintext = null;
             msg.error = "Unable to decrypt — sender key unavailable";

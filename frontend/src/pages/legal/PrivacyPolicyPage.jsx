@@ -16,50 +16,65 @@ import ConnectoLogo from "@/components/common/ConnectoLogo";
 
 export default function PrivacyPolicyPage() {
   const navigate = useNavigate();
+  const [openGroup, setOpenGroup] = React.useState(null);
 
+  const toggleGroup = (id) => {
+    setOpenGroup((prev) => (prev === id ? null : id));
+  };
   const sections = [
-    { id: "summary", title: "Overview", icon: Shield },
-
-    { id: "collection", title: "Information We Collect", icon: Database },
-    { id: "encryption", title: "End-to-End Encryption", icon: Key },
-
-    { id: "auth", title: "Authentication & Account Access", icon: Key },
-    { id: "sessions", title: "Sessions & Login Security", icon: Clock },
-
-    { id: "devices", title: "Devices Linked to Your Account", icon: Smartphone },
-    { id: "encryption-keys", title: "Device Encryption & Key Handling", icon: Shield },
-    { id: "lost-device", title: "Lost or Compromised Devices", icon: UserCheck },
-
-    { id: "messages", title: "Messages & Conversations", icon: Database },
-    { id: "attachments", title: "Attachments & Media Sharing", icon: Database },
-    { id: "editing", title: "Editing Messages", icon: Clock },
-    { id: "deletion", title: "Deleting Messages", icon: Shield },
-    { id: "read-receipts", title: "Read Receipts", icon: UserCheck },
-    { id: "clearing-chat", title: "Clearing Conversations", icon: Shield },
-    { id: "sync", title: "Multi-Device Synchronization", icon: Smartphone },
-
-    { id: "blocking", title: "Blocking Users & Conversations", icon: Shield },
-    { id: "privacy-controls", title: "Privacy Controls", icon: UserCheck },
-    { id: "online-status", title: "Online Status & Last Seen", icon: Clock },
-    { id: "typing-indicators", title: "Typing Indicators", icon: Smartphone },
-
-    { id: "calls-safety", title: "Calls & Safety", icon: Shield },
-    { id: "abuse", title: "Abuse, Misuse & Reporting", icon: Mail },
-
-    { id: "third-party", title: "Third-Party Services", icon: Database },
-    { id: "data-sharing", title: "How We Share Data", icon: Shield },
-    { id: "law-enforcement", title: "Law Enforcement & Legal Requests", icon: Key },
-    { id: "international", title: "International Data Transfers", icon: Globe },
-    { id: "no-ads", title: "No Advertising or Tracking", icon: Shield },
-
-    { id: "data-retention", title: "Data Retention", icon: Clock },
-    { id: "account-deletion", title: "Account Deletion", icon: UserCheck },
-    { id: "data-export", title: "Data Access & Export", icon: Database },
-
-    { id: "policy-changes", title: "Changes to This Policy", icon: Clock },
-    { id: "contact-support", title: "Contact & Support", icon: Mail },
-    { id: "consent", title: "Your Consent", icon: UserCheck },
+    {
+      id: "overview-group",
+      title: "Overview",
+      icon: Shield,
+      children: [
+        { id: "summary", title: "Overview" },
+        { id: "collection", title: "Information We Collect" },
+        { id: "encryption", title: "End-to-End Encryption" },
+      ],
+    },
+    {
+      id: "auth-group",
+      title: "Authentication & Devices",
+      icon: Smartphone,
+      children: [
+        { id: "auth", title: "Authentication & Account Access" },
+        { id: "sessions", title: "Sessions & Login Security" },
+        { id: "devices", title: "Devices Linked to Your Account" },
+        { id: "encryption-keys", title: "Device Encryption & Key Handling" },
+        { id: "lost-device", title: "Lost or Compromised Devices" },
+      ],
+    },
+    {
+      id: "messages-group",
+      title: "Messages & Conversations",
+      icon: Database,
+      children: [
+        { id: "messages", title: "Messages & Conversations" },
+        { id: "attachments", title: "Attachments & Media Sharing" },
+        { id: "editing", title: "Editing Messages" },
+        { id: "deletion", title: "Deleting Messages" },
+        { id: "read-receipts", title: "Read Receipts" },
+        { id: "clearing-chat", title: "Clearing Conversations" },
+        { id: "sync", title: "Multi-Device Synchronization" },
+      ],
+    },
+    {
+      id: "legal-group",
+      title: "Legal & Policies",
+      icon: Globe,
+      children: [
+        { id: "third-party", title: "Third-Party Services" },
+        { id: "data-sharing", title: "How We Share Data" },
+        { id: "law-enforcement", title: "Law Enforcement & Legal Requests" },
+        { id: "international", title: "International Data Transfers" },
+        { id: "data-retention", title: "Data Retention" },
+        { id: "account-deletion", title: "Account Deletion" },
+        { id: "policy-changes", title: "Changes to This Policy" },
+        { id: "contact-support", title: "Contact & Support" },
+      ],
+    },
   ];
+
 
 
 
@@ -106,18 +121,46 @@ export default function PrivacyPolicyPage() {
               </div>
 
               {/* Scrollable list */}
-              <nav className="flex flex-col gap-1 overflow-y-auto scroll-thumb-only pr-1 max-h-[calc(100vh-6rem)]">
-                {sections.map((s) => {
-                  const Icon = s.icon;
+              <nav className="flex flex-col gap-2 overflow-y-auto pr-1 max-h-[calc(100vh-6rem)]">
+                {sections.map((group) => {
+                  const Icon = group.icon;
+                  const isOpen = openGroup === group.id;
+
                   return (
-                    <button
-                      key={s.id}
-                      onClick={() => scrollTo(s.id)}
-                      className=" flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40 transition text-start"
-                    >
-                      <Icon className="w-4 h-4 shrink-0 text-primary/80" />
-                      <span className="leading-tight">{s.title}</span>
-                    </button>
+                    <div key={group.id} className="rounded-md border bg-muted/10">
+                      {/* Parent button */}
+                      <button
+                        onClick={() => toggleGroup(group.id)}
+                        className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium hover:bg-muted/40 transition"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Icon className="w-4 h-4 text-primary/80" />
+                          {group.title}
+                        </div>
+
+                        <span className="text-xs text-muted-foreground">
+                          {isOpen ? "−" : "+"}
+                        </span>
+                      </button>
+
+                      {/* Children */}
+                      <div
+                        className={`overflow-hidden transition-all duration-300 ${isOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+                          }`}
+                      >
+                        <div className="flex flex-col">
+                          {group.children.map((child) => (
+                            <button
+                              key={child.id}
+                              onClick={() => scrollTo(child.id)}
+                              className="text-left px-6 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40 transition"
+                            >
+                              {child.title}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   );
                 })}
               </nav>
@@ -156,8 +199,9 @@ export default function PrivacyPolicyPage() {
                 have access to private keys and cannot read your messages.
               </p>
               <p className="mt-4">
-                Certain metadata (such as timestamps and sender/recipient identifiers) is required
-                for message delivery and is not encrypted.
+                While message content is encrypted, limited metadata such as timestamps,
+                sender and recipient identifiers, and device information is required for
+                message delivery and synchronization.
               </p>
             </Section>
 
@@ -248,7 +292,12 @@ export default function PrivacyPolicyPage() {
 
               <ul className="list-disc pl-5 mt-3 space-y-2">
                 <li>
-                  Private encryption keys never leave your device.
+                  Private encryption keys are generated on your device.
+                  An encrypted backup of your private key may be stored securely on our servers
+                  to allow identity restoration on new devices.
+
+                  This backup is encrypted before leaving your device and cannot be accessed
+                  without your authentication credentials.
                 </li>
                 <li>
                   The server only stores encrypted message data.
@@ -725,7 +774,10 @@ export default function PrivacyPolicyPage() {
               </p>
 
               <ul className="list-disc pl-5 mt-3 space-y-2">
-                <li>Your profile information will be removed.</li>
+                <li>Your account will be deactivated and scheduled for deletion.
+                  Certain limited records may be retained for security, fraud prevention,
+                  or legal compliance purposes.
+                </li>
                 <li>Your active sessions and devices will be logged out.</li>
                 <li>You will no longer be able to sign in.</li>
               </ul>

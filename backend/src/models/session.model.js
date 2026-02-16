@@ -10,7 +10,6 @@ const SessionSchema = new mongoose.Schema({
     },
     deviceId: {
         type: String,
-        required: true
     }, // links to Device.deviceId
     hashedRefreshToken: {
         type: String,

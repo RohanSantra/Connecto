@@ -210,14 +210,12 @@ export const sendMessage = asyncHandler(async (req, res) => {
           .filter(
             (ek) =>
               ek.recipientUserId &&
-              ek.recipientDeviceId &&
               ek.encryptedKey &&
               ek.senderEphemeralPublicKey &&
               ek.nonce
           )
           .map((ek) => ({
             recipientUserId: new mongoose.Types.ObjectId(ek.recipientUserId),
-            recipientDeviceId: String(ek.recipientDeviceId),
             encryptedKey: String(ek.encryptedKey),
             senderEphemeralPublicKey: String(ek.senderEphemeralPublicKey),
             nonce: String(ek.nonce),

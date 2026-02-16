@@ -70,7 +70,17 @@ export default function AuthEmailForm() {
 
     try {
       const deviceId = getOrCreateDeviceId();
-      const { publicKeyBase64 } = getOrCreateDeviceKeypair();
+      const stored = localStorage.getItem("connecto_device_keypair_v1");
+
+      let publicKeyBase64;
+
+      if (stored) {
+        publicKeyBase64 = JSON.parse(stored).publicKey;
+      } else {
+        const kp = getOrCreateDeviceKeypair();
+        publicKeyBase64 = kp.publicKeyBase64;
+      }
+
       const deviceName = navigator.userAgent;
 
       const api = import.meta.env.VITE_API_BASE_URL;
@@ -111,7 +121,7 @@ export default function AuthEmailForm() {
         <form onSubmit={handleSendOtp} className="space-y-5">
           {error && (
             <div className="p-2 flex items-center gap-2 text-sm text-destructive bg-destructive/10 rounded-md">
-            <TriangleAlert className="size-4"/>
+              <TriangleAlert className="size-4" />
               {error}
             </div>
           )}

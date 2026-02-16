@@ -44,7 +44,11 @@ const UserSchema = new mongoose.Schema({
     publicKey: {
         type: String,
         default: null
-    }, // optional account-level public key
+    },
+    encryptedPrivateKeyBackup: {
+        type: String,
+        default: null
+    },
     lastLogin: {
         type: Date,
         default: null

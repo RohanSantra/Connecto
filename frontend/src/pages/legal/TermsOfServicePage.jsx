@@ -26,51 +26,74 @@ import ConnectoLogo from "@/components/common/ConnectoLogo";
 
 export default function TermsOfServicePage() {
   const navigate = useNavigate();
+  const [openGroup, setOpenGroup] = React.useState(null);
+
+  const toggleGroup = (id) => {
+    setOpenGroup((prev) => (prev === id ? null : id));
+  };
 
   const sections = [
-    { id: "overview", title: "Overview", icon: FileText },
-    { id: "acceptance", title: "Acceptance of Terms", icon: Gavel },
-    { id: "eligibility", title: "Eligibility", icon: User },
-
-    { id: "accounts", title: "Accounts & Devices", icon: Smartphone },
-    { id: "security", title: "Account Security", icon: ShieldAlert },
-    { id: "account-device", title: "Account & Device Responsibility", icon: Smartphone },
-
-    { id: "acceptable-use", title: "Acceptable Use", icon: AlertTriangle },
-    { id: "prohibited-conduct", title: "Prohibited Conduct", icon: Ban },
-    { id: "encryption-misuse", title: "Encryption & Feature Misuse", icon: Key },
-
-    { id: "user-safety", title: "User Safety & Reporting", icon: UserCheck },
-    { id: "service-integrity", title: "Platform Integrity & Fair Use", icon: Scale },
-
-    { id: "sessions", title: "Device & Session Control", icon: Zap },
-    { id: "device-removal-effects", title: "Effects of Device Removal", icon: Smartphone },
-
-    { id: "service-availability", title: "Service Availability", icon: Clock },
-    { id: "feature-changes", title: "Feature Changes & Improvements", icon: Zap },
-    { id: "beta-features", title: "Beta & Experimental Features", icon: ShieldAlert },
-
-    { id: "termination", title: "Account Suspension & Termination", icon: Ban },
-    { id: "investigations", title: "Investigations & Review", icon: ShieldAlert },
-    { id: "user-initiated-termination", title: "User-Initiated Account Termination", icon: User },
-    { id: "termination-effects", title: "Effects of Suspension or Termination", icon: Smartphone },
-    { id: "no-circumvention", title: "No Circumvention", icon: Scale },
-
-    { id: "no-warranty", title: "No Warranty", icon: ShieldAlert },
-    { id: "user-responsibility", title: "User Responsibility & Risk Acknowledgement", icon: User },
-    { id: "limitation-of-liability", title: "Limitation of Liability", icon: Scale },
-    { id: "third-party-liability", title: "Third-Party Services & Liability", icon: Database },
-
-    { id: "governing-law", title: "Governing Law", icon: Scale },
-    { id: "dispute-resolution", title: "Dispute Resolution", icon: ShieldAlert },
-    { id: "severability", title: "Severability", icon: FileText },
-    { id: "no-waiver", title: "No Waiver", icon: ShieldAlert },
-
-    { id: "changes-to-terms", title: "Changes to These Terms", icon: Clock },
-    { id: "entire-agreement", title: "Entire Agreement", icon: FileText },
-    { id: "contact", title: "Contact Information", icon: Mail },
-    { id: "final-acknowledgement", title: "Final Acknowledgement", icon: User },
+    {
+      id: "general-group",
+      title: "General Terms",
+      icon: FileText,
+      children: [
+        { id: "overview", title: "Overview" },
+        { id: "acceptance", title: "Acceptance of Terms" },
+        { id: "eligibility", title: "Eligibility" },
+      ],
+    },
+    {
+      id: "accounts-group",
+      title: "Accounts & Security",
+      icon: Smartphone,
+      children: [
+        { id: "accounts", title: "Accounts & Devices" },
+        { id: "security", title: "Account Security" },
+        { id: "account-device", title: "Account Responsibility" },
+        { id: "sessions", title: "Device & Session Control" },
+        { id: "device-removal-effects", title: "Effects of Device Removal" },
+      ],
+    },
+    {
+      id: "conduct-group",
+      title: "Use & Conduct",
+      icon: AlertTriangle,
+      children: [
+        { id: "acceptable-use", title: "Acceptable Use" },
+        { id: "prohibited-conduct", title: "Prohibited Conduct" },
+        { id: "encryption-misuse", title: "Encryption Misuse" },
+        { id: "user-safety", title: "User Safety & Reporting" },
+        { id: "service-integrity", title: "Platform Integrity" },
+      ],
+    },
+    {
+      id: "service-group",
+      title: "Service Terms",
+      icon: Zap,
+      children: [
+        { id: "service-availability", title: "Service Availability" },
+        { id: "feature-changes", title: "Feature Changes" },
+        { id: "beta-features", title: "Beta Features" },
+      ],
+    },
+    {
+      id: "legal-group",
+      title: "Legal & Liability",
+      icon: Scale,
+      children: [
+        { id: "termination", title: "Termination" },
+        { id: "no-warranty", title: "No Warranty" },
+        { id: "limitation-of-liability", title: "Limitation of Liability" },
+        { id: "third-party-liability", title: "Third-Party Services" },
+        { id: "governing-law", title: "Governing Law" },
+        { id: "dispute-resolution", title: "Dispute Resolution" },
+        { id: "changes-to-terms", title: "Changes to Terms" },
+        { id: "contact", title: "Contact Information" },
+      ],
+    },
   ];
+
 
 
 
@@ -105,8 +128,7 @@ export default function TermsOfServicePage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-
+        <div className="grid grid-cols-1 lg:grid-cols-4 col-reverse gap-8">
           {/* Contents */}
           <aside className="lg:col-span-1">
             <div className="sticky top-6 rounded-xl border bg-card p-4 max-h-[calc(100vh-3rem)] overflow-hidden">
@@ -115,18 +137,46 @@ export default function TermsOfServicePage() {
                 <span className="text-sm font-medium">Contents</span>
               </div>
 
-              <nav className="flex flex-col gap-1 overflow-y-auto scroll-thumb-only pr-1 max-h-[calc(100vh-6rem)]">
-                {sections.map((s) => {
-                  const Icon = s.icon;
+              <nav className="flex flex-col gap-2 overflow-y-auto pr-1 max-h-[calc(100vh-6rem)]">
+                {sections.map((group) => {
+                  const Icon = group.icon;
+                  const isOpen = openGroup === group.id;
+
                   return (
-                    <button
-                      key={s.id}
-                      onClick={() => scrollTo(s.id)}
-                      className="flex items-center justify-start gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40 transition text-start"
-                    >
-                      <Icon className="w-4 h-4 text-primary/80 shrink-0" />
-                      {s.title}
-                    </button>
+                    <div key={group.id} className="rounded-md border bg-muted/10">
+                      {/* Parent button */}
+                      <button
+                        onClick={() => toggleGroup(group.id)}
+                        className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium hover:bg-muted/40 transition"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Icon className="w-4 h-4 text-primary/80" />
+                          {group.title}
+                        </div>
+
+                        <span className="text-xs text-muted-foreground">
+                          {isOpen ? "−" : "+"}
+                        </span>
+                      </button>
+
+                      {/* Children */}
+                      <div
+                        className={`overflow-hidden transition-all duration-300 ${isOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+                          }`}
+                      >
+                        <div className="flex flex-col">
+                          {group.children.map((child) => (
+                            <button
+                              key={child.id}
+                              onClick={() => scrollTo(child.id)}
+                              className="text-left px-6 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40 transition"
+                            >
+                              {child.title}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   );
                 })}
               </nav>

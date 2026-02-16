@@ -10,6 +10,7 @@ import Session from "../models/session.model.js";
 import mongoose from "mongoose";
 import { emitSocketEvent } from "../socket/index.js";
 import { ChatEventEnum } from "../constants.js";
+import User from "../models/user.model.js";
 
 /* ----------------------------------------------------------
    Base64 Normalizer (fixes spaces, URL-safe chars, padding)
@@ -105,6 +106,49 @@ export const registerDevice = asyncHandler(async (req, res) => {
     new ApiResponse(201, device, "Device registered successfully")
   );
 });
+
+
+
+/* ==========================================================
+   To store encryptedPrivateKey in database 
+========================================================== */
+export const backupPrivateKey = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { encryptedPrivateKey } = req.body;
+
+    if (!encryptedPrivateKey) {
+      return res.status(400).json({ message: "Missing encrypted key" });
+    }
+
+    await User.findByIdAndUpdate(userId, {
+      encryptedPrivateKeyBackup: encryptedPrivateKey
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: "Backup failed" });
+  }
+};
+
+/* ==========================================================
+   To retrive encryptedPrivateKey from database for that user 
+========================================================== */
+export const getBackupPrivateKey = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id)
+      .select("encryptedPrivateKeyBackup");
+
+    res.json({
+      data: {
+        encryptedPrivateKey: user?.encryptedPrivateKeyBackup || null
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Fetch failed" });
+  }
+};
+
 
 /* ==========================================================
    2️⃣ GET ALL DEVICES FOR USER

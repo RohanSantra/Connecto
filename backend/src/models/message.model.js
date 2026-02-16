@@ -6,10 +6,6 @@ const EncryptedKeySchema = new mongoose.Schema({
         ref: "User",
         required: true
     },
-    recipientDeviceId: {
-        type: String,
-        required: true
-    }, // device id to which this key is targeted
     encryptedKey: {
         type: String,
         required: true
