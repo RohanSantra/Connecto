@@ -37,6 +37,6 @@ export const authMiddleware = async (req, res, next) => {
     req.deviceId = deviceId;
     next();
   } catch (err) {
-    next(err);
+    return res.status(401).json({ message: "Access token expired" });
   }
 };

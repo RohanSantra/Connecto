@@ -35,8 +35,8 @@ export const googleOAuth = new arctic.Google(
  * ---------------------------------------------------------- */
 const cookieBase = {
   httpOnly: true,
-  secure: true,
-  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+  secure: false,
+  sameSite: "lax",
   path: "/",
 };
 
@@ -385,50 +385,68 @@ export const checkAuth = asyncHandler(async (req, res) => {
  * ---------------------------------------------------------- */
 export const refreshTokens = asyncHandler(async (req, res) => {
   const refreshToken = req.cookies?.refreshToken;
-  if (!refreshToken) throw new ApiError(401, "Refresh token missing");
+  const deviceId = req.headers["x-device-id"];
 
-  // Only fetch non-revoked AND non-expired sessions
+  console.log("hi");
+  
+
+  if (!refreshToken) throw new ApiError(401, "Refresh token missing");
+  if (!deviceId) throw new ApiError(401, "Device missing");
+
+  // Find ALL sessions for this device
   const sessions = await Session.find({
+    deviceId,
     revoked: false,
     expiresAt: { $gt: new Date() },
-  }).lean();
+  });
 
-  let matched = null;
+  if (!sessions.length) {
+    throw new ApiError(401, "Session expired");
+  }
 
-  for (const s of sessions) {
-    if (await compareTokenHash(refreshToken, s.hashedRefreshToken)) {
-      matched = s;
+  let matchedSession = null;
+
+  for (const session of sessions) {
+    const valid = await compareTokenHash(
+      refreshToken,
+      session.hashedRefreshToken
+    );
+    if (valid) {
+      matchedSession = session;
       break;
     }
   }
 
-  if (!matched) throw new ApiError(401, "Invalid or expired refresh token");
-
-  // Double check expiration (extra safety)
-  if (matched.expiresAt < new Date()) {
-    throw new ApiError(401, "Refresh token expired");
+  if (!matchedSession) {
+    throw new ApiError(401, "Invalid refresh token");
   }
 
-  const newAccessToken = generateAccessToken({ userId: matched.userId });
+  // Rotate tokens
+  const newAccessToken = generateAccessToken({
+    userId: matchedSession.userId,
+  });
+
   const newRefreshToken = generateRefreshToken();
   const hashed = await hashToken(newRefreshToken);
 
-  await Session.updateOne(
-    { _id: matched._id },
-    {
-      hashedRefreshToken: hashed,
-      expiresAt: dayjs().add(7, "days").toDate(),
-      revoked: false,
-    }
-  );
+  matchedSession.hashedRefreshToken = hashed;
+  matchedSession.expiresAt = dayjs().add(7, "days").toDate();
+  matchedSession.revoked = false;
+  await matchedSession.save();
 
   res.cookie("accessToken", newAccessToken, {
-    ...cookieBase,
+    httpOnly: true,
+    secure: false,
+    sameSite: "lax",
+    path: "/",
     maxAge: 15 * 60 * 1000,
   });
 
   res.cookie("refreshToken", newRefreshToken, {
-    ...cookieBase,
+    httpOnly: true,
+    secure: false,
+    sameSite: "lax",
+    path: "/",
     maxAge: 30 * 24 * 60 * 60 * 1000,
   });
 
@@ -436,6 +454,8 @@ export const refreshTokens = asyncHandler(async (req, res) => {
     new ApiResponse(200, { accessToken: newAccessToken }, "Token refreshed")
   );
 });
+
+
 
 
 /* ----------------------------------------------------------

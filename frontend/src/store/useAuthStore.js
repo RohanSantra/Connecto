@@ -153,17 +153,13 @@ export const useAuthStore = create((set, get) => ({
     set({ loading: true });
 
     try {
-      const res = await api.get("/auth/check", { withCredentials: true });
+      const res = await api.get("/auth/check", {
+        withCredentials: true,
+      });
+
       const user = res.data?.data;
 
       if (!user) {
-        // detach + disconnect to be safe
-        const detach = get().socketDetach;
-        if (detach) {
-          try { detach(); } catch { }
-          set({ socketDetach: null });
-        }
-        disconnectSocket();
         set({ user: null, isAuthenticated: false });
         return { success: false };
       }
@@ -180,20 +176,18 @@ export const useAuthStore = create((set, get) => ({
       }
 
       return { success: true };
+
     } catch (err) {
-      // on failure detach + disconnect to prevent stale handlers
-      const detach = get().socketDetach;
-      if (detach) {
-        try { detach(); } catch { }
-        set({ socketDetach: null });
-      }
-      disconnectSocket();
-      set({ user: null, isAuthenticated: false });
+      // ❗ DO NOT LOGOUT HERE
+      // If refresh fails, interceptor will clear auth store.
+      console.warn("checkAuth failed (waiting for interceptor)", err?.response?.status);
+
       return { success: false };
     } finally {
       set({ loading: false });
     }
   },
+
 
   /* ==========================================================
      LOGOUT
