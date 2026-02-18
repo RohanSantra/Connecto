@@ -42,6 +42,7 @@ import { normalizeLastMessage } from "@/lib/normalize";
 import { getMediaSrc } from "./MessageItem";
 import { detectKind } from "@/lib/detectKind";
 import { buildReplyPreviewText } from "@/lib/replyPreview";
+import { useResponsiveDrawer } from "@/hooks/useResponsiveDrawer";
 
 const MAX_FILES = 5;
 const DEFAULT_TEXTAREA_HEIGHT = 38; // px
@@ -89,20 +90,26 @@ function formatTime(sec) {
 }
 
 /* Simple bar renderer for live recording */
-function RecordingWaveform({ bars = [], height = 32 }) {
+function RecordingWaveform({ bars = [], className }) {
   const barCount = bars.length || 24;
-  const minH = Math.max(2, Math.round(height * 0.12));
+
   return (
-    <div className="flex items-end gap-0.5 flex-1" style={{ height, minWidth: 0 }}>
+    <div
+      className={cn(
+        "hidden sm:flex items-end gap-0.5 flex-1 min-w-0 h-7 sm:h-9",
+        className
+      )}
+    >
       {Array.from({ length: barCount }).map((_, i) => {
         const v = bars[i] ?? 0.15;
-        const h = Math.max(minH, Math.round(v * height));
+        const hPercent = Math.max(10, v * 100); // min 10%
+
         return (
           <div
             key={i}
             style={{
               width: 2,
-              height: h,
+              height: `${hPercent}%`,
               borderRadius: 2,
               background: "currentColor",
               opacity: 0.95,
@@ -113,6 +120,7 @@ function RecordingWaveform({ bars = [], height = 32 }) {
     </div>
   );
 }
+
 
 /* ---- WAV encoder helper (AudioBuffer -> WAV blob) ---- */
 function audioBufferToWav(audioBuffer) {
@@ -201,6 +209,8 @@ export default function MessageComposer({ chatId }) {
   const recordStartRef = useRef(null);
 
   const typingTimeout = useRef(null);
+  const { isMobile } = useResponsiveDrawer();
+
 
   /* Typing Indicator */
   useEffect(() => {
@@ -586,10 +596,10 @@ export default function MessageComposer({ chatId }) {
 
 
   return (
-    <div ref={wrapperRef} className="border-t bg-card px-4 py-3 flex flex-col gap-3">
+    <div ref={wrapperRef} className="bg-card px-1 py-[5px] flex flex-col gap-3">
       {/* Files preview card (above textarea) */}
       {previews.length > 0 && (
-        <div className="w-full bg-muted/40 border rounded-lg p-2 max-h-40 overflow-auto scroll-thumb-only flex flex-wrap gap-2">
+        <div className="w-full bg-muted/40 border rounded-lg p-2 overflow-auto scroll-thumb-only flex flex-wrap gap-2">
           {previews.map((p, i) => {
             const id = getPreviewId(p, i);
             const isImage = p.type?.startsWith("image/");
@@ -724,12 +734,12 @@ export default function MessageComposer({ chatId }) {
       )}
 
 
-      <div className="flex items-start gap-2">
-        {/* Attach button pop menu */}
+      <div className="flex items-center gap-1 sm:gap-2">
+        {/* Attach button */}
         <Popover>
           <PopoverTrigger asChild>
-            <button className="p-2 rounded hover:bg-muted/40">
-              <Paperclip className="w-5 h-5" />
+            <button className="p-1.5 sm:p-2 rounded hover:bg-muted/40">
+              <Paperclip className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
           </PopoverTrigger>
 
@@ -761,71 +771,77 @@ export default function MessageComposer({ chatId }) {
             >
               <Camera className="w-4 h-4" /> Any File
             </button>
+            {/* Hidden file inputs */}
+            <input
+              ref={fileImage}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={onFilePick}
+            />
+
+            <input
+              ref={fileVideo}
+              type="file"
+              accept="video/*"
+              multiple
+              className="hidden"
+              onChange={onFilePick}
+            />
+
+            <input
+              ref={fileDocs}
+              type="file"
+              accept=".pdf,.doc,.docx,.txt,application/*"
+              multiple
+              className="hidden"
+              onChange={onFilePick}
+            />
+
+            <input
+              ref={fileAny}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={onFilePick}
+            />
           </PopoverContent>
         </Popover>
-
-        {/* Hidden inputs */}
-        <input
-          ref={fileImage}
-          type="file"
-          accept="image/*"
-          multiple
-          className="hidden"
-          onChange={onFilePick}
-        />
-        <input
-          ref={fileVideo}
-          type="file"
-          accept="video/*"
-          multiple
-          className="hidden"
-          onChange={onFilePick}
-        />
-        <input
-          ref={fileDocs}
-          type="file"
-          accept=".pdf,.doc,.docx,.txt,application/*"
-          multiple
-          className="hidden"
-          onChange={onFilePick}
-        />
-        <input
-          ref={fileAny}
-          type="file"
-          multiple
-          className="hidden"
-          onChange={onFilePick}
-        />
 
         {/* Mic */}
         <div data-mic-area>
           <button
             type="button"
             className={cn(
-              "rounded-full p-2 transition",
+              "rounded-md p-1.5 sm:p-2 transition",
               recording ? "bg-destructive text-primary" : "hover:bg-muted/40"
             )}
             onClick={() => (recording ? stopRecording() : startRecording())}
             title={recording ? "Stop recording" : "Record voice"}
           >
-            {recording ? <StopCircle className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+            {recording ? (
+              <StopCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+            ) : (
+              <Mic className="w-4 h-4 sm:w-5 sm:h-5" />
+            )}
           </button>
         </div>
 
-        {/* TEXTAREA or RECORDER UI */}
+        {/* TEXTAREA or RECORDER */}
         {showRecorderUI ? (
-          <div className="flex-1 border rounded-lg px-3 py-2 flex items-center gap-3 bg-background min-h-14">
-            <div className="inline-flex items-center gap-2">
-              <Mic className="w-4 h-4" />
-            </div>
+          <div className="flex-1 border rounded-lg px-2 sm:px-3 py-2 flex items-center gap-2 sm:gap-3 bg-background min-h-[44px] sm:min-h-[48px] w-full">
+            <Mic className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
 
-            <RecordingWaveform bars={recordBars} height={36} />
+            <RecordingWaveform
+              bars={recordBars} />
 
-            <div className="flex flex-col items-end min-w-[70px]">
-              <span className="tabular-nums text-sm">
+
+            <div className="flex flex-col items-end min-w-[55px] sm:min-w-[70px] ml-auto">
+              <span className="tabular-nums text-xs sm:text-sm">
                 {formatTime(recordElapsed)}
               </span>
-              <span className="text-[11px] text-muted-foreground">
+              <span className="text-[10px] sm:text-[11px] text-muted-foreground">
                 {cancelled
                   ? "Release to cancel"
                   : recording
@@ -835,7 +851,7 @@ export default function MessageComposer({ chatId }) {
             </div>
           </div>
         ) : (
-          <div className="flex-1 flex items-center gap-2">
+          <div className="flex-1 flex items-center">
             <textarea
               ref={textareaRef}
               value={text}
@@ -844,7 +860,7 @@ export default function MessageComposer({ chatId }) {
               placeholder="Message..."
               rows={1}
               style={{ height: `${DEFAULT_TEXTAREA_HEIGHT}px` }}
-              className="flex-1 min-h-[38px] max-h-40 resize-none rounded-lg border px-3 py-2 text-sm bg-background focus:ring-0 scroll-thumb-only"
+              className="flex-1 min-h-[38px] w-full max-h-40 resize-none rounded-lg border px-3 py-2 text-sm bg-background focus:ring-0 scroll-thumb-only"
               onInput={adjustTextareaHeight}
             />
           </div>
@@ -853,8 +869,8 @@ export default function MessageComposer({ chatId }) {
         {/* Emoji */}
         <Popover>
           <PopoverTrigger asChild>
-            <button className="p-2 rounded hover:bg-muted/40">
-              <Smile className="w-5 h-5" />
+            <button className="p-1.5 sm:p-2 rounded hover:bg-muted/40">
+              <Smile className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
           </PopoverTrigger>
           <PopoverContent side="top" align="end" className="p-0 w-72 h-[350px]">
@@ -869,17 +885,17 @@ export default function MessageComposer({ chatId }) {
         {/* Send */}
         <button
           disabled={sending || (!text && files.length === 0)}
-          className="p-2 rounded bg-primary text-primary-foreground disabled:opacity-50"
+          className="p-1.5 sm:p-2 rounded bg-primary text-primary-foreground disabled:opacity-50"
           onClick={send}
-          title="Send message"
         >
           {sending ? (
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
-            <Send className="w-5 h-5" />
+            <Send className="w-4 h-4 sm:w-5 sm:h-5" />
           )}
         </button>
       </div>
+
     </div>
   );
 }

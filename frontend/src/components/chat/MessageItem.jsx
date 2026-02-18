@@ -32,6 +32,7 @@ import FileViewer from "./FileViewer";
 import formatSize from "@/lib/formatSize.js";
 import { useChatStore } from "@/store/useChatStore";
 import { useBlockStore } from "@/store/useBlockStore";
+import { Badge } from "../ui/badge";
 
 const SHOW_MORE = 350;
 
@@ -188,7 +189,9 @@ function AttachmentBubble({
         className={cn(
           "rounded-xl overflow-hidden shadow-md cursor-pointer relative",
           isOwn ? "bg-[var(--chat-own-bg)] text-[var(--chat-own-fg)]" : "bg-[var(--chat-other-bg)] text-[var(--chat-other-fg)]",
-          compact ? "w-40 h-40" : "w-64 h-64"
+          compact
+            ? "w-full max-w-[140px] h-[140px] sm:max-w-[160px] sm:h-[160px]"
+            : "w-full max-w-[220px] h-[220px] sm:max-w-[260px] sm:h-[260px]"
         )}
         onClick={handlePreview}
       >
@@ -214,7 +217,9 @@ function AttachmentBubble({
         className={cn(
           "relative rounded-xl overflow-hidden shadow-md cursor-pointer",
           isOwn ? "bg-[var(--chat-own-bg)] text-[var(--chat-own-fg)]" : "bg-[var(--chat-other-bg)] text-[var(--chat-other-fg)]",
-          compact ? "w-56 h-32" : "w-64 h-40"
+          compact
+            ? "w-full max-w-[200px] h-[120px] sm:max-w-[240px] sm:h-[140px]"
+            : "w-full max-w-[260px] h-[150px] sm:max-w-[320px] sm:h-[180px]"
         )}
         onClick={handlePreview}
       >
@@ -248,13 +253,13 @@ function AttachmentBubble({
         ref={mediaRef}
         className={cn(
           isOwn ? "bg-[var(--chat-own-bg)] text-[var(--chat-own-fg)] shadow-md" : "bg-[var(--chat-other-bg)] text-[var(--chat-other-fg)] shadow-md",
-          "shadow-md rounded-xl border border-[var(--chat-border)] px-4 py-3 w-80 flex flex-col gap-2 h-fit cursor-pointer"
+          "shadow-md rounded-xl border border-[var(--chat-border)] px-4 py-3 w-full max-w-[260px] sm:max-w-[320px] md:max-w-[360px] flex flex-col gap-2 h-fit cursor-pointer"
         )}
         onClick={handlePreview}
       >
         {showMedia ? (
           <>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 w-full truncate">
               {badge ? (
                 <span className={cn("inline-flex items-center justify-center w-9 h-9 rounded-xl text-xs font-semibold", badge.className)}>
                   {badge.label}
@@ -263,8 +268,12 @@ function AttachmentBubble({
                 <FileText className="w-9 h-9 text-[var(--chat-meta)]" />
               )}
               <div className="flex-1 min-w-0">
-                <div className="truncate font-medium text-sm">{name}</div>
-                <div className="text-xs text-[var(--chat-meta)] mt-0.5">{formatSize(size)}</div>
+                <div className="text-sm font-medium break-words whitespace-normal">
+                  {name}
+                </div>
+                <div className="text-xs text-[var(--chat-meta)] mt-0.5">
+                  {formatSize(size)}
+                </div>
               </div>
             </div>
 
@@ -286,20 +295,47 @@ function AttachmentBubble({
     );
   }
 
-  /* ---------------- AUDIO (unchanged) ---------------- */
+  /* ---------------- AUDIO ---------------- */
   return (
-    <div className={cn(
-      isOwn ? "bg-[var(--chat-own-bg)] text-[var(--chat-own-fg)] border-[var(--chat-border)]" : "bg-[var(--chat-other-bg)] text-[var(--chat-other-fg)] border-[var(--chat-border)]",
-      "shadow-sm rounded-xl border px-3 py-3 w-80 flex flex-col"
-    )}>
-      <div className="flex items-center gap-3">
-        <div onClick={(e) => e.stopPropagation()} className="w-full max-w-60">
-          <SeekableWaveform src={src} barCount={48} height={50} />
+    <div
+      className={cn(
+        isOwn
+          ? "bg-[var(--chat-own-bg)] text-[var(--chat-own-fg)] border-[var(--chat-border)]"
+          : "bg-[var(--chat-other-bg)] text-[var(--chat-other-fg)] border-[var(--chat-border)]",
+        "shadow-sm rounded-xl border px-3 py-2 sm:px-4 sm:py-3",
+        "w-full max-w-[85vw] sm:max-w-[320px] md:max-w-[360px]",
+        "flex flex-col"
+      )}
+    >
+      {/* Waveform */}
+      <div className="flex items-center">
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="w-full"
+        >
+          <SeekableWaveform
+            src={src}
+            barCount={compact ? 18 : 36}
+          />
         </div>
       </div>
-      <div className="mt-2 flex items-center justify-between">
-        <div className="text-xs truncate text-[var(--chat-meta)]">{name} • {formatSize(size)}</div>
-        {badge && <span className={cn("ml-2 px-2 py-0.5 rounded-xl text-[12px] font-medium", badge.className)}>{badge.label}</span>}
+
+      {/* Meta row */}
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <div className="text-[11px] sm:text-xs text-[var(--chat-meta)] flex-1">
+          {name} • {formatSize(size)}
+        </div>
+
+        {badge && (
+          <span
+            className={cn(
+              "shrink-0 px-2 py-0.5 rounded-xl text-[10px] sm:text-[11px] font-medium",
+              badge.className
+            )}
+          >
+            {badge.label}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -449,13 +485,13 @@ export default React.memo(
     return (
       <div id={`msg-${_id}`} className={cn("flex mb-5 mx-2 items-end", isOwn ? "justify-end" : "justify-start")}>
         {/* Avatar outside bubble: only show for other people's messages in group chats */}
-        {!isOwn && isGroup && (
+        {!isOwn && isGroup && !isSmall && (
           <div className="flex-shrink-0 mr-3">
             <img src={senderAvatar} alt={senderName || "Avatar"} className="w-8 h-8 rounded-full object-cover" />
           </div>
         )}
 
-        <div className="relative max-w-[78%] group overflow-visible z-0">
+        <div className="relative max-w-[92%] sm:max-w-[80%] md:max-w-[70%] group overflow-visible z-0">
           {pinned && (
             <div className={cn("absolute -top-3 z-30 inline-flex items-center gap-1 px-2 py-0.5 rounded-xl text-xs font-medium",
               isOwn ? "bg-[var(--chat-own-bg)] text-[var(--chat-own-fg)] shadow-md" : "bg-[var(--chat-other-bg)] text-[var(--chat-other-fg)] shadow-md"
@@ -483,7 +519,7 @@ export default React.memo(
 
           {/* Small device action bar (hide for deleted messages) */}
           {(isSmall || isTouch) && !isDeletedForAll && message.status !== "sending" && !isBlocked && (
-            <div className={cn("absolute flex items-center gap-2 px-2 py-1 z-50 top-1/2 -translate-y-1/2", isOwn ? "right-full mr-2" : "left-full ml-2")}>
+            <div className={cn("absolute flex flex-col items-center gap-2 px-1 py-1 z-50 top-1/2 -translate-y-1/2 scale-90", isOwn ? "right-full mr-2" : "left-full ml-2")}>
               <button onClick={() => setShowReact((s) => !s)} className="p-1 rounded-lg bg-[var(--chat-other-bg)] border border-[var(--chat-other-fg)]/20 shadow-sm active:scale-95"><SmilePlus className="w-4 h-4 text-[var(--chat-meta)]" /></button>
               <MessageMenu message={message} isOwn={isOwn} onShowInfo={() => setInfoOpen(true)} open={menuOpen} onOpenChange={setMenuOpen}><button className="p-1 rounded-lg bg-[var(--chat-other-bg)] border border-[var(--chat-other-fg)]/20 shadow-sm active:scale-95"><MoreHorizontal className="w-4 h-4 text-[var(--chat-meta)]" /></button></MessageMenu>
             </div>
@@ -520,12 +556,11 @@ export default React.memo(
               pinned ? "ring-1 ring-[var(--color-primary)]/30 ring-offset-1" : "",
               "border border-[var(--chat-border)]"
             )} role="article" aria-label="text message">
-
-              {/* Name INSIDE bubble only for other people's messages in group chats */}
               {isGroup && !isOwn && (
-                <div className="mb-1 text-xs font-semibold text-[var(--chat-meta)] truncate">{senderName}</div>
+                <div className="border-b pb-2 mb-2">
+                  <Badge className="rounded-sm" variant="secondary">{senderName}</Badge>
+                </div>
               )}
-
               {replyTo && (
                 <div className="mb-2 border-l-2 pl-3 text-xs opacity-80 cursor-pointer hover:opacity-100 transition border-l-[var(--chat-border)]" onClick={(e) => { e.stopPropagation(); if (message.replyMessage?._id) setScrollToMessage(message.replyMessage._id); }}>
                   {message.replyMessage?.deleted ? (
@@ -539,7 +574,7 @@ export default React.memo(
                 </div>
               )}
 
-              <p className="whitespace-pre-wrap break-words text-[14px] leading-relaxed">{displayed || <span className="text-[var(--chat-meta)]">(Unable to decrypt)</span>}</p>
+              <p className="whitespace-pre-wrap break-words text-[13px] sm:text-[14px] leading-relaxed">{displayed || <span className="text-[var(--chat-meta)]">(Unable to decrypt)</span>}</p>
 
               {long && (<button onClick={() => setExpanded((s) => !s)} className="mt-2 text-xs underline underline-offset-2 text-[var(--chat-meta)]">{expanded ? "Show less" : "Show more"}</button>)}
             </div>
@@ -548,14 +583,20 @@ export default React.memo(
           {/* Attachments */}
           {!showPersonalTombstone && !isDeletedForAll && hasAttachments && !isCorrupt && (
             <div className={cn("mt-3 gap-3", onlyImages && attachments.length > 1 ? "grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-3" : "flex flex-col gap-3")}>
+
               {attachments.map((att, i) => {
                 const key = getMediaSrc(att) + (att.filename || "");
                 const mediaIdx = mediaIndexMap.get(key);
                 const isMediaIndex = typeof mediaIdx === "number" && mediaIdx >= 0;
 
                 return (
-                  <div key={`${att.filename || att._id || i}-${i}`} className={cn(isOwn ? "flex justify-end" : "flex justify-start")}>
-                    <AttachmentBubble att={att} compact={attachments.length > 1} index={mediaIdx} openFullscreen={openFullscreenAt} isMediaIndex={isMediaIndex} setFileViewerFile={setFileViewerFile} isSending={isSending} isOwn={isOwn} />
+                  <div key={`${att.filename || att._id || i}-${i}`} className="flex flex-col gap-1">
+                    {isGroup && !isOwn && isSmall && (
+                      <Badge className="rounded-sm" variant="secondary">{senderName}</Badge>
+                    )}
+                    <div className={cn(isOwn ? "flex justify-end" : "flex justify-start")}>
+                      <AttachmentBubble att={att} compact={attachments.length > 1} index={mediaIdx} openFullscreen={openFullscreenAt} isMediaIndex={isMediaIndex} setFileViewerFile={setFileViewerFile} isSending={isSending} isOwn={isOwn} />
+                    </div>
                   </div>
                 );
               })}

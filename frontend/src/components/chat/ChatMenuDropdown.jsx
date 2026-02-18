@@ -42,9 +42,10 @@ import {
 
 import { useBlockStore } from "@/store/useBlockStore";
 import { Button } from "../ui/button";
+import { useResponsiveDrawer } from "@/hooks/useResponsiveDrawer";
 
 export default function ChatMenuDropdown() {
-  const { openMediaDocs, openDetailsPanel } = useUIStore();
+  const { openMediaDocs, openDetailsPanel, openDetailsView } = useUIStore();
   const { chats, deleteChat, leaveGroup, activeChatId, togglePin } = useChatStore();
   const { clearChatForUser } = useMessageStore();
   const { profile } = useProfileStore();
@@ -61,6 +62,7 @@ export default function ChatMenuDropdown() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [loading, setLoading] = useState(null);
+  const { isMobile } = useResponsiveDrawer();
 
   /* ---------------- SAFE CHAT FETCH ---------------- */
   const chat = useMemo(
@@ -144,10 +146,9 @@ export default function ChatMenuDropdown() {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button size="icon"
-            variant="outline"
-            className="p-1 rounded-md hover:bg-accent">
-            <MoreVertical className="w-5 h-5" />
+          <Button size={isMobile ? "sm" : "icon"}
+            variant="outline">
+            <MoreVertical className={isMobile ? "size-3" : "size-5"} />
           </Button>
         </DropdownMenuTrigger>
 
@@ -162,7 +163,9 @@ export default function ChatMenuDropdown() {
             View Media
           </DropdownMenuItem>
 
-          <DropdownMenuItem onClick={openDetailsPanel}>
+          <DropdownMenuItem onClick={() =>
+            isMobile ? openDetailsView() : openDetailsPanel()
+          }>
             <Info className="w-4 h-4 mr-2" />
             View Details
           </DropdownMenuItem>

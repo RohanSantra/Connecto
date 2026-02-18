@@ -96,7 +96,7 @@ export default function OverviewSection({ global = {}, unit }) {
     <div className="space-y-8">
 
       {/* ================= DATE RANGE ================= */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col justify-start sm:flex-row sm:justify-between sm:items-center gap-3">
         <div>
           <h2 className="text-2xl font-semibold">
             Executive Overview

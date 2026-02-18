@@ -201,7 +201,7 @@ export default function MessageList({
 
   return (
     <ScrollArea className="h-full">
-      <div className="h-full px-4 py-3">
+      <div className="h-full px-1 py-3">
         <div ref={scrollRef} className="h-full pr-2">
           {/* WHEN LOADING OLDER — show skeletons at the top so user knows more content is incoming */}
           {loadingOlder && (

@@ -14,6 +14,7 @@ import React from "react";
 
 function AvatarSkeleton({ compact = false }) {
   const sizeClass = compact ? "h-9 w-9" : "h-11 w-11";
+
   return (
     <div className={`relative ${sizeClass} shrink-0`} aria-hidden>
       <div className={`rounded-xl bg-muted/60 border shadow-sm w-full h-full animate-pulse`} />
@@ -26,9 +27,9 @@ function AvatarSkeleton({ compact = false }) {
 function MiniThumbStripSkeleton() {
   return (
     <div className="flex -space-x-1.5 ml-1 shrink-0">
-      <div className="h-4 w-4 rounded object-cover border bg-muted animate-pulse" />
-      <div className="h-4 w-4 rounded object-cover border bg-muted animate-pulse" />
-      <div className="h-4 w-4 rounded object-cover border bg-muted animate-pulse" />
+      <div className="h-3.5 w-3.5 sm:h-4 sm:w-4 rounded border bg-muted animate-pulse" />
+      <div className="h-3.5 w-3.5 sm:h-4 sm:w-4 rounded border bg-muted animate-pulse" />
+      <div className="h-3.5 w-3.5 sm:h-4 sm:w-4 rounded border bg-muted animate-pulse" />
     </div>
   );
 }
@@ -49,7 +50,7 @@ function NameTimeSkeleton({ compact }) {
 
 function RightColumnSkeleton() {
   return (
-    <div className="relative flex items-start justify-end shrink-0 w-8">
+    <div className="relative flex items-start justify-end shrink-0 w-6 sm:w-8">
       <div className="absolute -top-1 right-2 inline-flex min-w-5 h-5 px-1.5 rounded-full bg-muted animate-pulse" />
       <div className="absolute bottom-0 right-2 h-6 w-6 rounded-md bg-muted animate-pulse" />
     </div>
@@ -58,13 +59,15 @@ function RightColumnSkeleton() {
 
 /* Single chat row skeleton */
 export function ChatListItemSkeleton({ compact = false, showThumbnails = true }) {
-  const padding = compact ? "py-2 px-2" : "p-3";
+  const padding = compact
+    ? "py-2 px-2"
+    : "py-2.5 px-2 sm:px-3 sm:py-3";
 
   return (
     <div
       role="status"
       aria-hidden
-      className={`w-full grid grid-cols-[48px_1fr_auto] gap-3 rounded-xl ${padding} transition-all`}
+      className={`w-full grid grid-cols-[40px_1fr_auto] sm:grid-cols-[44px_1fr_auto] md:grid-cols-[48px_1fr_auto] gap-2 sm:gap-3 rounded-xl ${padding} transition-all`}
     >
       {/* Avatar */}
       <div className="relative">
@@ -75,10 +78,10 @@ export function ChatListItemSkeleton({ compact = false, showThumbnails = true })
       <div className="min-w-0">
         <div className="flex justify-between items-start gap-2">
           <div className="min-w-0">
-            <div className="h-3.5 bg-muted rounded w-36 sm:w-48 animate-pulse" />
+            <div className="h-3.5 bg-muted rounded w-28 sm:w-36 md:w-48 animate-pulse" />
           </div>
           <div className="text-[11px] ml-2 text-muted-foreground whitespace-nowrap">
-            <div className="h-3 bg-muted rounded w-10 animate-pulse" />
+            <div className="h-3 bg-muted rounded w-8 sm:w-10 animate-pulse" />
           </div>
         </div>
 
@@ -91,7 +94,7 @@ export function ChatListItemSkeleton({ compact = false, showThumbnails = true })
 
           {/* preview */}
           <div className="text-xs text-muted-foreground truncate w-full block">
-            <div className="h-3 bg-muted rounded w-full sm:w-9/12 animate-pulse" />
+            <div className="h-3 bg-muted rounded w-5/6 sm:w-9/12 animate-pulse" />
           </div>
         </div>
       </div>
@@ -109,7 +112,7 @@ export default function ChatListSkeleton({
   showThumbnails = true,
 }) {
   return (
-    <div className="flex flex-col gap-2 p-2">
+    <div className="flex flex-col gap-2 px-2 py-2 sm:px-3">
       {Array.from({ length: count }).map((_, i) => (
         <ChatListItemSkeleton
           key={i}

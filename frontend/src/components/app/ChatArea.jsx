@@ -214,37 +214,59 @@ export default function ChatArea() {
 
   return (
     <div className="flex flex-col h-full w-full bg-background">
-      {/* HEADER */}
-      <div className="flex items-center justify-between px-4 py-3 border-b bg-card overflow-visible">
-        <div className="flex items-center gap-3">
-          <Button variant="outline" aria-label="Close the window" title="Close the window" size="icon" onClick={closeChat}>
-            <ArrowLeft className="w-5 h-5" />
+
+      {/* ================= HEADER ================= */}
+      <div className="flex items-center justify-between gap-1.5 px-3 sm:px-4 py-3 border-b bg-card">
+
+        {/* LEFT SIDE */}
+        <div className="flex items-center gap-3 min-w-0">
+
+          {/* Back Button (visible on mobile only) */}
+          <Button
+            variant="outline"
+            size={isMobile ? "xs" : "icon"}
+            onClick={closeChat}
+            className="shrink-0"
+          >
+            <ArrowLeft className={isMobile ? "size-3" : "size-5"} />
           </Button>
 
-          <Avatar className={`w-10 h-10 rounded-xl ${isRestricted ? "opacity-60 grayscale" : ""}`}>
+          {/* Avatar */}
+          <Avatar
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl shrink-0 ${isRestricted ? "opacity-60 grayscale" : ""
+              }`}
+          >
             <AvatarImage src={chatAvatar} />
             <AvatarFallback className="rounded-xl">
               {chatName?.[0]}
             </AvatarFallback>
           </Avatar>
 
-          <div className="leading-tight">
-            <p className="font-medium text-[15px]">{chatName}</p>
+          {/* Name + Status */}
+          <div className="flex flex-col min-w-0">
+            <p className="font-medium text-sm sm:text-[15px]">
+              {chatName}
+            </p>
+
             <p className="text-xs text-muted-foreground">
               {isRestricted ? (
-                <span className="text-destructive font-medium">Messaging disabled</span>
+                <span className="text-destructive font-medium">
+                  Messaging disabled
+                </span>
               ) : isTyping ? (
-                <span className="text-primary font-medium">{typingText}</span>
+                <span className="text-primary font-medium">
+                  {typingText}
+                </span>
               ) : (
                 statusText
               )}
             </p>
-
           </div>
         </div>
-        <div className="flex items-center gap-1">
 
-          {/* CALL CONTROLS (audio + video + dropdown inside) */}
+        {/* RIGHT SIDE ACTIONS */}
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+
           <CallButton
             chatId={activeChatId}
             isGroup={activeChat?.isGroup}
@@ -252,29 +274,34 @@ export default function ChatArea() {
             disabled={isRestricted}
           />
 
-          <Separator orientation="vertical" className="h-6 mx-1" />
+          <Separator
+            orientation="vertical"
+            className="hidden sm:block h-6 mx-1"
+          />
 
           <Button
             size="icon"
             variant="outline"
-            onClick={() => isMobile ? openDetailsView() : openDetailsPanel()}
-            aria-label="View chat details" 
-            title="View chat details"
+            className={isMobile ? "hidden" : "flex"}
+            onClick={() =>
+              isMobile ? openDetailsView() : openDetailsPanel()
+            }
           >
             <Info className="w-5 h-5" />
           </Button>
 
           <ChatMenuDropdown />
-
         </div>
       </div>
 
       <Separator />
 
+      {/* ================= PINNED ================= */}
       <PinnedMessagesBar pinnedMessages={pinnedMessages} />
 
-      {/* MESSAGE LIST WITH PAGINATION */}
-      <div className="flex-1 overflow-hidden">
+      {/* ================= MESSAGE LIST ================= */}
+      <div className="flex-1 overflow-hidden relative">
+
         {getSocket() == null ? (
           <div className="flex justify-center items-center h-full">
             <Loader2 className="w-6 h-6 animate-spin" />
@@ -290,7 +317,9 @@ export default function ChatArea() {
         )}
       </div>
 
-      <div className="border-t bg-card">
+      {/* ================= COMPOSER ================= */}
+      <div className="border-t bg-card px-2 sm:px-3 py-2">
+
         {shouldHideComposer ? (
           <BlockBanner
             chatBlocked={chatBlocked}
@@ -304,7 +333,7 @@ export default function ChatArea() {
         )}
       </div>
 
-
+      {/* ================= MEDIA OVERLAY ================= */}
       {mediaDocsOpen && (
         <MediaDocsOverlay
           chatId={activeChatId}

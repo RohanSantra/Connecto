@@ -827,7 +827,7 @@ export default function ChatDetailsPanel() {
           side={isMobile ? "bottom" : "right"}
           className={cn(
             "p-0 flex flex-col bg-card",
-            isMobile ? "h-screen rounded-none" : "w-full sm:max-w-3xl border-l shadow-xl"
+            isMobile ? "h-[95%] rounded-none" : "w-full sm:max-w-3xl border-l shadow-xl"
           )}
         >
           <SheetHeader className="px-5 py-3 border-b shrink-0 flex items-center justify-between gap-4">

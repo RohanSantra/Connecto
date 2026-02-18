@@ -53,9 +53,9 @@ export default function RightSideIllustration({ showOn = "lg" }) {
   ];
 
   const googleFlow = [
-    "👋 Welcome back!",
-    "Continue with Google.",
-    "Signed in instantly.",
+    "👋 Hey! Welcome to Connecto.",
+    "Want to Authenticate with Google.",
+    "It is instant.",
     "No OTPs needed.",
     "Just finish your profile →",
   ];

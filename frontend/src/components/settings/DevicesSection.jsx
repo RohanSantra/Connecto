@@ -8,6 +8,8 @@ import {
   ChevronUp,
   LogOut,
   Trash,
+  Monitor,
+  Apple,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDeviceStore } from "@/store/useDeviceStore";
@@ -41,9 +43,40 @@ function StatusBadge({ status }) {
   );
 }
 
+function getDeviceIcon(os) {
+  if (os === "Windows" || os === "MacOS" || os === "Linux")
+    return Monitor;
+  if (os === "Android" || os === "iOS")
+    return Smartphone;
+  return Smartphone;
+}
+
+
 /* --------------------------------
    Devices Section
 -------------------------------- */
+
+function parseUserAgent(ua = "") {
+  const lower = ua.toLowerCase();
+
+  let os = "Unknown";
+  let browser = "Unknown";
+
+  if (lower.includes("windows")) os = "Windows";
+  else if (lower.includes("android")) os = "Android";
+  else if (lower.includes("iphone") || lower.includes("ipad")) os = "iOS";
+  else if (lower.includes("mac os")) os = "MacOS";
+  else if (lower.includes("linux")) os = "Linux";
+
+  if (lower.includes("chrome")) browser = "Chrome";
+  else if (lower.includes("safari") && !lower.includes("chrome"))
+    browser = "Safari";
+  else if (lower.includes("firefox")) browser = "Firefox";
+  else if (lower.includes("edge")) browser = "Edge";
+
+  return { os, browser };
+}
+
 
 export default function DevicesSection() {
   const {
@@ -53,6 +86,9 @@ export default function DevicesSection() {
     logoutDevice,
     deleteDevice,
   } = useDeviceStore();
+
+  console.log(devices);
+  
 
   const {
     deviceId: localDeviceId,
@@ -73,7 +109,7 @@ export default function DevicesSection() {
   });
 
   return (
-    <div className="theme-animate space-y-4 max-w-4xl">
+    <div className="theme-animate space-y-4 w-full max-w-4xl mx-auto px-3 sm:px-4">
       {/* Header */}
       <div>
         <h2 className="text-xl font-semibold">Devices & Sessions</h2>
@@ -100,16 +136,25 @@ export default function DevicesSection() {
                 className="rounded-xl border bg-card overflow-hidden"
               >
                 {/* HEADER */}
-                <div className="flex items-center gap-3 p-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-4">
                   <div className="w-11 h-11 rounded-lg bg-secondary/10 flex items-center justify-center shrink-0">
-                    <Smartphone className="w-6 h-6" />
+                    {(() => {
+                      const { os } = parseUserAgent(d.deviceName || "");
+                      const Icon = getDeviceIcon(os);
+                      return <Icon className="w-6 h-6" />;
+                    })()}
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">
-                        {d.deviceName || "Unknown device"}
-                      </span>
+                      {(() => {
+                        const { os, browser } = parseUserAgent(d.deviceName || "");
+                        return (
+                          <span className="font-medium">
+                            {os} • {browser}
+                          </span>
+                        );
+                      })()}
 
                       {d.isPrimary && (
                         <span className="text-xs px-2 py-0.5 rounded bg-primary/10">
@@ -132,8 +177,7 @@ export default function DevicesSection() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    <StatusBadge status={d.status} />
+                  <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto shrink-0">                    <StatusBadge status={d.status} />
                     <button
                       onClick={() =>
                         setExpanded(isExpanded ? null : d.deviceId)
@@ -177,7 +221,7 @@ export default function DevicesSection() {
                     </div>
 
                     {/* Actions */}
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
                       {d.status === "active" && (
                         <button
                           onClick={() => {
@@ -198,7 +242,7 @@ export default function DevicesSection() {
 
                       <button
                         onClick={() => deleteDevice(d.deviceId)}
-                        className="ml-auto px-3 py-1 rounded border text-destructive text-sm flex items-center"
+                        className="sm:ml-auto px-3 py-1 rounded border text-destructive text-sm flex items-center"
                       >
                         <Trash className="w-4 h-4 mr-2" />
                         Remove device

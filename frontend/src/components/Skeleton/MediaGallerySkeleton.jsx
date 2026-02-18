@@ -134,8 +134,6 @@ function FileSkeletonBody() {
 ===================================================== */
 
 export default function MediaGallerySkeleton({ activeTab }) {
-    console.log(activeTab);
-
     return (
         <div className="flex h-full w-full flex-col" aria-hidden>
             {activeTab === "media" && <HeaderSkeleton />}

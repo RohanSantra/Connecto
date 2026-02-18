@@ -4,7 +4,7 @@ import useCallStore from "@/store/useCallStore";
 import { Phone, Video, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-
+import { useResponsiveDrawer } from "@/hooks/useResponsiveDrawer";
 
 export function CallButton({
   chatId,
@@ -13,14 +13,14 @@ export function CallButton({
   disabled = false,
 }) {
   const prepareAndStartCall = useCallStore((s) => s.prepareAndStartCall);
-  
 
   const [open, setOpen] = useState(false);
   const anchorRef = useRef(null);
   const dropdownRef = useRef(null);
   const [pos, setPos] = useState(null);
+  const { isMobile } = useResponsiveDrawer();
 
-  /* ---------------- helpers ---------------- */
+  /* ---------------- call helpers ---------------- */
 
   const startCall = async (type) => {
     if (disabled) return;
@@ -44,16 +44,36 @@ export function CallButton({
     }
   };
 
-  /* ---------------- dropdown positioning ---------------- */
+  /* ---------------- positioning ---------------- */
 
   const updatePos = useCallback(() => {
-    const el = anchorRef.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    setPos({
-      top: r.bottom + 8,
-      left: r.left,
-    });
+    if (!anchorRef.current) return;
+
+    const rect = anchorRef.current.getBoundingClientRect();
+
+    const dropdownWidth = 280;
+    const padding = 16;
+
+    let left = rect.left;
+    let top = rect.bottom + 8;
+
+    // Prevent overflow right
+    if (left + dropdownWidth > window.innerWidth - padding) {
+      left = window.innerWidth - dropdownWidth - padding;
+    }
+
+    // Prevent overflow left
+    if (left < padding) {
+      left = padding;
+    }
+
+    // Prevent overflow bottom
+    const estimatedHeight = 420;
+    if (top + estimatedHeight > window.innerHeight - padding) {
+      top = rect.top - estimatedHeight - 8;
+    }
+
+    setPos({ top, left });
   }, []);
 
   useEffect(() => {
@@ -63,33 +83,32 @@ export function CallButton({
     return () => clearTimeout(t);
   }, [open, updatePos]);
 
-  /* ---------------- outside click / esc ---------------- */
+  /* ---------------- outside click ---------------- */
 
   useEffect(() => {
     if (!open) return;
 
-    const onDocClick = (e) => {
+    const handleClick = (e) => {
       if (
         anchorRef.current?.contains(e.target) ||
         dropdownRef.current?.contains(e.target)
-      ) {
+      )
         return;
-      }
       setOpen(false);
     };
 
-    const onEsc = (e) => {
+    const handleEsc = (e) => {
       if (e.key === "Escape") setOpen(false);
     };
 
-    document.addEventListener("mousedown", onDocClick);
-    document.addEventListener("keydown", onEsc);
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleEsc);
     window.addEventListener("resize", updatePos);
     window.addEventListener("scroll", updatePos, true);
 
     return () => {
-      document.removeEventListener("mousedown", onDocClick);
-      document.removeEventListener("keydown", onEsc);
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleEsc);
       window.removeEventListener("resize", updatePos);
       window.removeEventListener("scroll", updatePos, true);
     };
@@ -100,158 +119,166 @@ export function CallButton({
   const dropdown =
     open && pos
       ? createPortal(
-          <div
-            ref={dropdownRef}
-            role="menu"
-            aria-label="Call options"
-            className="fixed z-[100000] w-64 bg-card border rounded-2xl shadow-2xl p-2 pointer-events-auto"
-            style={{
-              top: Math.min(pos.top, window.innerHeight - 16),
-              left: Math.min(pos.left, window.innerWidth - 280),
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="px-3 py-2 text-xs text-muted-foreground font-medium">
-              GROUP CALL
-            </div>
+        <div
+          ref={dropdownRef}
+          role="menu"
+          className={`
+              fixed z-[100000]
+              bg-card border shadow-2xl
+              rounded-2xl
+              p-2
+              pointer-events-auto
+              w-[90vw] sm:w-72
+              max-h-[70vh]
+              overflow-y-auto
+            `}
+          style={{
+            top: pos.top,
+            left: pos.left,
+          }}
+        >
+          {/* Group call section */}
+          <div className="px-3 py-2 text-xs text-muted-foreground font-medium">
+            GROUP CALL
+          </div>
 
-            {/* Call everyone (audio) */}
-            <div
-              className={`flex items-center justify-between px-3 py-2 rounded-xl
-                ${
-                  disabled
-                    ? "opacity-50 cursor-not-allowed"
-                    : "hover:bg-muted cursor-pointer"
-                }`}
-              onClick={!disabled ? () => startCall("audio") : undefined}
-            >
-              <span className="text-sm">Call everyone</span>
-              <Phone className="w-4 h-4 text-muted-foreground" />
-            </div>
-
-            {/* Call everyone (video) */}
-            <div
-              className={`flex items-center justify-between px-3 py-2 rounded-xl
-                ${
-                  disabled
-                    ? "opacity-50 cursor-not-allowed"
-                    : "hover:bg-muted cursor-pointer"
-                }`}
-              onClick={!disabled ? () => startCall("video") : undefined}
-            >
-              <span className="text-sm">Video call everyone</span>
-              <Video className="w-4 h-4 text-muted-foreground" />
-            </div>
-
-            <div className="border-t my-2" />
-
-            <div className="px-3 py-2 text-xs text-muted-foreground font-medium">
-              CALL INDIVIDUAL
-            </div>
-
-            <div className="space-y-1 max-h-56 overflow-auto">
-              {members.map((m) => (
-                <div
-                  key={m.userId}
-                  className={`flex items-center justify-between px-3 py-2 rounded-xl
-                    ${
-                      disabled
-                        ? "opacity-50 cursor-not-allowed"
-                        : "hover:bg-muted"
-                    }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Avatar className="w-8 h-8">
-                      {m.avatarUrl && <AvatarImage src={m.avatarUrl} />}
-                      <AvatarFallback>
-                        {(m.username || "U")[0]}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="text-sm font-medium">
-                      {m.username || m.userId}
-                    </span>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      disabled={disabled}
-                      className={`p-2 rounded ${
-                        disabled
-                          ? "cursor-not-allowed opacity-50"
-                          : "hover:bg-muted"
-                      }`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        startIndividualCall(m.userId, "audio");
-                      }}
-                    >
-                      <Phone className="w-4 h-4 text-muted-foreground" />
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={disabled}
-                      className={`p-2 rounded ${
-                        disabled
-                          ? "cursor-not-allowed opacity-50"
-                          : "hover:bg-muted"
-                      }`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        startIndividualCall(m.userId, "video");
-                      }}
-                    >
-                      <Video className="w-4 h-4 text-muted-foreground" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>,
-          document.body
-        )
-      : null;
-
-  /* ---------------- render ---------------- */
-
-  return (
-    <div ref={anchorRef} className="relative flex items-center gap-1">
-      <Button
-        size="icon"
-        variant="default"
-        disabled={disabled}
-        onClick={() => startCall("audio")}
-        title={disabled ? "Calling disabled" : "Start audio call"}
-      >
-        <Phone className="w-5 h-5" />
-      </Button>
-
-      <Button
-        size="icon"
-        variant="default"
-        disabled={disabled}
-        onClick={() => startCall("video")}
-        title={disabled ? "Calling disabled" : "Start video call"}
-      >
-        <Video className="w-5 h-5" />
-      </Button>
-
-      {isGroup && (
-        <>
-          <Button
-            size="icon"
-            variant="ghost"
+          <DropdownItem
+            label="Call everyone"
+            icon={<Phone className="w-4 h-4 text-muted-foreground" />}
             disabled={disabled}
-            onClick={() => !disabled && setOpen((v) => !v)}
-            title={disabled ? "Calling disabled" : "More call options"}
-          >
-            <ChevronDown className="w-4 h-4" />
-          </Button>
+            onClick={() => startCall("audio")}
+          />
 
-          {dropdown}
-        </>
-      )}
+          <DropdownItem
+            label="Video call everyone"
+            icon={<Video className="w-4 h-4 text-muted-foreground" />}
+            disabled={disabled}
+            onClick={() => startCall("video")}
+          />
+
+          <div className="border-t my-2" />
+
+          {/* Individual calls */}
+          <div className="px-3 py-2 text-xs text-muted-foreground font-medium">
+            CALL INDIVIDUAL
+          </div>
+
+          <div className="space-y-1">
+            {members.map((m) => (
+              <div
+                key={m.userId}
+                className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-muted"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <Avatar className="w-8 h-8 shrink-0">
+                    {m.avatarUrl && <AvatarImage src={m.avatarUrl} />}
+                    <AvatarFallback>
+                      {(m.username || "U")[0]}
+                    </AvatarFallback>
+                  </Avatar>
+
+                  <span className="text-sm font-medium truncate">
+                    {m.username || m.userId}
+                  </span>
+                </div>
+
+                <div className="flex gap-2 shrink-0">
+                  <IconButton
+                    disabled={disabled}
+                    onClick={() => startIndividualCall(m.userId, "audio")}
+                    icon={<Phone className="w-4 h-4 text-muted-foreground" />}
+                  />
+
+                  <IconButton
+                    disabled={disabled}
+                    onClick={() => startIndividualCall(m.userId, "video")}
+                    icon={<Video className="w-4 h-4 text-muted-foreground" />}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>,
+        document.body
+      )
+      : null;
+return (
+  <div ref={anchorRef} className="relative flex items-center gap-1">
+    {/* Audio button */}
+    <Button
+      size={isMobile ? "sm" : "icon"}
+      variant="default"
+      disabled={disabled}
+      onClick={() => startCall("audio")}
+      className={isMobile && isGroup ? "hidden" : ""}
+    >
+      <Phone className="w-4 sm:w-5 h-4 sm:h-5" />
+    </Button>
+
+    {/* Video button */}
+    <Button
+      size={isMobile ? "sm" : "icon"}
+      variant="default"
+      disabled={disabled}
+      onClick={() => startCall("video")}
+      className={isMobile && isGroup ? "hidden" : ""}
+    >
+      <Video className="w-4 sm:w-5 h-4 sm:h-5" />
+    </Button>
+
+    {/* Group dropdown */}
+    {isGroup && (
+      <>
+        <Button
+          size={isMobile ? "sm" : "icon"}
+          variant="outline"
+          disabled={disabled}
+          onClick={() => !disabled && setOpen((v) => !v)}
+          className="flex items-center gap-1"
+        >
+          {isMobile && <span className="text-sm">Calls</span>}
+          <ChevronDown className="w-4 h-4" />
+        </Button>
+
+        {dropdown}
+      </>
+    )}
+  </div>
+);
+
+}
+
+/* ================= small helpers ================= */
+
+function DropdownItem({ label, icon, disabled, onClick }) {
+  return (
+    <div
+      className={`flex items-center justify-between px-3 py-2 rounded-xl text-sm
+        ${disabled
+          ? "opacity-50 cursor-not-allowed"
+          : "hover:bg-muted cursor-pointer"
+        }`}
+      onClick={!disabled ? onClick : undefined}
+    >
+      <span>{label}</span>
+      {icon}
     </div>
+  );
+}
+
+function IconButton({ icon, onClick, disabled }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      className={`p-2 rounded-lg
+        ${disabled
+          ? "opacity-50 cursor-not-allowed"
+          : "hover:bg-muted"
+        }`}
+      onClick={onClick}
+    >
+      {icon}
+    </button>
   );
 }

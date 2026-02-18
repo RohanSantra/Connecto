@@ -310,7 +310,12 @@ export const googleCallback = asyncHandler(async (req, res) => {
     });
   } else {
     if (device.publicKey && device.publicKey !== publicKey) {
-      throw new ApiError(403, "Device public key mismatch");
+      // Allow update only if device was logged out
+      if (device.status === "logged_out") {
+        device.publicKey = publicKey;
+      } else {
+        throw new ApiError(403, "Device public key mismatch");
+      }
     }
 
     device.status = "active";

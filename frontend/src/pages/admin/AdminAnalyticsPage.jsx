@@ -362,50 +362,62 @@ export default function AdminConsolePage() {
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
-        <header className="flex items-center justify-between px-6 py-4 border-b bg-background shrink-0">
-          <div className="flex items-center gap-3">
+
+        {/* ================= HEADER ================= */}
+        <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-4 sm:px-6 py-4 border-b bg-background shrink-0">
+
+          {/* LEFT SIDE */}
+          <div className="flex items-start sm:items-center gap-3 min-w-0">
+
             {/* Mobile menu */}
             <Button
               variant="ghost"
               size="icon"
-              className="lg:hidden"
+              className="lg:hidden shrink-0"
               onClick={() => setMobileOpen(true)}
             >
               <Menu className="w-5 h-5" />
             </Button>
 
-            {/* Back to Home */}
+            {/* Back */}
             <Button
               variant="ghost"
               size="icon"
               onClick={() => navigate("/")}
-              className="gap-2"
+              className="shrink-0"
             >
               <ArrowLeft className="w-4 h-4" />
             </Button>
 
-            <div>
-              <h1 className="text-lg md:text-2xl font-semibold capitalize">
+            {/* Title */}
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-lg md:text-2xl font-semibold capitalize truncate">
                 {active.replace("-", " ")}
               </h1>
-              <Badge variant="outline" className="mt-1 text-xs">
+
+              <Badge variant="outline" className="mt-1 text-[10px] sm:text-xs w-fit">
                 {rangeParams.from} → {rangeParams.to}
               </Badge>
             </div>
           </div>
 
+          {/* RIGHT SIDE BUTTONS */}
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
 
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={exportCSV} disabled={loading}>
-              <Download className="w-4 h-4 mr-2" />
-              <span className="hidden md:inline">Export</span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={exportCSV}
+              disabled={loading}
+              className="flex-1 sm:flex-none"
+            >
+              <Download className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Export</span>
             </Button>
 
             <Button
               size="sm"
               onClick={async () => {
-                // re-run the current tab's fetch with the same range
                 try {
                   if (active === "overview") await fetchGlobalStats(rangeParams);
                   else if (active === "calls") await fetchCallStats(rangeParams);
@@ -414,7 +426,8 @@ export default function AdminConsolePage() {
                     await fetchTopEntities("chats", { ...rangeParams, limit: 20 });
                   else if (active === "users")
                     await fetchTopEntities("users", { ...rangeParams, limit: 50 });
-                  else if (active === "activity") await fetchActivityTimeline(rangeParams);
+                  else if (active === "activity")
+                    await fetchActivityTimeline(rangeParams);
 
                   toast.success("Refreshed");
                 } catch {
@@ -422,55 +435,76 @@ export default function AdminConsolePage() {
                 }
               }}
               disabled={loading}
+              className="flex-1 sm:flex-none"
             >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              <span className="hidden md:inline">Refresh</span>
+              <RefreshCw className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Refresh</span>
             </Button>
+
           </div>
         </header>
 
-        {/* Filter bar */}
-        <div className="px-6 py-4 border-b bg-muted/20 shrink-0 flex flex-wrap gap-3 items-center">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm">
-                <CalendarIcon className="w-4 h-4 mr-2" />
-                <span className="hidden sm:inline">From: </span>
-                {format(from, "PPP")}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent>
-              <Calendar mode="single" selected={from} onSelect={(d) => d && setFrom(d)} />
-            </PopoverContent>
-          </Popover>
+        {/* ================= FILTER BAR ================= */}
+        <div className="px-4 sm:px-6 py-4 border-b bg-muted/20 shrink-0 flex flex-col sm:flex-row gap-3 sm:items-center">
 
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm">
-                <CalendarIcon className="w-4 h-4 mr-2" />
-                <span className="hidden sm:inline">To: </span>
-                {format(to, "PPP")}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent>
-              <Calendar mode="single" selected={to} onSelect={(d) => d && setTo(d)} />
-            </PopoverContent>
-          </Popover>
+          <div className="flex flex-wrap gap-3">
 
-          <div className="ml-auto text-xs text-muted-foreground hidden sm:block">
-            Showing data for <strong>{rangeParams.from}</strong> → <strong>{rangeParams.to}</strong>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="w-full sm:w-auto">
+                  <CalendarIcon className="w-4 h-4 mr-2" />
+                  <span className="hidden sm:inline">From: </span>
+                  {format(from, "PPP")}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent>
+                <Calendar
+                  mode="single"
+                  selected={from}
+                  onSelect={(d) => d && setFrom(d)}
+                />
+              </PopoverContent>
+            </Popover>
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="w-full sm:w-auto">
+                  <CalendarIcon className="w-4 h-4 mr-2" />
+                  <span className="hidden sm:inline">To: </span>
+                  {format(to, "PPP")}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent>
+                <Calendar
+                  mode="single"
+                  selected={to}
+                  onSelect={(d) => d && setTo(d)}
+                />
+              </PopoverContent>
+            </Popover>
+
           </div>
+
+          <div className="sm:ml-auto text-[11px] sm:text-xs text-muted-foreground">
+            Showing data for{" "}
+            <strong>{rangeParams.from}</strong> →{" "}
+            <strong>{rangeParams.to}</strong>
+          </div>
+
         </div>
 
-        {/* Content area (scrollable) */}
-        <div className="flex-1 overflow-y-auto scroll-thumb-only p-6 min-w-0">
+        {/* ================= CONTENT ================= */}
+        <div className="flex-1 overflow-y-auto scroll-thumb-only p-4 sm:p-6 min-w-0">
+
           {active === "overview" && <OverviewSection global={safeGlobal} />}
 
           {active === "calls" && <CallsSection callStats={safeCalls} />}
 
           {active === "media" && <MediaSection mediaStats={safeMedia} />}
 
-          {active === "top-chats" && <TopEntitiesSection topEntities={safeTop} />}
+          {active === "top-chats" && (
+            <TopEntitiesSection topEntities={safeTop} />
+          )}
 
           {active === "users" && (
             <UserManagementSection
@@ -480,11 +514,12 @@ export default function AdminConsolePage() {
           )}
 
           {active === "activity" && (
-            // ActivitySection will use the timeline + range stored on the server response.
             <ActivitySection activityTimeline={safeActivity} />
           )}
+
         </div>
       </div>
+
     </div>
   );
 }

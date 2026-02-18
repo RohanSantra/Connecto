@@ -423,53 +423,83 @@ export default function UserManagementSection({ users = [] }) {
             <ul className="space-y-3" role="list" aria-live="polite">
               {pageItems.map((u, idx) => {
                 const globalIndex = (page - 1) * perPage + idx + 1;
-                const isSelf = currentUserId && String(u.userId) === String(currentUserId);
+                const isSelf =
+                  currentUserId && String(u.userId) === String(currentUserId);
                 const lastSeenText = formatLastSeen(u.lastSeen);
 
                 return (
                   <li
                     key={u.userId || idx}
-                    className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-xl border hover:bg-muted/40 transition"
+                    className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-4 rounded-xl border hover:bg-muted/40 transition"
                   >
-                    <div className="flex items-start sm:items-center gap-3 min-w-0 w-full sm:w-auto">
-                      <div className="text-sm text-muted-foreground w-8 shrink-0">#{globalIndex}</div>
-
-                      <Avatar className="shrink-0">
-                        {/* avatarUrl can be remote or local path */}
-                        {u.avatarUrl ? <AvatarImage src={u.avatarUrl} /> : <AvatarFallback>{getInitials(u.username || u.email || u.userId)}</AvatarFallback>}
+                    {/* LEFT SECTION */}
+                    <div className="flex items-start gap-3 min-w-0 w-full">
+                      {/* Index */}
+                      <div className="text-xs sm:text-sm text-muted-foreground w-8 text-right break-all leading-tight">
+                        #{globalIndex}
+                      </div>
+                      {/* Avatar */}
+                      <Avatar className="shrink-0 h-9 w-9 sm:h-10 sm:w-10">
+                        {u.avatarUrl ? (
+                          <AvatarImage src={u.avatarUrl} />
+                        ) : (
+                          <AvatarFallback>
+                            {getInitials(u.username || u.email || u.userId)}
+                          </AvatarFallback>
+                        )}
                       </Avatar>
 
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <div className="font-medium truncate max-w-[240px]">{u.username ?? u.email ?? u.userId}</div>
+                      {/* User Info */}
+                      <div className="min-w-0 flex-1">
+                        {/* Name + Badges */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="font-medium text-sm sm:text-base break-words">
+                            {u.username ?? u.email ?? u.userId}
+                          </div>
 
                           {u.isDeactivated ? (
-                            <Badge variant="destructive" className="text-xs flex items-center gap-1">
+                            <Badge
+                              variant="destructive"
+                              className="text-[10px] sm:text-xs flex items-center gap-1"
+                            >
                               <ShieldOff className="w-3 h-3" />
-                              <span>Deactivated</span>
+                              Deactivated
                             </Badge>
                           ) : (
-                            <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                            <Badge
+                              variant="secondary"
+                              className="text-[10px] sm:text-xs flex items-center gap-1"
+                            >
                               <ShieldCheck className="w-3 h-3" />
-                              <span>Active</span>
+                              Active
                             </Badge>
                           )}
 
-                          {u.isAdmin && <Badge variant="outline" className="text-xs">Admin</Badge>}
-                          {isSelf && <Badge variant="outline" className="text-xs">You</Badge>}
+                          {u.isAdmin && (
+                            <Badge variant="outline" className="text-[10px] sm:text-xs">
+                              Admin
+                            </Badge>
+                          )}
+
+                          {isSelf && (
+                            <Badge variant="outline" className="text-[10px] sm:text-xs">
+                              You
+                            </Badge>
+                          )}
                         </div>
 
-                        <div className="text-xs text-muted-foreground truncate max-w-[360px]">
-                          {u.email ? <span>{u.email} • </span> : null}
-                          Created: {new Date(u.createdAt).toLocaleString()}
+                        {/* Email + Created */}
+                        <div className="text-xs text-muted-foreground mt-1 break-words">
+                          {u.email && <span>{u.email} • </span>}
+                          Created: {new Date(u.createdAt).toLocaleDateString()}
                         </div>
 
-                        {/* small-screen last seen */}
-                        <div className="block sm:hidden mt-2 text-xs text-muted-foreground">
+                        {/* Last seen for small screens */}
+                        <div className="mt-2 text-xs text-muted-foreground lg:hidden">
                           {u.lastSeen === null ? (
                             <div className="flex items-center gap-2">
                               <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                              <span>Online</span>
+                              Online
                             </div>
                           ) : (
                             <div>Last seen: {lastSeenText}</div>
@@ -478,37 +508,56 @@ export default function UserManagementSection({ users = [] }) {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-                      <div className="text-xs text-muted-foreground text-right mr-2">{formatNumber(u.count)} msgs</div>
+                    {/* RIGHT SECTION */}
+                    <div className="flex flex-row lg:flex-row items-center justify-between lg:justify-end gap-3 w-full lg:w-auto">
+                      {/* Message count */}
+                      <div className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">
+                        {formatNumber(u.count)} msgs
+                      </div>
 
-                      {/* last-seen on larger screens */}
-                      <div className="hidden sm:block text-xs text-muted-foreground text-right w-40">
+                      {/* Last seen on larger screens */}
+                      <div className="hidden lg:block text-xs text-muted-foreground text-right min-w-[140px]">
                         {u.lastSeen === null ? (
                           <div className="flex items-center justify-end gap-2">
                             <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                            <span>Online</span>
+                            Online
                           </div>
                         ) : (
-                          <div>Last seen: <div className="text-xs">{lastSeenText}</div></div>
+                          <div>
+                            Last seen:
+                            <div className="text-xs">{lastSeenText}</div>
+                          </div>
                         )}
                       </div>
 
-                      {/* actions */}
+                      {/* Actions */}
                       {!isSelf && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button size="sm" variant="ghost" aria-label={`Actions for ${u.username || u.userId}`} disabled={adminLoading}>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 p-0"
+                              aria-label={`Actions for ${u.username || u.userId}`}
+                              disabled={adminLoading}
+                            >
                               <MoreHorizontal className="w-4 h-4" />
                             </Button>
                           </DropdownMenuTrigger>
 
                           <DropdownMenuContent align="end">
                             {!u.isAdmin ? (
-                              <DropdownMenuItem onClick={() => handlePromote(u.userId)} disabled={adminLoading}>
+                              <DropdownMenuItem
+                                onClick={() => handlePromote(u.userId)}
+                                disabled={adminLoading}
+                              >
                                 Promote to Admin
                               </DropdownMenuItem>
                             ) : (
-                              <DropdownMenuItem onClick={() => handleDemote(u.userId)} disabled={adminLoading}>
+                              <DropdownMenuItem
+                                onClick={() => handleDemote(u.userId)}
+                                disabled={adminLoading}
+                              >
                                 Remove Admin
                               </DropdownMenuItem>
                             )}

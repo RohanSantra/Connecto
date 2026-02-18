@@ -62,17 +62,21 @@ function useResponsiveHeight(defaults = { sm: 220, md: 320, lg: 420 }) {
   useEffect(() => {
     function calc() {
       const w = window.innerWidth;
-      if (w < 640) setHeight(defaults.sm);
+
+      if (w < 480) setHeight(defaults.sm - 20); // extra small phones
+      else if (w < 640) setHeight(defaults.sm);
       else if (w < 1024) setHeight(defaults.md);
       else setHeight(defaults.lg);
     }
+
     calc();
     window.addEventListener("resize", calc);
     return () => window.removeEventListener("resize", calc);
-  }, [defaults.sm, defaults.md, defaults.lg]);
+  }, [defaults]);
 
   return height;
 }
+
 
 /* ===========================
    Custom Tooltip
@@ -158,17 +162,32 @@ export function AreaWrapper({
   }
 
   return (
-    <div className="bg-card rounded-lg p-4">
-      {title && <div className="flex items-center justify-between mb-3">
-        <div>
-          <div className="text-lg font-semibold">{title}</div>
-          <div className="text-xs text-muted-foreground">Showing trend over time</div>
-        </div>
-        {showLegend && <ChartIndex series={series} data={safeData} dataKey={series[0]?.key} />}
-      </div>}
+    <div className="bg-card rounded-lg p-2 sm:p-6 overflow-hidden">
+      {title && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+          <div className="min-w-0">
+            <div className="text-base sm:text-lg font-semibold truncate">
+              {title}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Trend across selected dates
+            </div>
+          </div>
 
-      <div style={{ width: "100%", height }}>
-        <ResponsiveContainer>
+          {showLegend && (
+            <div className="w-full sm:w-auto overflow-x-auto">
+              <ChartIndex
+                series={series}
+                data={safeData}
+                dataKey={series[0]?.key}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="w-full" style={{ height }}>
+        <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={safeData}>
             <defs>
               {series.map((s, i) => (
@@ -178,17 +197,30 @@ export function AreaWrapper({
                 </linearGradient>
               ))}
             </defs>
-
-            <CartesianGrid strokeDasharray="3 6" vertical={false} strokeOpacity={0.08} />
-            <XAxis
-              dataKey={xKey}
-              tickFormatter={(v) => (xFormatter ? xFormatter(v) : tryFormatDateLabel(v))}
-              minTickGap={20}
-              tick={{ fontSize: 12 }}
+            <CartesianGrid
+              strokeDasharray="3 6"
+              vertical={false}
+              strokeOpacity={0.08}
             />
-            <YAxis tickFormatter={(v) => (yFormatter ? yFormatter(v) : formatNumber(v))} width={70} />
 
-            <Tooltip content={<ChartTooltip xFormatter={xFormatter} yFormatter={yFormatter} />} />
+            <XAxis
+              tick={{ fontSize: window.innerWidth < 640 ? 10 : 12 }}
+              minTickGap={20}
+            />
+
+            <YAxis
+              width={window.innerWidth < 640 ? 45 : 70}
+              tickFormatter={(v) => formatNumber(v)}
+            />
+
+            <Tooltip
+              content={
+                <ChartTooltip
+                  xFormatter={xFormatter}
+                  yFormatter={yFormatter}
+                />
+              }
+            />
 
             {series.map((s, i) => (
               <Area
@@ -207,6 +239,7 @@ export function AreaWrapper({
         </ResponsiveContainer>
       </div>
     </div>
+
   );
 }
 
@@ -238,7 +271,7 @@ export function LineWrapper({
   }
 
   return (
-    <div className="bg-card rounded-lg p-4">
+    <div className="bg-card rounded-lg">
       {title && <div className="flex items-center justify-between mb-3">
         <div>
           <div className="text-lg font-semibold">{title}</div>
@@ -299,6 +332,10 @@ export function PieWrapper({
 }) {
   const safeData = safeArray(data).filter((d) => Number(d?.[dataKey] ?? 0) > 0);
   const height = overrideHeight ?? useResponsiveHeight({ sm: 300, md: 300, lg: 320 });
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
+
+  const dynamicInner = isMobile ? 35 : innerRadius;
+  const dynamicOuter = isMobile ? 70 : outerRadius;
 
   if (!safeData.length) {
     return (
@@ -312,7 +349,7 @@ export function PieWrapper({
   const total = safeData.reduce((s, r) => s + Number(r[dataKey] || 0), 0);
 
   return (
-    <div className="bg-card rounded-lg p-4">
+    <div className="bg-card rounded-lg">
       {title && <div className="flex items-center justify-between mb-3">
         <div>
           <div className="text-lg font-semibold">{title}</div>
@@ -329,9 +366,11 @@ export function PieWrapper({
               data={safeData}
               dataKey={dataKey}
               nameKey={nameKey}
-              innerRadius={innerRadius}
-              outerRadius={outerRadius}
-              label={(entry) => `${entry[nameKey]} (${((entry[dataKey] / total) * 100).toFixed(0)}%)`}
+              innerRadius={dynamicInner}
+              outerRadius={dynamicOuter}
+              label={isMobile ? false : (entry) =>
+                `${entry[nameKey]} (${((entry[dataKey] / total) * 100).toFixed(0)}%)`
+              }
               isAnimationActive={false}
             >
               {safeData.map((_, i) => (
@@ -341,7 +380,7 @@ export function PieWrapper({
             {showLegend && (
               <Legend
                 verticalAlign="bottom"
-                height={60}
+                height={80}
                 payload={safeData.map((d, i) => ({
                   id: d[nameKey],
                   value: `${d[nameKey]} — ${formatNumber(d[dataKey])}`,

@@ -9,7 +9,7 @@ export default function MessageListSkeleton({
     const pattern = ["other", "own", "other", "own", "other"];
 
     return (
-        <div className="h-full flex flex-col justify-end gap-3">
+        <div className="h-full flex flex-col justify-end gap-3 px-2 sm:px-3">
             {Array.from({ length: initialCount }).map((_, i) => (
                 <MessageItemSkeleton
                     key={i}

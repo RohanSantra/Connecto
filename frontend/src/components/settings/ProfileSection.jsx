@@ -62,7 +62,7 @@ const getLanguageName = (code) => {
 ------------------------- */
 function InfoBadge({ icon: Icon, label, value }) {
   return (
-    <div className="flex items-start gap-3 rounded-xl border bg-card px-4 py-3 w-full">
+    <div className="flex items-start gap-3 rounded-xl border bg-card px-4 py-3 w-full min-w-0">
       {Icon && (
         <Icon className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
       )}
@@ -346,16 +346,16 @@ export default function ProfileSection() {
      UI: stable layout: inputs are always mounted — just readOnly or editable
   ----------------------------------------------------- */
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6">
-      <div className="flex flex-col sm:flex-row gap-6">
+    <div className="w-full max-w-4xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6">
+      <div className="flex flex-col lg:flex-row gap-6">
         {/* LEFT COLUMN: Avatar + quick stats */}
-        <aside className="w-full sm:w-80 shrink-0 space-y-4">
+        <aside className="w-full lg:w-80 shrink-0 space-y-4">
           <div className="rounded-xl border bg-card p-4 flex flex-col items-center gap-3">
             <div className="relative">
               <img
                 src={local.avatarPreview || DEFAULT_AVATARS[0]}
                 alt="avatar"
-                className="w-32 h-32 rounded-full object-cover border"
+                className="w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 rounded-full object-cover border"
               />
             </div>
 
@@ -396,7 +396,7 @@ export default function ProfileSection() {
                     <Button onClick={() => fileInputRef.current?.click?.()} className="flex-1 inline-flex items-center justify-center gap-2">
                       <Upload className="w-4 h-4" /> Upload
                     </Button>
-                    <Button variant="outline" onClick={() => { setAvatarFile(null); setLocal((s) => ({ ...s, avatarPreview: profile?.avatarUrl || DEFAULT_AVATARS[0] })); }} className="flex-1">Reset</Button>
+                    <Button variant="outline" onClick={() => { setAvatarFile(null); setLocal((s) => ({ ...s, avatarPreview: profile?.avatarUrl || DEFAULT_AVATARS[0] })); }} className="flex-1">Reset Avatar</Button>
                   </div>
                 </>
               )}
@@ -447,7 +447,7 @@ export default function ProfileSection() {
         <main className="flex-1 space-y-4">
           {/* Identity row (username input always mounted to avoid remount / focus lost) */}
           <div className="rounded-xl border bg-card p-4 space-y-3">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div className="flex items-center gap-3 min-w-0 w-full md:w-auto">
                 <User className="w-5 h-5 text-muted-foreground shrink-0" />
                 <div className="min-w-0 flex-1">
@@ -480,7 +480,7 @@ export default function ProfileSection() {
 
                 {/* suggestions (only show when unavailable) */}
                 {editMode && usernameAvailable === false && usernameSuggestions?.length > 0 && (
-                  <div className="text-xs text-muted-foreground flex flex-wrap gap-2 max-w-[320px]">
+                  <div className="text-xs text-muted-foreground flex flex-wrap gap-2 w-full md:max-w-[320px]">
                     <div className="whitespace-nowrap mr-1">Try:</div>
                     {usernameSuggestions.slice(0, 3).map((s) => (
                       <button
@@ -513,7 +513,7 @@ export default function ProfileSection() {
                 value={local.bio}
                 onChange={(e) => setLocal((s) => ({ ...s, bio: e.target.value }))}
                 readOnly={!editMode}
-                className="mt-2 h-28"
+                className="mt-2 min-h-[100px] sm:min-h-[120px]"
                 placeholder="A short bit about you..."
                 maxLength={500}
               />
@@ -522,11 +522,11 @@ export default function ProfileSection() {
           </div>
 
           {/* languages and other badges */}
-          <div className="rounded-xl border bg-card p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="rounded-xl border bg-card p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Languages (selects when editMode otherwise badges) */}
             <div>
               <div className="flex items-center justify-between">
-                <div>
+                <div className="w-full">
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <User className="w-3.5 h-3.5" />
                     Primary language
@@ -534,7 +534,7 @@ export default function ProfileSection() {
                   {!editMode ? (
                     <div className="text-sm font-medium mt-1">{getLanguageName(profile?.primaryLanguage)}</div>
                   ) : (
-                    <div className="mt-1">
+                    <div className="mt-1 w-full">
                       <Select value={local.primaryLanguage || "en"} onValueChange={(v) => {
                         // clear secondary if same
                         setLocal((s) => ({ ...s, primaryLanguage: v, secondaryLanguage: s.secondaryLanguage === v ? "" : s.secondaryLanguage }));
@@ -606,7 +606,7 @@ export default function ProfileSection() {
           {editMode && (
             <div className="rounded-xl border bg-card p-3">
               <div className="text-xs text-muted-foreground mb-2">Default avatars</div>
-              <div className="grid grid-cols-5 gap-2">
+              <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2">
                 {DEFAULT_AVATARS.map((a) => (
                   <button
                     key={a}
