@@ -576,8 +576,18 @@ export default function MessageComposer({ chatId }) {
   };
 
   useEffect(() => {
-    adjustTextareaHeight();
-  }, [text]);
+    const el = textareaRef.current;
+    if (!el) return;
+
+    // reset first
+    el.style.height = "auto";
+
+    // wait one frame so layout/fonts settle
+    requestAnimationFrame(() => {
+      adjustTextareaHeight();
+    });
+  }, []);
+
 
   /* ---- MEDIA-ONLY ARRAY FOR FULLSCREEN (no docs) ---- */
   const mediaPreviews = previews.filter((p) =>
@@ -599,7 +609,7 @@ export default function MessageComposer({ chatId }) {
     <div ref={wrapperRef} className="bg-card px-1 py-[5px] flex flex-col gap-3">
       {/* Files preview card (above textarea) */}
       {previews.length > 0 && (
-        <div className="w-full bg-muted/40 border rounded-lg p-2 overflow-auto scroll-thumb-only flex flex-wrap gap-2">
+        <div className="w-full bg-muted/40 border rounded-lg p-2 max-h-40 overflow-y-auto scroll-thumb-only flex flex-wrap gap-2">
           {previews.map((p, i) => {
             const id = getPreviewId(p, i);
             const isImage = p.type?.startsWith("image/");
@@ -859,7 +869,6 @@ export default function MessageComposer({ chatId }) {
               onKeyDown={keyDown}
               placeholder="Message..."
               rows={1}
-              style={{ height: `${DEFAULT_TEXTAREA_HEIGHT}px` }}
               className="flex-1 min-h-[38px] w-full max-h-40 resize-none rounded-lg border px-3 py-2 text-sm bg-background focus:ring-0 scroll-thumb-only"
               onInput={adjustTextareaHeight}
             />

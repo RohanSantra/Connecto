@@ -253,7 +253,7 @@ function AttachmentBubble({
         ref={mediaRef}
         className={cn(
           isOwn ? "bg-[var(--chat-own-bg)] text-[var(--chat-own-fg)] shadow-md" : "bg-[var(--chat-other-bg)] text-[var(--chat-other-fg)] shadow-md",
-          "shadow-md rounded-xl border border-[var(--chat-border)] px-4 py-3 w-full max-w-[260px] sm:max-w-[320px] md:max-w-[360px] flex flex-col gap-2 h-fit cursor-pointer"
+          "shadow-md rounded-xl border border-[color:var(--chat-border)] px-4 py-3 w-full max-w-[260px] sm:max-w-[320px] md:max-w-[360px] flex flex-col gap-2 h-fit cursor-pointer"
         )}
         onClick={handlePreview}
       >
@@ -279,10 +279,10 @@ function AttachmentBubble({
 
             {!isSending && (
               <div className="flex gap-2 mt-1">
-                <a href={getMediaSrc(att)} download target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-xs border rounded-md px-2 py-1 bg-[var(--color-muted)] hover:bg-[var(--color-muted)]/70 flex items-center gap-1">
+                <a href={getMediaSrc(att)} download target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-xs border border-[color:var(--chat-border)] rounded-md px-2 py-1 bg-[var(--chat-button-bg)] hover:bg-[var(--chat-button-hover)] flex items-center gap-1">
                   <Download className="w-4 h-4 inline-block mr-1" /> Download
                 </a>
-                <button type="button" onClick={handlePreview} className="text-xs border rounded-md px-2 py-1 bg-[var(--color-muted)] hover:bg-[var(--color-muted)]/70 flex items-center gap-1">
+                <button type="button" onClick={handlePreview} className="text-xs border border-[color:var(--chat-border)] rounded-md px-2 py-1 bg-[var(--chat-button-bg)] hover:bg-[var(--chat-button-hover)] flex items-center gap-1">
                   <Eye className="w-4 h-4" /> Preview
                 </button>
               </div>
@@ -323,7 +323,7 @@ function AttachmentBubble({
       {/* Meta row */}
       <div className="mt-2 flex items-center justify-between gap-2">
         <div className="text-[11px] sm:text-xs text-[var(--chat-meta)] flex-1">
-          {name} • {formatSize(size)}
+          {formatSize(size)}
         </div>
 
         {badge && (
@@ -528,7 +528,7 @@ export default React.memo(
           {/* Deleted message (tombstone) */}
           {(isDeletedForAll || showPersonalTombstone) && (
             <div className={cn("px-3 py-2 rounded-xl max-w-full text-sm italic opacity-85 border shadow-sm",
-              isOwn ? "bg-[var(--chat-own-bg)]/10 text-[var(--chat-own-fg)]/80 border border-[var(--color-primary)]/20" : "bg-[var(--chat-other-bg)]/30 text-[var(--chat-other-fg)]/80 border border-[var(--chat-border)]/30"
+              isOwn ? "bg-[var(--chat-own-bg)]/10 text-[var(--chat-own-fg)]/80 border border-[var(--color-primary)]/20" : "bg-[var(--chat-other-bg)]/30 text-[var(--chat-other-fg)]/80 border border-[color:var(--chat-border)]/30"
             )}>
               <div>
                 {showPersonalTombstone || isOwn ? "You deleted this message" : "This message was deleted"}
@@ -554,7 +554,7 @@ export default React.memo(
             <div ref={bubbleRef} className={cn("px-4 py-3 rounded-xl text-sm shadow-sm border max-w-full wrap-break-word z-10",
               isOwn ? "bg-[var(--chat-own-bg)] text-[var(--chat-own-fg)]" : "bg-[var(--chat-other-bg)] text-[var(--chat-other-fg)]",
               pinned ? "ring-1 ring-[var(--color-primary)]/30 ring-offset-1" : "",
-              "border border-[var(--chat-border)]"
+              "border border-[color:var(--chat-border)]"
             )} role="article" aria-label="text message">
               {isGroup && !isOwn && (
                 <div className="border-b pb-2 mb-2">
@@ -562,7 +562,14 @@ export default React.memo(
                 </div>
               )}
               {replyTo && (
-                <div className="mb-2 border-l-2 pl-3 text-xs opacity-80 cursor-pointer hover:opacity-100 transition border-l-[var(--chat-border)]" onClick={(e) => { e.stopPropagation(); if (message.replyMessage?._id) setScrollToMessage(message.replyMessage._id); }}>
+                <div
+                  className={cn(
+                    "mb-3 px-3 py-2 text-xs border-l-2 cursor-pointer transition",
+                    isOwn
+                      ? "bg-[var(--chat-reply-bg-on-own)] border-l-[var(--chat-own-fg)] text-[var(--chat-meta-on-own)]"
+                      : "bg-[var(--chat-reply-bg-on-other)] border-l-[var(--chat-border)] text-[var(--chat-meta-on-other)]"
+                  )}
+                  onClick={(e) => { e.stopPropagation(); if (message.replyMessage?._id) setScrollToMessage(message.replyMessage._id); }}>
                   {message.replyMessage?.deleted ? (
                     <p className="italic opacity-75 text-[var(--chat-meta)]">{String(message.replyMessage?.senderId) === String(currentUserId) ? "You deleted this message" : "This message was deleted"}</p>
                   ) : (
@@ -591,7 +598,7 @@ export default React.memo(
 
                 return (
                   <div key={`${att.filename || att._id || i}-${i}`} className="flex flex-col gap-1">
-                    {isGroup && !isOwn && isSmall && (
+                    {isGroup && !isOwn && (
                       <Badge className="rounded-sm" variant="secondary">{senderName}</Badge>
                     )}
                     <div className={cn(isOwn ? "flex justify-end" : "flex justify-start")}>
@@ -613,7 +620,7 @@ export default React.memo(
           {!showPersonalTombstone && !isDeletedForAll && !isCorrupt && reactionGroups.length > 0 && (
             <div className={cn("flex gap-1 mt-2", isOwn ? "justify-end" : "justify-start")}>
               {reactionGroups.map((grp) => (
-                <button key={grp.emoji} disabled={isBlocked} onClick={() => { setSelectedEmoji(grp.emoji); setEmojiInfoOpen(true); }} className="px-2 py-0.5 rounded-xl bg-[var(--chat-reaction-bg)] border border-[var(--chat-border)]/30 text-xs shadow hover:bg-[var(--chat-reaction-bg)]/60">
+                <button key={grp.emoji} disabled={isBlocked} onClick={() => { setSelectedEmoji(grp.emoji); setEmojiInfoOpen(true); }} className="px-2 py-0.5 rounded-xl bg-[var(--chat-reaction-bg)] text-[var(--chat-other-fg)] border border-[color:var(--chat-border)]/30 text-xs shadow hover:bg-[var(--chat-reaction-bg)] text-[var(--chat-other-fg)]">
                   <span className="text-[15px]">{grp.emoji}</span>
                   <span className="text-[11px] tabular-nums">{grp.count}</span>
                 </button>

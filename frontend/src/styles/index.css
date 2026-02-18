@@ -27,17 +27,39 @@
 -------------------------------- */
 
 :root {
-  --chat-own-bg: var(--primary) --chat-own-fg: var(--primary-foreground) --chat-other-bg: var(--card) --chat-other-fg: var(--card-foreground) --chat-border: var(--border) --chat-meta: var(--muted-foreground) --chat-reaction-bg: var(--accent);
+  /* Message bubbles */
+  --chat-own-bg: var(--primary);
+  --chat-own-fg: var(--primary-foreground);
+
+  --chat-other-bg: var(--card);
+  --chat-other-fg: var(--card-foreground);
+
+  /* Borders */
+  --chat-border: var(--border);
+
+  /* Meta text (time, ticks, sizes) */
+  --chat-meta-on-own: var(--primary-foreground);
+  --chat-meta-on-other: var(--muted-foreground);
+
+  /* Reply preview */
+  --chat-reply-bg-on-own: color-mix(in oklab, var(--primary) 85%, black);
+  --chat-reply-bg-on-other: var(--muted);
+
+  --chat-reply-fg: var(--foreground);
+
+  /* Button surface */
+  --chat-button-bg: var(--secondary);
+  --chat-button-hover: var(--secondary);
 }
 
-/* Light mode refinement */
+
+
 .light {
-  --chat-other-bg: var(--secondary)
+  --chat-other-bg: var(--secondary);
 }
 
-/* Dark mode refinement */
 .dark {
-  --chat-other-bg: var(--card)
+  --chat-other-bg: var(--card);
 }
 
 /* --------------------------------
