@@ -56,7 +56,9 @@ export const useChatStore = create((set, get) => ({
   activeChatId: null,
   activeChat: null,
   loading: false,
-  loadingChats: false,
+  loadingChats: true,
+  hasFetchedChats: false,
+  loadingActiveChat: false,
 
   typing: {}, // { chatId: { userId: true } }
   activeChatDevices: [],
@@ -79,12 +81,17 @@ export const useChatStore = create((set, get) => ({
       activeChatId: chatId,
       activeChat: null,
       activeChatDevices: [],
+      loadingActiveChat: !!chatId,
     });
 
-    if (!chatId) return;
+    if (!chatId) {
+      set({ loadingActiveChat: false });
+      return;
+    }
 
     await get().fetchChatDetails(chatId);
     await get().fetchChatDevices(chatId);
+    set({ loadingActiveChat: false });
 
     // join new room
     try {
@@ -186,7 +193,10 @@ export const useChatStore = create((set, get) => ({
 
       return [];
     } finally {
-      set({ loadingChats: false });
+      set({
+        loadingChats: false,
+        hasFetchedChats: true,
+      });
     }
   },
 
@@ -194,7 +204,7 @@ export const useChatStore = create((set, get) => ({
      FETCH CHAT DETAILS
   ========================================================== */
   fetchChatDetails: async (chatId) => {
-    if (!chatId) return null;    
+    if (!chatId) return null;
 
     try {
       const res = await api.get(`/chats/${chatId}`, { withCredentials: true });

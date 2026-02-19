@@ -28,6 +28,7 @@ import { ChatEventEnum } from "@/constants";
 import { useBlockStore } from "@/store/useBlockStore";
 import BlockBanner from "@/components/chat/BlockBanner";
 import { CallButton } from "../calls/CallButton";
+import ChatAreaSkeleton from "../Skeleton/ChatAreaSkeleton";
 
 export default function ChatArea() {
   const {
@@ -36,6 +37,7 @@ export default function ChatArea() {
     fetchChatDetails,
     typing,
     setActiveChatId,
+    loadingActiveChat
   } = useChatStore();
 
   const {
@@ -198,6 +200,10 @@ export default function ChatArea() {
     )} ago`;
   }, [otherUser, participants]);
 
+  if (loadingActiveChat) {
+    return <ChatAreaSkeleton />;
+  }
+
   if (!activeChat) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
@@ -274,10 +280,7 @@ export default function ChatArea() {
             disabled={isRestricted}
           />
 
-          <Separator
-            orientation="vertical"
-            className="hidden sm:block h-6 mx-1"
-          />
+          <div className="bg-border shrink-0 h-6 w-[1px] hidden sm:block" />
 
           <Button
             size="icon"

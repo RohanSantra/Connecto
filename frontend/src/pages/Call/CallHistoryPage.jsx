@@ -30,6 +30,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import CallDetailsPanel from "@/components/calls/CallDetailsPanel";
 import useCallStore from "@/store/useCallStore";
+import CallHistorySkeleton from "@/components/Skeleton/CallHistorySkeleton";
 
 /* helpers */
 function groupByDate(items = []) {
@@ -150,8 +151,8 @@ export default function CallHistoryPage() {
             <Button size="sm" variant="ghost" onClick={() => navigate(-1)} aria-label="Back" className="mb-2">
               <ArrowLeft className="w-4 h-4" /> Back to Home
             </Button>
-              <h1 className="text-2xl font-semibold">Call History</h1>
-              <p className="text-sm text-muted-foreground">See detailed records of audio and video calls, including participants, duration, and call status.</p>
+            <h1 className="text-2xl font-semibold">Call History</h1>
+            <p className="text-sm text-muted-foreground">See detailed records of audio and video calls, including participants, duration, and call status.</p>
           </div>
         </div>
 
@@ -283,7 +284,14 @@ export default function CallHistoryPage() {
           ))
         )}
 
-        {loading && <div className="p-4 text-center text-muted-foreground">Loading…</div>}
+        {loading && rows.length === 0 && (
+          <CallHistorySkeleton />
+        )}
+        {loading && rows.length > 0 && (
+          <div className="p-4">
+            <div className="h-4 w-32 bg-muted rounded mx-auto animate-pulse" />
+          </div>
+        )}
         <div ref={sentinelRef} className="h-1" />
       </div>
 

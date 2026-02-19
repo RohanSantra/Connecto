@@ -35,8 +35,8 @@ export const googleOAuth = new arctic.Google(
  * ---------------------------------------------------------- */
 const cookieBase = {
   httpOnly: true,
-  secure: false,
-  sameSite: "lax",
+  secure: true,
+  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
   path: "/",
 };
 
@@ -387,9 +387,6 @@ export const refreshTokens = asyncHandler(async (req, res) => {
   const refreshToken = req.cookies?.refreshToken;
   const deviceId = req.headers["x-device-id"];
 
-  console.log("hi");
-  
-
   if (!refreshToken) throw new ApiError(401, "Refresh token missing");
   if (!deviceId) throw new ApiError(401, "Device missing");
 
@@ -435,18 +432,12 @@ export const refreshTokens = asyncHandler(async (req, res) => {
   await matchedSession.save();
 
   res.cookie("accessToken", newAccessToken, {
-    httpOnly: true,
-    secure: false,
-    sameSite: "lax",
-    path: "/",
+    ...cookieBase,
     maxAge: 15 * 60 * 1000,
   });
 
   res.cookie("refreshToken", newRefreshToken, {
-    httpOnly: true,
-    secure: false,
-    sameSite: "lax",
-    path: "/",
+    ...cookieBase,
     maxAge: 30 * 24 * 60 * 60 * 1000,
   });
 

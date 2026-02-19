@@ -30,7 +30,7 @@ import ChatListSkeleton from "../Skeleton/ChatListSkeleton";
    Sidebar component
    -------------------------- */
 export default function Sidebar({ isDrawer = false }) {
-    const { chats, activeChatId, setActiveChatId, loadingChats } = useChatStore();
+    const { chats, activeChatId, setActiveChatId, loadingChats, hasFetchedChats } = useChatStore();
     const { profile } = useProfileStore();
     const { logout, user } = useAuthStore();
     const { openNewChat, openNewGroup, openSettings, openProfile, openChatView } = useUIStore();
@@ -370,12 +370,10 @@ export default function Sidebar({ isDrawer = false }) {
 
             {/* CHAT LIST (accessible listbox) */}
             <ScrollArea className="flex-1 overflow-y-auto">
-                {loadingChats ? (
+                {loadingChats || !hasFetchedChats ? (
                     <ChatListSkeleton count={10} />
                 ) : filteredChats.length === 0 ? (
-                    <EmptyState
-                        icon={<MessageCircle className="w-8 h-8" />}
-                    />
+                    <EmptyState icon={<MessageCircle className="w-8 h-8" />} />
                 ) : (
                     <div
                         role="listbox"

@@ -14,6 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useDeviceStore } from "@/store/useDeviceStore";
 import { useAuthStore } from "@/store/useAuthStore";
+import DevicesSectionSkeleton from "../Skeleton/DevicesSectionSkeleton";
 
 /* --------------------------------
    Helpers
@@ -88,7 +89,7 @@ export default function DevicesSection() {
   } = useDeviceStore();
 
   console.log(devices);
-  
+
 
   const {
     deviceId: localDeviceId,
@@ -121,9 +122,7 @@ export default function DevicesSection() {
 
       {/* Loading */}
       {loading ? (
-        <div className="p-6 rounded-xl bg-card text-muted-foreground">
-          Loading devices…
-        </div>
+        <DevicesSectionSkeleton />
       ) : (
         <div className="space-y-3">
           {sorted.map((d) => {
