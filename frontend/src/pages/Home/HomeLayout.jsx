@@ -35,7 +35,7 @@ export default function HomeLayout() {
      🔹 Loading state
   ------------------------------------------------------------ */
   if (profileLoading && !profile) {
-    return <LoaderScreen message="Loading workspace..." />;
+    return <LoaderScreen />;
   }
 
   return (

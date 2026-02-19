@@ -4,25 +4,6 @@ import api from "@/api/axios";
 import { useProfileStore } from "@/store/useProfileStore";
 import { toast } from "sonner";
 
-/**
- * Admin / analytics store
- *
- * IMPORTANT: Server now expects only range-style params (from, to) and a
- * small set of safe filters. This store sanitizes params before sending to
- * the API to avoid sending `period/unit` or other unsupported keys.
- *
- * Supported query keys we pass through:
- * - from (ISO yyyy-mm-dd or full ISO)
- * - to   (ISO yyyy-mm-dd or full ISO)
- * - limit (number)
- * - includeProfile (boolean/string)
- * - chatId (string)
- * - type (string, e.g., "users"|"chats")
- * - includeMembers (boolean/string)
- *
- * All methods accept a params object but the store will strip unknown keys.
- */
-
 const ALLOWED_PARAMS = new Set([
   "from",
   "to",
@@ -45,7 +26,8 @@ function sanitizeParams(params = {}) {
 }
 
 export const useAdminStore = create((set, get) => ({
-  // state
+  /* ================= STATE ================= */
+
   globalStats: null,
   chatStats: {},
   userStats: {},
@@ -54,150 +36,217 @@ export const useAdminStore = create((set, get) => ({
   activityTimeline: null,
   topEntities: null,
 
-  loading: false,
+  loading: {
+    overview: false,
+    calls: false,
+    media: false,
+    topEntities: false,
+    activity: false,
+    users: false,
+  },
+
   error: null,
 
-  // internal helpers
-  setLoading: (v) => set({ loading: v }),
+  /* ================= HELPERS ================= */
+
   setError: (err) => set({ error: err }),
 
-  // actions
+  /* ================= FETCH METHODS ================= */
+
   fetchGlobalStats: async (params = {}) => {
-    set({ loading: true, error: null });
+    set((s) => ({
+      loading: { ...s.loading, overview: true },
+      error: null,
+    }));
+
     try {
       const q = sanitizeParams(params);
       const res = await api.get("/admin/stats/global", { params: q });
-      set({ globalStats: res.data.data, loading: false });
+
+      set((s) => ({
+        globalStats: res.data.data,
+        loading: { ...s.loading, overview: false },
+      }));
+
       return res.data.data;
     } catch (err) {
-      set({
+      set((s) => ({
         error: err?.response?.data?.message || err.message,
-        loading: false,
-      });
+        loading: { ...s.loading, overview: false },
+      }));
       throw err;
     }
   },
 
   fetchChatStats: async (chatId, params = {}) => {
     if (!chatId) throw new Error("chatId required");
-    set({ loading: true, error: null });
+
+    set((s) => ({
+      loading: { ...s.loading, users: true },
+      error: null,
+    }));
+
     try {
       const q = sanitizeParams(params);
       const res = await api.get(`/admin/stats/chat/${chatId}`, { params: q });
+
       set((s) => ({
         chatStats: { ...s.chatStats, [chatId]: res.data.data },
-        loading: false,
+        loading: { ...s.loading, users: false },
       }));
+
       return res.data.data;
     } catch (err) {
-      set({
+      set((s) => ({
         error: err?.response?.data?.message || err.message,
-        loading: false,
-      });
+        loading: { ...s.loading, users: false },
+      }));
       throw err;
     }
   },
 
   fetchUserStats: async (userId, params = {}) => {
     if (!userId) throw new Error("userId required");
-    set({ loading: true, error: null });
+
+    set((s) => ({
+      loading: { ...s.loading, users: true },
+      error: null,
+    }));
+
     try {
       const q = sanitizeParams(params);
       const res = await api.get(`/admin/stats/user/${userId}`, { params: q });
+
       set((s) => ({
         userStats: { ...s.userStats, [userId]: res.data.data },
-        loading: false,
+        loading: { ...s.loading, users: false },
       }));
+
       return res.data.data;
     } catch (err) {
-      set({
+      set((s) => ({
         error: err?.response?.data?.message || err.message,
-        loading: false,
-      });
+        loading: { ...s.loading, users: false },
+      }));
       throw err;
     }
   },
 
   fetchCallStats: async (params = {}) => {
-    set({ loading: true, error: null });
+    set((s) => ({
+      loading: { ...s.loading, calls: true },
+      error: null,
+    }));
+
     try {
       const q = sanitizeParams(params);
       const res = await api.get("/admin/stats/calls", { params: q });
-      set({ callStats: res.data.data, loading: false });
+
+      set((s) => ({
+        callStats: res.data.data,
+        loading: { ...s.loading, calls: false },
+      }));
+
       return res.data.data;
     } catch (err) {
-      set({
+      set((s) => ({
         error: err?.response?.data?.message || err.message,
-        loading: false,
-      });
+        loading: { ...s.loading, calls: false },
+      }));
       throw err;
     }
   },
 
   fetchMediaStats: async (params = {}) => {
-    set({ loading: true, error: null });
+    set((s) => ({
+      loading: { ...s.loading, media: true },
+      error: null,
+    }));
+
     try {
       const q = sanitizeParams(params);
       const res = await api.get("/admin/stats/media", { params: q });
-      set({ mediaStats: res.data.data, loading: false });
+
+      set((s) => ({
+        mediaStats: res.data.data,
+        loading: { ...s.loading, media: false },
+      }));
+
       return res.data.data;
     } catch (err) {
-      set({
+      set((s) => ({
         error: err?.response?.data?.message || err.message,
-        loading: false,
-      });
+        loading: { ...s.loading, media: false },
+      }));
       throw err;
     }
   },
 
   fetchActivityTimeline: async (params = {}) => {
-    set({ loading: true, error: null });
+    set((s) => ({
+      loading: { ...s.loading, activity: true },
+      error: null,
+    }));
+
     try {
       const q = sanitizeParams(params);
       const res = await api.get("/admin/stats/activity", { params: q });
-      set({ activityTimeline: res.data.data, loading: false });
+
+      set((s) => ({
+        activityTimeline: res.data.data,
+        loading: { ...s.loading, activity: false },
+      }));
+
       return res.data.data;
     } catch (err) {
-      set({
+      set((s) => ({
         error: err?.response?.data?.message || err.message,
-        loading: false,
-      });
+        loading: { ...s.loading, activity: false },
+      }));
       throw err;
     }
   },
 
   fetchTopEntities: async (type = "chats", params = {}) => {
-    set({ loading: true, error: null });
+    set((s) => ({
+      loading: { ...s.loading, topEntities: true },
+      error: null,
+    }));
+
     try {
-      // ensure type is passed explicitly (server expects type param)
       const q = { ...sanitizeParams(params), type };
       const res = await api.get("/admin/stats/top", { params: q });
-      set({ topEntities: res.data.data, loading: false });
+
+      set((s) => ({
+        topEntities: res.data.data,
+        loading: { ...s.loading, topEntities: false },
+      }));
+
       return res.data.data;
     } catch (err) {
-      set({
+      set((s) => ({
         error: err?.response?.data?.message || err.message,
-        loading: false,
-      });
+        loading: { ...s.loading, topEntities: false },
+      }));
       throw err;
     }
   },
 
+  /* ================= ADMIN ACTIONS ================= */
+
   // promote/demote
   promoteUser: async (userId) => {
     if (!userId) throw new Error("userId required");
-    set({ loading: true, error: null });
+    set({ error: null });
     try {
       const res = await api.post(`/admin/users/${userId}/promote`);
       // update local profile store if helper exists
       useProfileStore.getState()?.setUserAdminStatus?.(userId, true);
-      set({ loading: false });
       toast.success("User Promoted")
       return res.data;
     } catch (err) {
       set({
-        error: err?.response?.data?.message || err.message,
-        loading: false,
+        error: err?.response?.data?.message || err.message
       });
       toast.error(err?.response?.data?.message || err.message,)
       throw err;
@@ -206,17 +255,15 @@ export const useAdminStore = create((set, get) => ({
 
   demoteUser: async (userId) => {
     if (!userId) throw new Error("userId required");
-    set({ loading: true, error: null });
+    set({ error: null });
     try {
       const res = await api.post(`/admin/users/${userId}/demote`);
       useProfileStore.getState()?.setUserAdminStatus?.(userId, false);
-      set({ loading: false });
       toast.success("User Demoted")
       return res.data;
     } catch (err) {
       set({
-        error: err?.response?.data?.message || err.message,
-        loading: false,
+        error: err?.response?.data?.message || err.message
       });
       toast.error(err?.response?.data?.message || err.message,)
       throw err;
@@ -225,17 +272,29 @@ export const useAdminStore = create((set, get) => ({
 
   exportUserSummary: async (userId, params = {}) => {
     if (!userId) throw new Error("userId required");
-    set({ loading: true, error: null });
+
+    set((s) => ({
+      loading: { ...s.loading, users: true },
+      error: null,
+    }));
+
     try {
       const q = sanitizeParams(params);
-      const res = await api.get(`/admin/users/${userId}/export`, { params: q });
-      set({ loading: false });
+      const res = await api.get(`/admin/users/${userId}/export`, {
+        params: q,
+      });
+
+      set((s) => ({
+        loading: { ...s.loading, users: false },
+      }));
+
       return res.data.data;
     } catch (err) {
-      set({
+      set((s) => ({
         error: err?.response?.data?.message || err.message,
-        loading: false,
-      });
+        loading: { ...s.loading, users: false },
+      }));
+
       throw err;
     }
   },

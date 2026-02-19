@@ -38,6 +38,12 @@ import ActivitySection from "@/components/admin/ActivitySection";
 import { useAdminStore } from "@/store/useAdminStore";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import OverviewSectionSkeleton from "@/components/Skeleton/OverviewSectionSkeleton";
+import CallsSectionSkeleton from "@/components/Skeleton/CallsSectionSkeleton";
+import MediaSectionSkeleton from "@/components/Skeleton/MediaSectionSkeleton";
+import TopEntitiesSectionSkeleton from "@/components/Skeleton/TopEntitiesSectionSkeleton";
+import UserManagementSectionSkeleton from "@/components/Skeleton/UserManagementSectionSkeleton";
+import ActivitySectionSkeleton from "@/components/Skeleton/ActivitySectionSkeleton";
 
 /* ================= NAV ITEMS ================= */
 
@@ -79,6 +85,7 @@ export default function AdminConsolePage() {
     }),
     [from, to]
   );
+  const sectionLoading = loading[active];
 
   /* ================= FETCH DATA WHEN ACTIVE / RANGE CHANGES ================= */
 
@@ -300,6 +307,7 @@ export default function AdminConsolePage() {
 
 
 
+
   /* ================= SIDEBAR (desktop + mobile) ================= */
 
   const Sidebar = (
@@ -332,7 +340,6 @@ export default function AdminConsolePage() {
       </nav>
     </div>
   );
-
   /* ================= LAYOUT ================= */
 
   return (
@@ -408,7 +415,7 @@ export default function AdminConsolePage() {
               size="sm"
               variant="outline"
               onClick={exportCSV}
-              disabled={loading}
+              disabled={sectionLoading}
               className="flex-1 sm:flex-none"
             >
               <Download className="w-4 h-4 sm:mr-2" />
@@ -434,7 +441,7 @@ export default function AdminConsolePage() {
                   toast.error("Refresh failed");
                 }
               }}
-              disabled={loading}
+              disabled={sectionLoading}
               className="flex-1 sm:flex-none"
             >
               <RefreshCw className="w-4 h-4 sm:mr-2" />
@@ -496,25 +503,43 @@ export default function AdminConsolePage() {
         {/* ================= CONTENT ================= */}
         <div className="flex-1 overflow-y-auto scroll-thumb-only p-4 sm:p-6 min-w-0">
 
-          {active === "overview" && <OverviewSection global={safeGlobal} />}
+          {active === "overview" && (
+            sectionLoading
+              ? <OverviewSectionSkeleton />
+              : <OverviewSection global={safeGlobal} />
+          )}
 
-          {active === "calls" && <CallsSection callStats={safeCalls} />}
+          {active === "calls" && (
+            sectionLoading
+              ? <CallsSectionSkeleton />
+              : <CallsSection callStats={safeCalls} />
+          )}
 
-          {active === "media" && <MediaSection mediaStats={safeMedia} />}
+          {active === "media" && (
+            sectionLoading
+              ? <MediaSectionSkeleton />
+              : <MediaSection mediaStats={safeMedia} />
+          )}
 
           {active === "top-chats" && (
-            <TopEntitiesSection topEntities={safeTop} />
+            sectionLoading
+              ? <TopEntitiesSectionSkeleton />
+              : <TopEntitiesSection topEntities={safeTop} />
           )}
 
           {active === "users" && (
-            <UserManagementSection
-              users={safeTop.top || []}
-              onViewUser={(userId) => fetchUserStats(userId, rangeParams)}
-            />
+            sectionLoading
+              ? <UserManagementSectionSkeleton />
+              : <UserManagementSection
+                users={safeTop.top || []}
+                onViewUser={(userId) => fetchUserStats(userId, rangeParams)}
+              />
           )}
 
           {active === "activity" && (
-            <ActivitySection activityTimeline={safeActivity} />
+            sectionLoading
+              ? <ActivitySectionSkeleton />
+              : <ActivitySection activityTimeline={safeActivity} />
           )}
 
         </div>

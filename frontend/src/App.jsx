@@ -62,7 +62,7 @@ export default function App() {
      🔹 Show loading while verifying session
   ------------------------------------------------------------ */
   if (loading) {
-    return <LoaderScreen message="Connecting to Connecto Secure Network..." />;
+    return <LoaderScreen />;
   }
 
   const isBoarded = user?.isBoarded;

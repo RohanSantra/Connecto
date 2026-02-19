@@ -64,7 +64,7 @@ function getInitials(nameOrEmailOrId) {
 /* ========== Component ========== */
 
 export default function UserManagementSection({ users = [] }) {
-  const { promoteUser, demoteUser, loading: adminLoading } = useAdminStore();
+  const { promoteUser, demoteUser } = useAdminStore();
   const profile = useProfileStore((s) => s.profile || s.user || {});
   const currentUserId = profile?.userId || profile?._id || null;
 
@@ -539,7 +539,6 @@ export default function UserManagementSection({ users = [] }) {
                               variant="ghost"
                               className="h-8 w-8 p-0"
                               aria-label={`Actions for ${u.username || u.userId}`}
-                              disabled={adminLoading}
                             >
                               <MoreHorizontal className="w-4 h-4" />
                             </Button>
@@ -549,14 +548,12 @@ export default function UserManagementSection({ users = [] }) {
                             {!u.isAdmin ? (
                               <DropdownMenuItem
                                 onClick={() => handlePromote(u.userId)}
-                                disabled={adminLoading}
                               >
                                 Promote to Admin
                               </DropdownMenuItem>
                             ) : (
                               <DropdownMenuItem
                                 onClick={() => handleDemote(u.userId)}
-                                disabled={adminLoading}
                               >
                                 Remove Admin
                               </DropdownMenuItem>

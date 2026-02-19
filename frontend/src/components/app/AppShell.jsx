@@ -105,7 +105,7 @@ export default function AppShell() {
        4️⃣ Loading Screen
     ------------------------------------------------------- */
     if (profileLoading && !profile) {
-        return <LoaderScreen message="Loading workspace..." />;
+        return <LoaderScreen />;
     }
 
     return (
