@@ -135,14 +135,16 @@ export default function IncomingCallDialog() {
           </Button>
 
           {/* Accept audio-only */}
-          <Button
-            onClick={() => accept({ audio: true, video: false })}
-            className="rounded-full w-14 h-14 bg-emerald-600 flex items-center justify-center"
-            aria-label="Answer audio only"
-            title="Answer audio only"
-          >
-            <Phone />
-          </Button>
+          {!isVideo &&
+            <Button
+              onClick={() => accept({ audio: true, video: false })}
+              className="rounded-full w-14 h-14 bg-emerald-600 flex items-center justify-center"
+              aria-label="Answer audio only"
+              title="Answer audio only"
+            >
+              <Phone />
+            </Button>
+          }
 
           {/* Accept with video */}
           {isVideo && (
@@ -158,7 +160,7 @@ export default function IncomingCallDialog() {
           )}
         </div>
 
-        <div className="text-xs text-muted-foreground mt-1">
+        <div className="hidden sm:block text-xs text-muted-foreground mt-1">
           Press <kbd className="px-2 py-0.5 rounded bg-muted">Enter</kbd> to answer • <kbd className="px-2 py-0.5 rounded bg-muted">Esc</kbd> to reject
         </div>
       </div>

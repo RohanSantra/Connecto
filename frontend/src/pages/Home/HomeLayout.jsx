@@ -14,15 +14,6 @@ export default function HomeLayout() {
   const { profile, fetchProfile, profileLoading } = useProfileStore();
 
   /* ------------------------------------------------------------
-     🔹 Redirect if user somehow becomes unauthenticated
-  ------------------------------------------------------------ */
-  useEffect(() => {
-    if (!isAuthenticated) {
-      navigate("/auth", { replace: true });
-    }
-  }, [isAuthenticated]);
-
-  /* ------------------------------------------------------------
      🔹 Fetch profile only once after authentication
   ------------------------------------------------------------ */
   useEffect(() => {

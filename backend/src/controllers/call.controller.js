@@ -10,7 +10,7 @@ import ChatMember from "../models/chatMember.model.js";
 import mongoose from "mongoose";
 import { emitSocketEvent } from "../socket/index.js";
 import { ChatEventEnum } from "../constants.js";
-import { clearCallTimeout, createCall, startCallTimeout } from "../services/call.service.js";
+import { clearCallTimeout, createCall } from "../services/call.service.js";
 import Profile from "../models/profile.model.js";
 import { isChatBlockedForUser, isUserBlockedBetween } from "../utils/block.utils.js";
 
@@ -84,9 +84,6 @@ export const startCall = asyncHandler(async (req, res) => {
     type,
     metadata: enrichedMeta, // store enriched version
   });
-
-  startCallTimeout(call);
-
   const io = req.app.get("io");
 
   // send ringing notification to each callee (user rooms) and chat
@@ -95,6 +92,7 @@ export const startCall = asyncHandler(async (req, res) => {
     chatId: String(chatId),
     type,
     callerId: String(req.user._id),
+    calleeIds: call.calleeIds.map(String),
     metadata: enrichedMeta,
     timestamp: new Date(),
   });
@@ -105,6 +103,7 @@ export const startCall = asyncHandler(async (req, res) => {
     chatId: String(chatId),
     type,
     callerId: String(req.user._id),
+    calleeIds: call.calleeIds.map(String),
     metadata: enrichedMeta,
     timestamp: new Date(),
   });

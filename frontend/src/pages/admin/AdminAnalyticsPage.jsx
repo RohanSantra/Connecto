@@ -51,7 +51,7 @@ const NAV_ITEMS = [
   { key: "overview", label: "Overview", icon: BarChart3 },
   { key: "calls", label: "Calls", icon: Phone },
   { key: "media", label: "Media", icon: Image },
-  { key: "top-chats", label: "Top Chats", icon: Users },
+  { key: "topEntities", label: "Top Chats", icon: Users },
   { key: "users", label: "Users", icon: Shield },
   { key: "activity", label: "Activity", icon: Activity },
 ];
@@ -95,7 +95,7 @@ export default function AdminConsolePage() {
         if (active === "overview") await fetchGlobalStats(rangeParams);
         else if (active === "calls") await fetchCallStats(rangeParams);
         else if (active === "media") await fetchMediaStats(rangeParams);
-        else if (active === "top-chats")
+        else if (active === "topEntities")
           await fetchTopEntities("chats", { ...rangeParams, limit: 20 });
         else if (active === "users")
           await fetchTopEntities("users", { ...rangeParams, limit: 50 });
@@ -233,7 +233,7 @@ export default function AdminConsolePage() {
       }
 
       /* ================= TOP CHATS ================= */
-      if (active === "top-chats") {
+      if (active === "topEntities") {
         const rows = (safeTop.top || []).map((chat) => ({
           Chat_ID: chat.chatId,
           Chat_Name: chat.name || "Direct Chat",
@@ -241,7 +241,7 @@ export default function AdminConsolePage() {
           Message_Count: chat.count,
         }));
 
-        return downloadCSV(rows, `top-chats-${from}-to-${to}.csv`);
+        return downloadCSV(rows, `topEntities-${from}-to-${to}.csv`);
       }
 
       /* ================= USERS ================= */
@@ -429,7 +429,7 @@ export default function AdminConsolePage() {
                   if (active === "overview") await fetchGlobalStats(rangeParams);
                   else if (active === "calls") await fetchCallStats(rangeParams);
                   else if (active === "media") await fetchMediaStats(rangeParams);
-                  else if (active === "top-chats")
+                  else if (active === "topEntities")
                     await fetchTopEntities("chats", { ...rangeParams, limit: 20 });
                   else if (active === "users")
                     await fetchTopEntities("users", { ...rangeParams, limit: 50 });
@@ -521,7 +521,7 @@ export default function AdminConsolePage() {
               : <MediaSection mediaStats={safeMedia} />
           )}
 
-          {active === "top-chats" && (
+          {active === "topEntities" && (
             sectionLoading
               ? <TopEntitiesSectionSkeleton />
               : <TopEntitiesSection topEntities={safeTop} />

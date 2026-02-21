@@ -24,8 +24,9 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useSearchParams } from "react-router-dom";
 import ShortcutsSection from "@/components/settings/ShortcutsSection";
+import { useResponsiveDrawer } from "@/hooks/useResponsiveDrawer";
 
-const sections = [
+const allSections = [
   { key: "profile", label: "Profile", icon: User },
   { key: "appearance", label: "Appearance", icon: Brush },
   { key: "blocked", label: "Blocked", icon: Ban },
@@ -39,14 +40,22 @@ export default function SettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = searchParams.get("tab") || "profile";
   const [active, setActive] = useState(tabFromUrl);
+  const { isMobile } = useResponsiveDrawer();
 
-  const naviagte = useNavigate()
-
+  const navigate = useNavigate()
 
   useEffect(() => {
-    const tab = searchParams.get("tab");
-    if (tab) setActive(tab);
+    const tab = searchParams.get("tab") || "profile";
+    setActive(tab);
   }, [searchParams]);
+
+  useEffect(() => {
+    if (isMobile && active === "shortcuts") {
+      if (searchParams.get("tab") !== "profile") {
+        setSearchParams({ tab: "profile" });
+      }
+    }
+  }, [isMobile, active]);
 
   const renderSection = () => {
     switch (active) {
@@ -61,6 +70,10 @@ export default function SettingsPage() {
     }
   };
 
+  const sections = isMobile
+    ? allSections.filter((s) => s.key !== "shortcuts")
+    : allSections;
+
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
@@ -72,7 +85,7 @@ export default function SettingsPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => naviagte("/")}
+            onClick={() => navigate("/")}
             className="flex items-center gap-2 px-0 text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft className="w-4 h-4" />

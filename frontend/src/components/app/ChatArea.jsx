@@ -229,7 +229,7 @@ export default function ChatArea() {
 
           {/* Back Button (visible on mobile only) */}
           <Button
-            variant="outline"
+            variant="ghost"
             size={isMobile ? "xs" : "icon"}
             onClick={closeChat}
             className="shrink-0"

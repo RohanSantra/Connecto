@@ -48,16 +48,6 @@ export default function AppShell() {
         closeDetailsPanel,
     } = useUIStore();
 
-
-    /* -------------------------------------------------------
-       1️⃣ Redirect if profile is missing (security guard)
-    ------------------------------------------------------- */
-    useEffect(() => {
-        if (!profileLoading && !profile) {
-            navigate("/set-profile", { replace: true });
-        }
-    }, [profileLoading, profile]);
-
     /* -------------------------------------------------------
        2️⃣ Fetch chats ONLY after profile is loaded
     ------------------------------------------------------- */

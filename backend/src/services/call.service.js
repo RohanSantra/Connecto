@@ -36,32 +36,26 @@ export function startCallTimeout(call) {
       c.endedAt = new Date();
       await c.save();
 
-      // 🔔 notify caller
-      emitSocketEvent(
-        global.io,
-        "user",
+      // 🔔 notify ALL participants (caller + callees)
+      const participants = [
         c.callerId.toString(),
-        ChatEventEnum.CALL_MISSED_EVENT,
-        {
-          callId,
-          chatId: c.chatId.toString(),
-          timestamp: new Date(),
-        }
-      );
+        ...(c.calleeIds || []).map(id => id.toString()),
+      ];
 
-      // optional: notify chat that call ended
-      emitSocketEvent(
-        global.io,
-        "chat",
-        c.chatId.toString(),
-        ChatEventEnum.CALL_ENDED_EVENT,
-        {
-          callId,
-          duration: 0,
-          endedBy: null,
-          timestamp: new Date(),
-        }
-      );
+      participants.forEach((uid) => {
+        emitSocketEvent(
+          global.io,
+          "user",
+          uid,
+          ChatEventEnum.CALL_MISSED_EVENT,
+          {
+            callId,
+            chatId: c.chatId.toString(),
+            timestamp: new Date(),
+          }
+        );
+      });
+      
     } catch (err) {
       console.error("Call timeout error:", err);
     } finally {

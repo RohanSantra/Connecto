@@ -1,14 +1,27 @@
-import React, { useEffect, useRef, useState } from "react";
+"use client";
+
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import useCallStore from "@/store/useCallStore";
 import { useProfileStore } from "@/store/useProfileStore";
 import { Button } from "@/components/ui/button";
-import { MicOff, Mic, Video, VideoOff, PhoneOff, Users, Phone } from "lucide-react";
+import {
+  MicOff,
+  Mic,
+  Video,
+  VideoOff,
+  PhoneOff,
+  Users,
+  Phone,
+} from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
+import { motion, AnimatePresence } from "framer-motion";
 
-/* Unlock browser audio autoplay */
+/* Unlock browser autoplay */
 function unlockAllAudio() {
-  document.querySelectorAll("audio").forEach((a) => a.play().catch(() => { }));
+  document.querySelectorAll("audio").forEach((a) =>
+    a.play().catch(() => { })
+  );
 }
 
 export default function InCallPanel({ callId }) {
@@ -34,7 +47,7 @@ export default function InCallPanel({ callId }) {
   const participants = Object.entries(remoteStreams || {});
   const totalUsers = participants.length + 1;
 
-  /* Timer — reset when active call changes */
+  /* Timer */
   useEffect(() => {
     setSeconds(0);
     const t = setInterval(() => setSeconds((s) => s + 1), 1000);
@@ -48,93 +61,114 @@ export default function InCallPanel({ callId }) {
     }
   }, [participants.length, fetchProfilesByIds]);
 
-  /* Attach local video */
+  /* Attach local stream */
   useEffect(() => {
-    if (localVideoRef.current) {
-      try {
-        localVideoRef.current.srcObject =
-          isVideoCall && videoEnabled ? localStream : null;
-      } catch (err) {
-        // ignore attach errors
-      }
-    }
+    if (!localVideoRef.current) return;
+    localVideoRef.current.srcObject =
+      isVideoCall && videoEnabled ? localStream : null;
   }, [localStream, videoEnabled, isVideoCall]);
 
-  const time = `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+  const time = `${String(Math.floor(seconds / 60)).padStart(
+    2,
+    "0"
+  )}:${String(seconds % 60).padStart(2, "0")}`;
 
-  /* Dynamic Grid */
-  const grid =
-    totalUsers === 1
-      ? "grid-cols-1"
-      : totalUsers === 2
-        ? "grid-cols-1 sm:grid-cols-2"
-        : totalUsers <= 4
-          ? "grid-cols-1 sm:grid-cols-2"
-          : totalUsers <= 6
-            ? "grid-cols-2 sm:grid-cols-3"
-            : "grid-cols-[repeat(auto-fit,minmax(180px,1fr))]";
+  /* FULLSCREEN GRID LOGIC */
+  const gridClass = useMemo(() => {
+    if (totalUsers === 1) return "grid-cols-1";
+    if (totalUsers === 2) return "grid-cols-1 md:grid-cols-2";
+    if (totalUsers <= 4) return "grid-cols-2";
+    if (totalUsers <= 6) return "grid-cols-2 md:grid-cols-3";
+    if (totalUsers <= 9) return "grid-cols-3";
+    return "grid-cols-4";
+  }, [totalUsers]);
 
   return (
-    <div className="fixed inset-0 z-[1000] flex flex-col bg-gradient-to-b from-black via-neutral-900 to-black text-white">
+    <div className="fixed inset-0 z-[1000] flex flex-col bg-black text-white">
 
       {/* HEADER */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 backdrop-blur-md">
+      <div className="flex items-center justify-between px-6 py-3 border-b border-white/10 bg-black/60 backdrop-blur-xl">
         <div className="flex items-center gap-3">
           <Users size={18} />
-          <span className="font-semibold">
+          <span className="font-semibold text-sm tracking-wide">
             {activeCall?.metadata?.groupName || "In Call"}
           </span>
           <span className="text-xs text-neutral-400">{time}</span>
         </div>
+
         <span className="text-xs text-neutral-400 flex items-center gap-1">
           {isVideoCall ? <Video size={14} /> : <Phone size={14} />}
           {isVideoCall ? "Video Call" : "Audio Call"}
         </span>
       </div>
 
-      {/* WAITING OVERLAY */}
-      {participants.length === 0 && (
-        <div className="flex-1 flex flex-col items-center justify-center text-center animate-fade-in">
-          <Users size={70} className="opacity-20 mb-4" />
-          <div className="text-2xl font-semibold">Waiting for others...</div>
-          <div className="text-neutral-400 text-sm mt-1">
-            Once someone joins, video tiles will appear here
-          </div>
-        </div>
-      )}
+      {/* GRID FULLSCREEN */}
+      <motion.div
+        layout
+        className={`flex-1 grid ${gridClass}`}
+        transition={{ duration: 0.35, ease: "easeInOut" }}
+      >
+        <AnimatePresence mode="popLayout">
 
-      {/* PARTICIPANT GRID */}
-      {participants.length > 0 && (
-        <div className={`flex-1 grid gap-3 p-3 ${grid}`}>
           {participants.map(([uid, stream]) => (
-            <ParticipantTile key={uid} userId={uid} stream={stream} />
+            <motion.div
+              key={uid}
+              layout
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ duration: 0.25 }}
+              className="relative w-full h-full"
+            >
+              <ParticipantTile userId={uid} stream={stream} />
+            </motion.div>
           ))}
 
-          {/* LOCAL TILE */}
-          <div className="tile">
-            {isVideoCall && videoEnabled ? (
-              <video ref={localVideoRef} autoPlay muted playsInline className="video" />
-            ) : (
-              <ProfileCard name={myProfile?.username || "You"} avatar={myProfile?.avatarUrl} />
-            )}
-            <span className="label">You</span>
-          </div>
-        </div>
-      )}
+          {/* Local Tile */}
+          <motion.div
+            key="local"
+            layout
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.25 }}
+            className="relative w-full h-full"
+          >
+            <div className="relative w-full h-full bg-neutral-900 border border-white/10 overflow-hidden">
+              {isVideoCall && videoEnabled ? (
+                <video
+                  ref={localVideoRef}
+                  autoPlay
+                  muted
+                  playsInline
+                  className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
+                />
+              ) : (
+                <CenteredAvatar
+                  name={myProfile?.username || "You"}
+                  avatar={myProfile?.avatarUrl}
+                />
+              )}
+              <TileLabel name="You" muted={muted} isSelf />
+            </div>
+          </motion.div>
+
+        </AnimatePresence>
+      </motion.div>
 
       {/* CONTROLS */}
       <div
-        className="sticky bottom-0 p-4 flex items-center justify-center gap-6 bg-black/70 backdrop-blur-lg border-t border-white/10"
+        className="absolute bottom-6 left-0 right-0 flex items-center justify-center gap-6"
         onClick={unlockAllAudio}
       >
-        <Button onClick={toggleMute} size="icon" variant="secondary" className="control">
+        <ControlButton onClick={toggleMute}>
           {muted ? <MicOff /> : <Mic />}
-        </Button>
+        </ControlButton>
 
         {isVideoCall && (
-          <Button onClick={toggleVideo} size="icon" variant="secondary" className="control">
+          <ControlButton onClick={toggleVideo}>
             {videoEnabled ? <Video /> : <VideoOff />}
-          </Button>
+          </ControlButton>
         )}
 
         <Button
@@ -142,13 +176,12 @@ export default function InCallPanel({ callId }) {
             try {
               await endCallApi(callId);
               stopLocalMedia();
-            } catch (err) {
-              console.warn("end call failed", err);
+            } catch {
               toast.error("Failed to end call");
             }
           }}
           size="icon"
-          className="control bg-red-600 hover:bg-red-700"
+          className="h-14 w-14 rounded-full bg-red-600 hover:bg-red-700 shadow-xl"
         >
           <PhoneOff />
         </Button>
@@ -158,77 +191,87 @@ export default function InCallPanel({ callId }) {
 }
 
 /* PARTICIPANT TILE */
+
 function ParticipantTile({ userId, stream }) {
   const videoRef = useRef(null);
   const audioRef = useRef(null);
-  const [speaking, setSpeaking] = useState(false);
 
   const getProfileById = useProfileStore((s) => s.getProfileById);
   const profile = getProfileById?.(userId);
-
-  const hasVideo = !!(stream && stream.getVideoTracks && stream.getVideoTracks().length > 0);
+  const hasVideo = stream?.getVideoTracks()?.length > 0;
 
   useEffect(() => {
-    if (videoRef.current) {
-      try {
-        videoRef.current.srcObject = hasVideo ? stream : null;
-      } catch (err) {}
-    }
+    if (videoRef.current)
+      videoRef.current.srcObject = hasVideo ? stream : null;
   }, [stream, hasVideo]);
 
   useEffect(() => {
-    if (!audioRef.current) return;
-    try {
+    if (audioRef.current) {
       audioRef.current.srcObject = stream;
       audioRef.current.play().catch(() => { });
-    } catch (err) {}
-  }, [stream]);
-
-  /* Speaking detection */
-  useEffect(() => {
-    if (!stream) return;
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const analyser = ctx.createAnalyser();
-    const src = ctx.createMediaStreamSource(stream);
-    src.connect(analyser);
-    analyser.fftSize = 512;
-    const data = new Uint8Array(analyser.frequencyBinCount);
-
-    let raf;
-    const sample = () => {
-      analyser.getByteFrequencyData(data);
-      const avg = data.reduce((a, b) => a + b, 0) / data.length;
-      setSpeaking(avg > 10);
-      raf = requestAnimationFrame(sample);
-    };
-    sample();
-    return () => {
-      cancelAnimationFrame(raf);
-      try { ctx.close(); } catch { }
-    };
+    }
   }, [stream]);
 
   return (
-    <div className={`tile ${speaking ? "ring" : ""}`}>
+    <div className="relative w-full h-full bg-neutral-900 border border-white/10 overflow-hidden">
       {hasVideo ? (
-        <video ref={videoRef} autoPlay playsInline className="video" />
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          className="absolute inset-0 w-full h-full object-cover"
+        />
       ) : (
-        <ProfileCard name={profile?.username || "User"} avatar={profile?.avatarUrl} />
+        <CenteredAvatar
+          name={profile?.username || "User"}
+          avatar={profile?.avatarUrl}
+        />
       )}
+
       <audio ref={audioRef} autoPlay playsInline />
-      <span className="label">{profile?.username || "User"}</span>
+      <TileLabel name={profile?.username || "User"} />
     </div>
   );
 }
 
-/* PROFILE CARD */
-function ProfileCard({ name, avatar }) {
+/* SHARED COMPONENTS */
+
+function CenteredAvatar({ name, avatar }) {
   return (
-    <div className="flex flex-col items-center gap-3">
-      <Avatar className="w-20 h-20">
-        {avatar ? <img src={avatar} alt={name} /> : <AvatarFallback>{name[0]}</AvatarFallback>}
+    <div className="flex flex-col items-center justify-center h-full gap-3 bg-neutral-900">
+      <Avatar className="w-20 h-20 border border-white/10">
+        {avatar ? (
+          <img src={avatar} alt={name} />
+        ) : (
+          <AvatarFallback className="text-xl">
+            {name?.[0]?.toUpperCase()}
+          </AvatarFallback>
+        )}
       </Avatar>
-      <div className="font-medium">{name}</div>
+      <div className="text-sm text-neutral-300">{name}</div>
     </div>
+  );
+}
+
+function TileLabel({ name, muted, isSelf }) {
+  return (
+    <div className="absolute bottom-3 left-3 px-3 py-1 text-xs bg-black/60 backdrop-blur-md rounded-full flex items-center gap-2">
+      <span>{name}</span>
+      {muted && <MicOff size={12} />}
+      {isSelf && <span className="opacity-60">(You)</span>}
+    </div>
+  );
+}
+
+function ControlButton({ children, onClick }) {
+  return (
+    <Button
+      onClick={onClick}
+      size="icon"
+      variant="secondary"
+      className="h-12 w-12 rounded-full bg-neutral-800 hover:bg-neutral-700 shadow-lg"
+    >
+      {children}
+    </Button>
   );
 }

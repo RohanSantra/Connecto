@@ -362,27 +362,44 @@ export const useCallStore = create(
             toggleVideo: async () => {
                 const { localStream, pcs, videoEnabled } = get();
                 const enabling = !videoEnabled;
-                if (enabling && (!localStream || localStream.getVideoTracks().length === 0)) {
+
+                let stream = localStream;
+
+                if (enabling) {
+                    // TURN CAMERA ON
                     const cam = await navigator.mediaDevices.getUserMedia({ video: true });
-                    const base = localStream || new MediaStream();
-                    cam.getVideoTracks().forEach((t) => base.addTrack(t));
-                    get().setLocalStream(base);
+                    const videoTrack = cam.getVideoTracks()[0];
+
+                    if (!stream) stream = new MediaStream();
+                    stream.addTrack(videoTrack);
+                    get().setLocalStream(stream);
 
                     Object.values(pcs).forEach((pc) => {
-                        cam.getVideoTracks().forEach((track) => {
-                            const sender = pc.getSenders().find((s) => s.track?.kind === "video");
-                            if (sender) sender.replaceTrack(track);
-                            else pc.addTrack(track, base);
+                        pc.addTrack(videoTrack, stream);
+                        pc.dispatchEvent(new Event("negotiationneeded"));
+                    });
+
+                } else {
+                    // TURN CAMERA OFF (REAL FIX)
+                    const videoTracks = stream?.getVideoTracks() || [];
+
+                    Object.values(pcs).forEach((pc) => {
+                        pc.getSenders().forEach((sender) => {
+                            if (sender.track?.kind === "video") {
+                                pc.removeTrack(sender);
+                            }
                         });
+
+                        pc.dispatchEvent(new Event("negotiationneeded"));
+                    });
+
+                    videoTracks.forEach((t) => {
+                        stream.removeTrack(t);
+                        t.stop();
                     });
                 }
 
-                set(
-                    produce((s) => {
-                        s.videoEnabled = enabling;
-                        s.localStream?.getVideoTracks().forEach((t) => (t.enabled = enabling));
-                    })
-                );
+                set({ videoEnabled: enabling });
             },
 
             // WebRTC bookkeeping
@@ -504,9 +521,29 @@ export const useCallStore = create(
 
             onCallMissed: (payload) => {
                 stopAllCallSounds();
-                if (get().incomingCall && String(get().incomingCall.callId) === String(payload?.callId)) {
-                    set({ incomingCall: null });
-                }
+
+                set(
+                    produce((s) => {
+                        // clear incoming UI
+                        if (
+                            s.incomingCall &&
+                            String(s.incomingCall.callId) === String(payload?.callId)
+                        ) {
+                            s.incomingCall = null;
+                        }
+
+                        // clear outgoing UI
+                        if (
+                            s.activeCall &&
+                            (String(s.activeCall._id) === String(payload?.callId) ||
+                                String(s.activeCall.callId) === String(payload?.callId))
+                        ) {
+                            s.activeCall = null;
+                        }
+
+                        s.inCall = false;
+                    })
+                );
             },
 
             // convenience: acceptAndStart used by UI

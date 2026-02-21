@@ -18,7 +18,7 @@ export default function AppearanceSection() {
   const [query, setQuery] = useState("");
   const [tone, setTone] = useState("all");
   const [intensity, setIntensity] = useState("all");
-  const [tag, setTag] = useState("all"); 
+  const [tag, setTag] = useState("all");
 
   /* ---------------- FILTER ENGINE ---------------- */
   const filteredThemes = useMemo(() => {
@@ -52,7 +52,7 @@ export default function AppearanceSection() {
       </div>
 
       {/* MODE TOGGLE */}
-      <div className="flex items-center justify-between p-4 rounded-xl border bg-card">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between p-4 rounded-xl border bg-card">
         <div>
           <p className="font-medium">Display Mode</p>
           <p className="text-sm text-muted-foreground">
@@ -73,6 +73,7 @@ export default function AppearanceSection() {
             size="sm"
             variant={mode === "dark" ? "default" : "outline"}
             onClick={() => setMode("dark")}
+
           >
             <Moon className="w-4 h-4 mr-2" /> Dark
           </Button>

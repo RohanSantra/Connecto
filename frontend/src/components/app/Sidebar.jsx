@@ -373,7 +373,11 @@ export default function Sidebar({ isDrawer = false }) {
                 {loadingChats || !hasFetchedChats ? (
                     <ChatListSkeleton count={10} />
                 ) : filteredChats.length === 0 ? (
-                    <EmptyState icon={<MessageCircle className="w-8 h-8" />} />
+                    <EmptyState
+                        icon={<MessageCircle className="w-8 h-8" />}
+                        mobileNewChatCTA={openNewChat}
+                        mobileNewGroupCTA={openNewGroup}
+                    />
                 ) : (
                     <div
                         role="listbox"

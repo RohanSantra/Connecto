@@ -45,7 +45,7 @@ function getOrCreateDeviceId() {
 export const useAuthStore = create((set, get) => ({
   user: null,
   isAuthenticated: false,
-  loading: false,
+  loading: true,
   deviceId: getOrCreateDeviceId(),
 
   // holds detach function returned by attachSocketHandlers

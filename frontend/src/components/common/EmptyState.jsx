@@ -1,9 +1,16 @@
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { useResponsiveDrawer } from "@/hooks/useResponsiveDrawer";
+import { Plus, Users } from "lucide-react";
 
 export default function EmptyState({
   icon,
   className,
+  mobileNewChatCTA,
+  mobileNewGroupCTA,
 }) {
+  const { isMobile } = useResponsiveDrawer();
+
   return (
     <div
       role="status"
@@ -31,30 +38,55 @@ export default function EmptyState({
         Start a private conversation or create a group to message and call securely.
       </p>
 
-      {/* Shortcut hints */}
-      <div className="mt-4 flex flex-col items-center gap-2 text-xs text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <kbd className="px-2 py-0.5 rounded-md bg-muted border font-medium">
-            Alt
-          </kbd>
-          <span>+</span>
-          <kbd className="px-2 py-0.5 rounded-md bg-muted border font-medium">
-            N
-          </kbd>
-          <span>New chat</span>
-        </div>
+      {/* ✅ MOBILE CTA SECTION */}
+      {isMobile && (
+        <div className="mt-6 w-full max-w-xs flex flex-col gap-3">
+          {mobileNewChatCTA && (
+            <Button onClick={mobileNewChatCTA} className="w-full">
+              <Plus className="w-4 h-4 mr-2" />
+              Start a new chat
+            </Button>
+          )}
 
-        <div className="flex items-center gap-2">
-          <kbd className="px-2 py-0.5 rounded-md bg-muted border font-medium">
-            Ctrl
-          </kbd>
-          <span>+</span>
-          <kbd className="px-2 py-0.5 rounded-md bg-muted border font-medium">
-            G
-          </kbd>
-          <span>Create group</span>
+          {mobileNewGroupCTA && (
+            <Button
+              variant="outline"
+              onClick={mobileNewGroupCTA}
+              className="w-full"
+            >
+              <Users className="w-4 h-4 mr-2" />
+              Create a group
+            </Button>
+          )}
         </div>
-      </div>
+      )}
+
+      {/* ✅ Desktop shortcuts */}
+      {!isMobile && (
+        <div className="mt-4 flex flex-col items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <kbd className="px-2 py-0.5 rounded-md bg-muted border font-medium">
+              Alt
+            </kbd>
+            <span>+</span>
+            <kbd className="px-2 py-0.5 rounded-md bg-muted border font-medium">
+              N
+            </kbd>
+            <span>New chat</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <kbd className="px-2 py-0.5 rounded-md bg-muted border font-medium">
+              Ctrl
+            </kbd>
+            <span>+</span>
+            <kbd className="px-2 py-0.5 rounded-md bg-muted border font-medium">
+              G
+            </kbd>
+            <span>Create group</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

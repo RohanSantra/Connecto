@@ -3,13 +3,6 @@ import useCallStore from "@/store/useCallStore";
 import { getSocket } from "@/lib/socket";
 import { useProfileStore } from "@/store/useProfileStore";
 
-/**
- * Robust WebRTC hook — fixes delayed join / refresh issues.
- * - retries offers when someone accepts late
- * - replaces/adds local tracks to existing PCs
- * - avoids duplicate-offer storms
- */
-
 function getLiveSocket() {
   const s = getSocket();
   return s && s.connected ? s : null;
@@ -17,18 +10,21 @@ function getLiveSocket() {
 
 export function useWebRTC({ callId, chatId }) {
   const pcsRef = useRef({});
-  const offeredRef = useRef(new Set());
-  const retryTimersRef = useRef({}); // for cancelling retries
-
   const profile = useProfileStore((s) => s.profile);
   const activeCall = useCallStore((s) => s.activeCall);
 
-  const makePC = useCallback(
+  /* -------------------------------------------------- */
+  /* CREATE / GET PEER CONNECTION                      */
+  /* -------------------------------------------------- */
+
+  const getOrCreatePC = useCallback(
     (remoteUserId) => {
       if (!remoteUserId) return null;
 
       const existing = pcsRef.current[remoteUserId];
-      if (existing && existing.connectionState !== "closed") return existing;
+      if (existing && existing.connectionState !== "closed") {
+        return existing;
+      }
 
       const pc = new RTCPeerConnection({
         iceServers: [
@@ -41,37 +37,79 @@ export function useWebRTC({ callId, chatId }) {
         ],
       });
 
-      // Attach any local tracks we already have
+      // Attach local tracks
       const { localStream } = useCallStore.getState();
       if (localStream) {
-        localStream.getTracks().forEach((t) => {
-          try {
-            pc.addTrack(t, localStream);
-          } catch (e) { /* ignore */ }
+        localStream.getTracks().forEach((track) => {
+          pc.addTrack(track, localStream);
         });
       }
 
-      pc.ontrack = (ev) => {
-        const incoming = ev.streams?.[0] || new MediaStream([ev.track]);
-        incoming.getTracks().forEach((t) => (t.enabled = true));
-        useCallStore.getState().addRemoteStream(remoteUserId, incoming);
-        useCallStore.setState({ inCall: true });
-      };
+      pc.onnegotiationneeded = async () => {
+        if (pc.signalingState !== "stable") return;
+        if (pc.connectionState === "closed") return;
 
-      pc.onicecandidate = (ev) => {
-        if (!ev.candidate) return;
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+
         getLiveSocket()?.emit("call:signal", {
           callId,
           chatId,
           toUserId: remoteUserId,
-          data: { type: "ice", candidate: ev.candidate },
+          data: {
+            type: "sdp",
+            sdp: pc.localDescription,
+          },
+        });
+      };
+
+      pc.ontrack = (event) => {
+        const remoteUserIdStr = String(remoteUserId);
+
+        const [remoteStream] = event.streams;
+
+        if (!remoteStream) return;
+
+        useCallStore.getState().addRemoteStream(
+          remoteUserIdStr,
+          remoteStream
+        );
+
+        useCallStore.setState({ inCall: true });
+      };
+
+      pc.onicecandidate = (event) => {
+        if (!event.candidate) return;
+
+        getLiveSocket()?.emit("call:signal", {
+          callId,
+          chatId,
+          toUserId: remoteUserId,
+          data: {
+            type: "ice",
+            candidate: event.candidate,
+          },
         });
       };
 
       pc.onconnectionstatechange = () => {
         const state = pc.connectionState;
+
+        if (state === "connected") {
+          const streams =
+            useCallStore.getState().remoteStreams;
+
+          if (!streams[remoteUserId]) {
+            // Create placeholder empty stream
+            useCallStore.getState().addRemoteStream(
+              remoteUserId,
+              new MediaStream()
+            );
+          }
+        }
+
         if (["failed", "disconnected", "closed"].includes(state)) {
-          try { pc.close(); } catch {}
+          try { pc.close(); } catch { }
           delete pcsRef.current[remoteUserId];
           useCallStore.getState().removeRemoteStream(remoteUserId);
         }
@@ -79,72 +117,68 @@ export function useWebRTC({ callId, chatId }) {
 
       pcsRef.current[remoteUserId] = pc;
       useCallStore.getState().addPC(remoteUserId, pc);
+
       return pc;
     },
     [callId, chatId]
   );
 
-  const createOfferForUser = useCallback(
-    async (remoteUserId) => {
-      if (!callId || !remoteUserId) return;
-      // prevent duplicates
-      if (offeredRef.current.has(remoteUserId)) return;
-      offeredRef.current.add(remoteUserId);
+  /* -------------------------------------------------- */
+  /* CREATE OFFER                                      */
+  /* -------------------------------------------------- */
 
-      const pc = makePC(remoteUserId);
-      if (!pc) {
-        offeredRef.current.delete(remoteUserId);
+  const createOffer = useCallback(
+    async (remoteUserId) => {
+      const pc = getOrCreatePC(remoteUserId);
+      if (!pc) return;
+
+      if (pc.signalingState !== "stable") {
+        console.log("Skip offer, not stable:", pc.signalingState);
         return;
       }
 
       try {
-        // create offer and send
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
+
         getLiveSocket()?.emit("call:signal", {
           callId,
           chatId,
           toUserId: remoteUserId,
-          data: { type: "sdp", sdp: pc.localDescription },
+          data: {
+            type: "sdp",
+            sdp: pc.localDescription,
+          },
         });
       } catch (err) {
-        console.warn("createOffer failed for", remoteUserId, err);
-        offeredRef.current.delete(remoteUserId);
+        console.warn("createOffer failed", err);
       }
     },
-    [makePC, callId, chatId]
+    [getOrCreatePC, callId, chatId]
   );
 
-  const handleIncomingSignal = useCallback(
+  /* -------------------------------------------------- */
+  /* HANDLE SIGNAL                                     */
+  /* -------------------------------------------------- */
+
+  const handleSignal = useCallback(
     async ({ fromUserId, data }) => {
       if (!fromUserId || !data) return;
-      const pc = makePC(fromUserId);
+
+      const pc = getOrCreatePC(fromUserId);
       if (!pc) return;
 
       try {
         if (data.type === "sdp") {
           const desc = new RTCSessionDescription(data.sdp);
 
-          // Offer collision: attempt rollback if needed
-          if (desc.type === "offer" && pc.signalingState === "have-local-offer") {
-            try { await pc.setLocalDescription({ type: "rollback" }); } catch {}
-          }
-
           if (desc.type === "offer") {
-            await pc.setRemoteDescription(desc);
-
-            // ensure local tracks exist (if not, try to reattach from store)
-            const { localStream } = useCallStore.getState();
-            if (localStream) {
-              localStream.getTracks().forEach((t) => {
-                const sender = pc.getSenders().find((s) => s.track?.kind === t.kind);
-                if (sender) {
-                  try { sender.replaceTrack(t); } catch {}
-                } else {
-                  try { pc.addTrack(t, localStream); } catch {}
-                }
-              });
+            if (pc.signalingState !== "stable") {
+              console.log("Ignoring offer, state:", pc.signalingState);
+              return;
             }
+
+            await pc.setRemoteDescription(desc);
 
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
@@ -153,174 +187,121 @@ export function useWebRTC({ callId, chatId }) {
               callId,
               chatId,
               toUserId: fromUserId,
-              data: { type: "sdp", sdp: pc.localDescription },
+              data: {
+                type: "sdp",
+                sdp: pc.localDescription,
+              },
             });
-          } else if (desc.type === "answer") {
+          }
+
+          if (desc.type === "answer") {
+            if (pc.signalingState !== "have-local-offer") {
+              console.log("Ignoring answer, state:", pc.signalingState);
+              return;
+            }
+
             await pc.setRemoteDescription(desc);
           }
-        } else if (data.type === "ice") {
-          try { await pc.addIceCandidate(data.candidate); } catch (err) { /* ignore */ }
+        }
+
+        if (data.type === "ice") {
+          try {
+            await pc.addIceCandidate(data.candidate);
+          } catch { }
         }
       } catch (err) {
-        console.warn("handleIncomingSignal failed", err);
+        console.warn("handleSignal error", err);
       }
     },
-    [makePC, callId, chatId]
+    [getOrCreatePC, callId, chatId]
   );
 
-  /* Normal signal listener */
+  /* -------------------------------------------------- */
+  /* SOCKET LISTENER                                   */
+  /* -------------------------------------------------- */
+
   useEffect(() => {
     const socket = getLiveSocket();
     if (!socket) return;
 
-    const handler = (payload) => {
+    const listener = (payload) => {
       if (!payload) return;
       if (String(payload.callId) !== String(callId)) return;
 
-      handleIncomingSignal({
-        fromUserId: payload.fromUserId || payload.userId || payload.from || null,
-        data: payload.data || payload.signal || null,
+      handleSignal({
+        fromUserId: payload.fromUserId,
+        data: payload.data,
       });
     };
 
-    socket.on("call:signal", handler);
-    socket.on("call:signal:client", handler); // tolerant alias
-    return () => {
-      socket.off("call:signal", handler);
-      socket.off("call:signal:client", handler);
-    };
-  }, [callId, handleIncomingSignal]);
+    socket.on("call:signal", listener);
 
-  /* When call becomes accepted and I'm the caller -> initial offers */
+    return () => {
+      socket.off("call:signal", listener);
+    };
+  }, [callId, handleSignal]);
+
+  /* -------------------------------------------------- */
+  /* WHEN CALL ACCEPTED                                */
+  /* -------------------------------------------------- */
+
   useEffect(() => {
     if (!activeCall || activeCall.status !== "accepted") return;
+
     const myId = profile?.userId;
     if (!myId) return;
-    if (String(activeCall.callerId) !== String(myId)) return;
 
-    (activeCall.calleeIds || []).forEach((cid) => {
-      // clear any stale offered flag so createOffer runs
-      offeredRef.current.delete(cid);
-      createOfferForUser(cid);
-    });
-  }, [activeCall?.status, profile?.userId, createOfferForUser, activeCall]);
+    const isCaller = String(activeCall.callerId) === String(myId);
 
-  /* handle both "webrtc:new-user" (internal) and server accept events.
-     This implements retries for delayed joins. */
-  useEffect(() => {
-    // local new-user event (from onCallAccepted handler in store)
-    const newUserHandler = (e) => {
-      const userId = e?.detail;
-      if (!userId) return;
-      offeredRef.current.delete(userId);
-      makePC(userId);
-      createOfferForUser(userId);
-
-      // quick retry schedule (1s, 2s, 4s)
-      [1000, 2000, 4000].forEach((delay, i) => {
-        const t = setTimeout(() => {
-          if (!useCallStore.getState().remoteStreams[userId]) {
-            offeredRef.current.delete(userId);
-            createOfferForUser(userId);
-          }
-        }, delay);
-        retryTimersRef.current[`new-${userId}-${i}`] = t;
+    // Caller creates offer to everyone
+    if (isCaller) {
+      (activeCall.calleeIds || []).forEach((uid) => {
+        createOffer(uid);
       });
-    };
-    window.addEventListener("webrtc:new-user", newUserHandler);
-    return () => {
-      window.removeEventListener("webrtc:new-user", newUserHandler);
-      Object.values(retryTimersRef.current).forEach(clearTimeout);
-      retryTimersRef.current = {};
-    };
-  }, [makePC, createOfferForUser]);
+    }
+  }, [activeCall?.status, profile?.userId, createOffer]);
 
-  /* Server-side 'accepted' event listener with retries and cross-name compatibility */
+  /* -------------------------------------------------- */
+  /* NEW USER JOINED (GROUP CALL)                      */
+  /* -------------------------------------------------- */
+
   useEffect(() => {
     const socket = getLiveSocket();
     if (!socket) return;
 
-    const acceptedHandler = ({ callId: acceptedCallId, userId } = {}) => {
-      if (!acceptedCallId || String(acceptedCallId) !== String(callId)) return;
-      if (!userId) return;
+    const onAccepted = ({ callId: cid, userId }) => {
+      if (String(cid) !== String(callId)) return;
+
       const myId = profile?.userId;
       if (!myId) return;
       if (String(userId) === String(myId)) return;
 
-      // Force re-offer and add/replace local tracks if needed
-      offeredRef.current.delete(userId);
-      const pc = makePC(userId);
-
-      const { localStream } = useCallStore.getState();
-      if (localStream && pc) {
-        // add or replace senders' tracks
-        localStream.getTracks().forEach((t) => {
-          const sender = pc.getSenders().find((s) => s.track?.kind === t.kind);
-          if (sender) {
-            try { sender.replaceTrack(t); } catch {}
-          } else {
-            try { pc.addTrack(t, localStream); } catch {}
-          }
-        });
-      }
-
-      createOfferForUser(userId);
-
-      // retry logic: try up to 4 attempts spaced out; cancel if remote stream arrives
-      const attempts = [0, 700, 1400, 3000];
-      attempts.forEach((delay, idx) => {
-        const key = `acc-${userId}-${idx}`;
-        retryTimersRef.current[key] = setTimeout(() => {
-          const remoteStreams = useCallStore.getState().remoteStreams || {};
-          if (!remoteStreams[userId]) {
-            offeredRef.current.delete(userId);
-            createOfferForUser(userId);
-          } else {
-            // remote stream present -> cleanup any pending timers for this user
-            attempts.forEach((_, j) => {
-              const k = `acc-${userId}-${j}`;
-              clearTimeout(retryTimersRef.current[k]);
-              delete retryTimersRef.current[k];
-            });
-          }
-        }, delay);
-      });
+      // Everyone creates offer to the new user
+      createOffer(userId);
     };
 
-    // listen to multiple likely event names (server code sometimes uses enums/strings)
-    const names = ["CALL_ACCEPTED_EVENT", "call:accepted", "call:accepted_event", "CALL_ACCEPTED"];
-    names.forEach((n) => socket.on(n, acceptedHandler));
+    socket.on("CALL_ACCEPTED_EVENT", onAccepted);
+    socket.on("call:accepted", onAccepted);
 
     return () => {
-      names.forEach((n) => socket.off(n, acceptedHandler));
-      Object.values(retryTimersRef.current).forEach(clearTimeout);
-      retryTimersRef.current = {};
+      socket.off("CALL_ACCEPTED_EVENT", onAccepted);
+      socket.off("call:accepted", onAccepted);
     };
-  }, [callId, profile?.userId, makePC, createOfferForUser]);
+  }, [callId, profile?.userId, createOffer]);
 
-  /* Reset on callId change */
-  useEffect(() => {
-    offeredRef.current.clear();
-    Object.values(pcsRef.current).forEach((pc) => {
-      try { pc.close(); } catch {}
-    });
-    pcsRef.current = {};
-    useCallStore.setState({ remoteStreams: {} });
-  }, [callId]);
+  /* -------------------------------------------------- */
+  /* CLEANUP                                           */
+  /* -------------------------------------------------- */
 
-  /* Cleanup on unmount */
   useEffect(() => {
     return () => {
       Object.values(pcsRef.current).forEach((pc) => {
-        try { pc.close(); } catch {}
+        try { pc.close(); } catch { }
       });
       pcsRef.current = {};
-      offeredRef.current.clear();
-      Object.values(retryTimersRef.current).forEach(clearTimeout);
-      retryTimersRef.current = {};
       useCallStore.setState({ remoteStreams: {} });
     };
   }, []);
 
-  return { createOfferForUser, handleIncomingSignal };
+  return {};
 }
