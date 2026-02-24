@@ -22,10 +22,6 @@ import LoaderScreen from "@/components/common/LoaderScreen";
 import NewChatOverlay from "@/components/chat/NewChatOverlay";
 import NewGroupOverlay from "@/components/chat/NewGroupOverlay";
 import { useBlockStore } from "@/store/useBlockStore";
-
-import { initSocket, getSocket } from "@/lib/socket";
-import { attachSocketHandlers } from "@/lib/socketHandlers";
-import GlobalCallUI from "../calls/GlobalCallUI";
 import ShortcutsModal from "../common/ShortcutsModal";
 
 export default function AppShell() {
@@ -57,8 +53,12 @@ export default function AppShell() {
 
             const blockStore = useBlockStore.getState();
 
-            await blockStore.fetchBlocks();          // 1️⃣ load blocks first
-            await fetchChats();                      // 2️⃣ then load chats
+            try {
+                await blockStore.fetchBlocks();
+                await fetchChats();
+            } catch (e) {
+                toast.error("Failed to load chats");
+            }
 
             const { blockedUsers, blockedChats } = useBlockStore.getState();
             blockStore.syncBlockedStateToChats(blockedUsers, blockedChats); // 3️⃣ apply block state
@@ -66,18 +66,6 @@ export default function AppShell() {
 
         init();
     }, [profileLoading, profile]);
-
-    useEffect(() => {
-        if (!profile) return;
-
-        const socket = initSocket({
-            accessToken: profile.accessToken || null, // or from auth store if stored there
-            userId: profile.userId,
-            deviceId: profile.deviceId,
-        });
-
-        attachSocketHandlers(socket); // 🔥 Connects calls, messages, etc.
-    }, [profile]);
 
     /* -------------------------------------------------------
        3️⃣ Global keyboard shortcuts
@@ -104,7 +92,7 @@ export default function AppShell() {
             {/* ------------ Global overlays ALWAYS mounted ------------ */}
             <NewChatOverlay />
             <NewGroupOverlay />
-            <ShortcutsModal/>
+            <ShortcutsModal />
 
             {/* ------------ DESKTOP LAYOUT ------------ */}
             {!isMobile ? (
@@ -163,8 +151,6 @@ export default function AppShell() {
                     </div>
                 </>
             )}
-            {/* 🌍 GLOBAL CALL LAYER */}
-            <GlobalCallUI />
 
         </div>
     );

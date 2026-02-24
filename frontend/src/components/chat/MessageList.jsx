@@ -2,7 +2,6 @@
 
 import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import MessageItem from "./MessageItem";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { isToday, isYesterday, format } from "date-fns";
 import { motion } from "framer-motion";
 import { useMessageStore } from "@/store/useMessageStore";
@@ -48,17 +47,16 @@ export default function MessageList({
   const firstMsgId = messages?.[0]?._id || null;
 
   useEffect(() => {
-    // Chat changed → reset scroll system
+    // Chat changed
     initialLoadRef.current = true;
     prevFirstIdRef.current = null;
     prevLastIdRef.current = null;
     setLocalPage(page);
 
-    // also force scroll container to bottom after next paint
     requestAnimationFrame(() => {
       bottomRef.current?.scrollIntoView({ behavior: "auto" });
     });
-  }, [firstMsgId]);
+  }, [activeChat?._id]);
 
   /* ---------------- Group by day ---------------- */
   const grouped = useMemo(() => {
@@ -91,27 +89,42 @@ export default function MessageList({
     const el = scrollRef.current;
     if (!el) return;
 
-    const newFirst = messages?.[0]?._id || null;
-    const newLast = messages?.[messages.length - 1]?._id || null;
+    const lastMessage = messages?.[messages.length - 1];
+    if (!lastMessage) return;
 
-    const prevFirst = prevFirstIdRef.current;
     const prevLast = prevLastIdRef.current;
+    prevLastIdRef.current = lastMessage._id;
 
-    const prepended = prevFirst && newFirst && prevFirst !== newFirst;
-    const appended = prevLast && newLast && prevLast !== newLast;
+    if (!prevLast) return;
 
-    prevFirstIdRef.current = newFirst;
-    prevLastIdRef.current = newLast;
+    const appended = prevLast !== lastMessage._id;
+    if (!appended) return;
 
-    if (prepended) return;
+    const isOwn =
+      String(lastMessage.senderId?.userId || lastMessage.senderId) ===
+      String(currentUserId);
 
-    if (appended) {
-      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
-      if (nearBottom) {
+    // ✅ ALWAYS scroll for your own message
+    if (isOwn) {
+      requestAnimationFrame(() => {
         bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-      }
+      });
+      return;
     }
-  }, [messages]);
+
+    // Only auto-scroll for others if near bottom
+    const distanceFromBottom =
+      el.scrollHeight - el.scrollTop - el.clientHeight;
+
+    const isNearBottom = distanceFromBottom < 150;
+
+    if (isNearBottom) {
+      requestAnimationFrame(() => {
+        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      });
+    }
+
+  }, [messages, currentUserId]);
 
   /* ---------------- Scroll to reply target ---------------- */
   useEffect(() => {
@@ -122,45 +135,37 @@ export default function MessageList({
   }, [scrollToMessageId, setScrollToMessage]);
 
   /* ---------------- Infinite Scroll (trigger at upper half) ---------------- */
-  const handleScroll = useCallback(
-    async (e) => {
-      const el = scrollRef.current;
-      if (!el || loadingOlder || !hasMore) return;
+  const handleScroll = useCallback(async () => {
+    const el = scrollRef.current;
+    if (!el || loadingOlder || !hasMore) return;
 
-      const maxScroll = Math.max(el.scrollHeight - el.clientHeight, 1);
-      const progress = el.scrollTop / maxScroll;
-      const nearUpperHalf = progress <= 0.5;
+    // 🔥 Only trigger when near top
+    if (el.scrollTop > 120) return;
 
-      if (!nearUpperHalf) return;
-      if (fetchingOlderRef.current) return;
-      const now = Date.now();
-      if (now - lastFetchTsRef.current < 700) return;
-      lastFetchTsRef.current = now;
+    if (fetchingOlderRef.current) return;
 
-      const prevHeight = el.scrollHeight;
-      const prevTop = el.scrollTop;
+    fetchingOlderRef.current = true;
+    setLoadingOlder(true);
 
-      try {
-        fetchingOlderRef.current = true;
-        setLoadingOlder(true);
-        const nextPage = localPage + 1;
-        await fetchOlderMessages(nextPage);
-        setLocalPage(nextPage);
+    const prevHeight = el.scrollHeight;
 
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-        await new Promise((resolve) => requestAnimationFrame(resolve));
+    try {
+      const nextPage = localPage + 1;
+      await fetchOlderMessages(nextPage);
+      setLocalPage(nextPage);
 
+      requestAnimationFrame(() => {
         const newHeight = el.scrollHeight;
-        el.scrollTop = Math.max(0, newHeight - prevHeight + prevTop);
-      } catch (err) {
-        console.warn("Failed fetching older messages:", err);
-      } finally {
-        setLoadingOlder(false);
-        fetchingOlderRef.current = false;
-      }
-    },
-    [loadingOlder, hasMore, localPage, fetchOlderMessages]
-  );
+        el.scrollTop = newHeight - prevHeight;
+      });
+
+    } catch (err) {
+      console.warn("Older fetch failed", err);
+    } finally {
+      setLoadingOlder(false);
+      fetchingOlderRef.current = false;
+    }
+  }, [localPage, hasMore, loadingOlder, fetchOlderMessages]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -200,55 +205,63 @@ export default function MessageList({
 
 
   return (
-    <ScrollArea className="h-full">
-      <div className="h-full px-1 py-3">
-        <div ref={scrollRef} className="h-full pr-2">
-          {/* WHEN LOADING OLDER — show skeletons at the top so user knows more content is incoming */}
-          {loadingOlder && (
-            <div className="space-y-3 py-2">
-              <MessageItemSkeleton variant="other" isGroup={isGroup} />
-            </div>
-          )}
-
-          {Object.entries(grouped).map(([day, msgs]) => (
-            <div key={day} className="space-y-3">
-              <div className="flex justify-center">
-                <span className="text-xs bg-muted px-3 py-1 rounded-full">{day}</span>
-              </div>
-
-              <div className="flex flex-col gap-3">
-                {msgs.map((m) => (
-                  <motion.div
-                    key={m._id}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.12 }}
-                  >
-                    {unreadMessageId === m._id && (
-                      <div className="flex items-center gap-3 my-2">
-                        <div className="flex-1 h-px bg-muted" />
-                        <span className="text-xs font-semibold">Unread messages</span>
-                        <div className="flex-1 h-px bg-muted" />
-                      </div>
-                    )}
-
-                    <MessageItem
-                      message={m}
-                      isOwn={String(m.senderId?.userId || m.senderId) === String(currentUserId)}
-                    />
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-          ))}
-
-          {typingUsers?.length > 0 && (
-            <div className="text-xs text-muted-foreground mt-2">Someone is typing…</div>
-          )}
-
-          <div ref={bottomRef} id="msg-end" className="h-1" />
+    <div
+      ref={scrollRef}
+      className="h-full overflow-y-auto px-3 py-2 scroll-thumb-only"
+    >
+      {/* Loading older skeleton */}
+      {loadingOlder && (
+        <div className="space-y-3 py-2">
+          <MessageItemSkeleton variant="other" isGroup={isGroup} />
         </div>
-      </div>
-    </ScrollArea>
+      )}
+
+      {Object.entries(grouped).map(([day, msgs]) => (
+        <div key={day} className="space-y-3">
+          <div className="flex justify-center">
+            <span className="text-xs bg-muted px-3 py-1 rounded-full">
+              {day}
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            {msgs.map((m) => (
+              <motion.div
+                key={m._id}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.12 }}
+              >
+                {unreadMessageId === m._id && (
+                  <div className="flex items-center gap-3 my-2">
+                    <div className="flex-1 h-px bg-muted" />
+                    <span className="text-xs font-semibold">
+                      Unread messages
+                    </span>
+                    <div className="flex-1 h-px bg-muted" />
+                  </div>
+                )}
+
+                <MessageItem
+                  message={m}
+                  isOwn={
+                    String(m.senderId?.userId || m.senderId) ===
+                    String(currentUserId)
+                  }
+                />
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {typingUsers?.length > 0 && (
+        <div className="text-xs text-muted-foreground mt-2">
+          Someone is typing…
+        </div>
+      )}
+
+      <div ref={bottomRef} id="msg-end" className="h-1" />
+    </div>
   );
 }

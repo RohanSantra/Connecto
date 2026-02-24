@@ -5,7 +5,7 @@ import useCallStore from "@/store/useCallStore";
 import { useProfileStore } from "@/store/useProfileStore";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { PhoneOff, Phone, Video } from "lucide-react";
+import { PhoneOff, Phone, Video, Loader2 } from "lucide-react";
 import { playCallingTone, stopAllCallSounds } from "@/lib/callSoundManager";
 
 export default function OutgoingCallDialog() {
@@ -17,6 +17,7 @@ export default function OutgoingCallDialog() {
   const fetchProfilesByIds = useProfileStore((s) => s.fetchProfilesByIds);
 
   const [elapsedSec, setElapsedSec] = useState(0);
+  const [isEnding, setIsEnding] = useState(false);
 
   if (!activeCall || activeCall.status !== "ringing") return null;
 
@@ -87,12 +88,15 @@ export default function OutgoingCallDialog() {
   /* ---------------------------------------------------- */
 
   const end = useCallback(async () => {
+    if (isEnding) return;
+
     try {
+      setIsEnding(true);
       await endCallApi(callId);
     } catch (err) {
       console.warn("end call failed", err);
     }
-  }, [callId, endCallApi]);
+  }, [callId, endCallApi, isEnding]);
 
   /* ESC to cancel */
   useEffect(() => {
@@ -141,43 +145,48 @@ export default function OutgoingCallDialog() {
                 {(displayName || "U")[0]}
               </AvatarFallback>
             </Avatar>
-            </div>
-          </div>
-
-          {/* Name */}
-          <div>
-            <div className="text-xl font-semibold">
-              Calling {displayName}…
-            </div>
-
-            <div className="text-sm text-muted-foreground flex items-center justify-center gap-2 mt-2">
-              {isVideo ? <Video size={16} /> : <Phone size={16} />}
-              <span>{isVideo ? "Video call" : "Voice call"}</span>
-
-              {isGroup && (
-                <>
-                  <span className="mx-2">·</span>
-                  <span>{calleeCount} recipients</span>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Cancel Button */}
-          <div className="flex justify-center pt-4">
-            <Button
-              onClick={end}
-              className="rounded-full w-14 h-14 bg-destructive"
-              aria-label="Cancel call (Esc)"
-            >
-              <PhoneOff />
-            </Button>
-          </div>
-
-          <div className="hidden sm:block text-xs text-muted-foreground">
-            Press <kbd className="px-2 py-0.5 rounded bg-muted">Esc</kbd> to cancel
           </div>
         </div>
+
+        {/* Name */}
+        <div>
+          <div className="text-xl font-semibold">
+            Calling {displayName}…
+          </div>
+
+          <div className="text-sm text-muted-foreground flex items-center justify-center gap-2 mt-2">
+            {isVideo ? <Video size={16} /> : <Phone size={16} />}
+            <span>{isVideo ? "Video call" : "Voice call"}</span>
+
+            {isGroup && (
+              <>
+                <span className="mx-2">·</span>
+                <span>{calleeCount} recipients</span>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Cancel Button */}
+        <div className="flex justify-center pt-4">
+          <Button
+            onClick={end}
+            disabled={isEnding}
+            className="rounded-full w-14 h-14 bg-destructive"
+            aria-label="Cancel call (Esc)"
+          >
+            {isEnding ? (
+              <Loader2 className="animate-spin" />
+            ) : (
+              <PhoneOff />
+            )}
+          </Button>
+        </div>
+
+        <div className="hidden sm:block text-xs text-muted-foreground">
+          Press <kbd className="px-2 py-0.5 rounded bg-muted">Esc</kbd> to cancel
+        </div>
       </div>
-      );
+    </div>
+  );
 }

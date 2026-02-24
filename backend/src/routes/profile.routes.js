@@ -35,7 +35,7 @@ router.post("/bulk", authMiddleware, getProfilesBulk);
 
 
 // 🖼️ Avatar upload (multer + cloudinary)
-router.post("/avatar", authMiddleware, upload.single("avatar"), updateAvatar);
+router.post("/update-avatar", authMiddleware, upload.single("avatar"), updateAvatar);
 
 // ⚡ Online/offline status
 router.patch("/status", authMiddleware, updateOnlineStatus);

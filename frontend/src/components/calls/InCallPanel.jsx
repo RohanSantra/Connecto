@@ -37,6 +37,8 @@ export default function InCallPanel({ callId }) {
     activeCall,
   } = useCallStore();
 
+  if (!activeCall) return null;
+
   const myProfile = useProfileStore((s) => s.profile);
   const fetchProfilesByIds = useProfileStore((s) => s.fetchProfilesByIds);
 
@@ -46,6 +48,12 @@ export default function InCallPanel({ callId }) {
   const isVideoCall = activeCall?.type === "video";
   const participants = Object.entries(remoteStreams || {});
   const totalUsers = participants.length + 1;
+
+  useEffect(() => {
+    return () => {
+      stopLocalMedia();
+    };
+  }, [stopLocalMedia]);
 
   /* Timer */
   useEffect(() => {

@@ -188,9 +188,7 @@ export const useChatStore = create((set, get) => ({
       set({ chats: mergeChats(withBlockState) });
       return normalizedWithClear;
     } catch (err) {
-      toast.error("Failed to load chats");
-      console.log(err);
-
+      // throw err;
       return [];
     } finally {
       set({
@@ -268,12 +266,10 @@ export const useChatStore = create((set, get) => ({
       );
 
       const chat = normalizeChat(res.data?.data);
-
-      toast.success("Chat created");
       return chat; // socket will insert
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to create chat");
-      return null;
+      const msg = err?.response?.data?.message || "Failed to create chat";
+      throw new Error(msg);
     }
   },
 
@@ -289,12 +285,10 @@ export const useChatStore = create((set, get) => ({
       });
 
       const chat = normalizeChat(res.data?.data);
-
-      toast.success("Group created");
       return chat;
     } catch (err) {
-      toast.error("Failed to create group");
-      return null;
+      const msg = err?.response?.data?.message || "Failed to create group";
+      throw new Error(msg);
     } finally {
       set({ loading: false });
     }
@@ -320,12 +314,10 @@ export const useChatStore = create((set, get) => ({
       if (get().activeChatId === chatId) {
         set({ activeChat: updated });
       }
-
-      toast.success("Group renamed");
       return updated;
-    } catch {
-      toast.error("Rename failed");
-      return null;
+    } catch (err) {
+      const msg = err?.response?.data?.message || "Failed to rename group";
+      throw new Error(msg);
     }
   },
 
@@ -354,11 +346,10 @@ export const useChatStore = create((set, get) => ({
       if (get().activeChatId === chatId) {
         set({ activeChat: updated });
       }
-
-      toast.success("Group avatar updated");
       return updated;
-    } catch {
-      toast.error("Failed to update avatar");
+    } catch (err) {
+      const msg = err?.response?.data?.message || "Failed to update group avatar";
+      throw new Error(msg);
       return null;
     }
   },
@@ -378,9 +369,9 @@ export const useChatStore = create((set, get) => ({
         set({ activeChatId: null, activeChat: null });
       }
 
-      toast.success("Chat deleted");
-    } catch {
-      toast.error("Failed to delete chat");
+    } catch (err) {
+      const msg = err?.response?.data?.message || "Failed to delete chat";
+      throw new Error(msg);
     }
   },
 
@@ -408,8 +399,6 @@ export const useChatStore = create((set, get) => ({
         await api.put(`/chats/${chatId}/unpin`, {}, { withCredentials: true });
       }
 
-      toast.success(newPinned ? "Pinned" : "Unpinned");
-
       // reorder AFTER success
       set(state => {
         const updated = state.chats.map(c =>
@@ -424,6 +413,9 @@ export const useChatStore = create((set, get) => ({
         return { chats: updated };
       });
 
+      return newPinned;
+
+
     } catch (err) {
       // rollback
       set({
@@ -432,7 +424,8 @@ export const useChatStore = create((set, get) => ({
         )
       });
 
-      toast.error("Failed to toggle pin");
+      const msg = err?.response?.data?.message || "Failed to toggle chat";
+      throw new Error(msg);
     }
   },
 
@@ -451,7 +444,8 @@ export const useChatStore = create((set, get) => ({
       const updated = normalizeChat(res.data.data);
       get().updateGroupInfoSocket(updated); // refresh UI
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Add member failed");
+      const msg = err?.response?.data?.message || "Failed to add new member";
+      throw new Error(msg);
     }
   },
 
@@ -468,7 +462,8 @@ export const useChatStore = create((set, get) => ({
       const updated = normalizeChat(res.data.data);
       get().updateGroupInfoSocket(updated);
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Remove failed");
+      const msg = err?.response?.data?.message || "Failed to remove member";
+      throw new Error(msg);
     }
   },
 
@@ -486,7 +481,8 @@ export const useChatStore = create((set, get) => ({
       const updated = normalizeChat(res.data.data);
       get().updateGroupInfoSocket(updated);
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Promote failed");
+      const msg = err?.response?.data?.message || "Failed to promote member";
+      throw new Error(msg);
     }
   },
 
@@ -504,7 +500,8 @@ export const useChatStore = create((set, get) => ({
       const updated = normalizeChat(res.data.data);
       get().updateGroupInfoSocket(updated);
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Demote failed");
+      const msg = err?.response?.data?.message || "Failed to demote admin";
+      throw new Error(msg);
     }
   },
 
@@ -526,9 +523,9 @@ export const useChatStore = create((set, get) => ({
         activeChat: state.activeChatId === chatId ? null : state.activeChat
       }));
 
-      toast.success("Left group");
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Leave group failed");
+      const msg = err?.response?.data?.message || "Failed to leave group";
+      throw new Error(msg);
     }
   },
 

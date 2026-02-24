@@ -208,8 +208,10 @@ export const useAdminStore = create((set, get) => ({
   },
 
   fetchTopEntities: async (type = "chats", params = {}) => {
+    const loadingKey = type === "users" ? "users" : "topEntities";
+
     set((s) => ({
-      loading: { ...s.loading, topEntities: true },
+      loading: { ...s.loading, [loadingKey]: true },
       error: null,
     }));
 
@@ -219,14 +221,14 @@ export const useAdminStore = create((set, get) => ({
 
       set((s) => ({
         topEntities: res.data.data,
-        loading: { ...s.loading, topEntities: false },
+        loading: { ...s.loading, [loadingKey]: false },
       }));
 
       return res.data.data;
     } catch (err) {
       set((s) => ({
         error: err?.response?.data?.message || err.message,
-        loading: { ...s.loading, topEntities: false },
+        loading: { ...s.loading, [loadingKey]: false },
       }));
       throw err;
     }

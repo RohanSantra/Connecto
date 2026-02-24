@@ -1,6 +1,7 @@
 // src/api/axios.js
 import axios from "axios";
 import { useAuthStore } from "@/store/useAuthStore";
+import { toast } from "sonner";
 
 const API = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:4000/api/v1",
@@ -17,6 +18,7 @@ const API = axios.create({
 
 let isRefreshing = false;
 let failedQueue = [];
+let hasShownSessionExpired = false;
 
 const processQueue = (error) => {
   failedQueue.forEach((prom) => {
@@ -93,6 +95,12 @@ API.interceptors.response.use(
       } catch { }
 
       authStore.set({ user: null, isAuthenticated: false });
+
+
+      if (!hasShownSessionExpired) {
+        toast.error("Session expired. Please log in again.", { id: "session-expired" });
+        hasShownSessionExpired = true;
+      }
 
       return Promise.reject(refreshError);
     } finally {

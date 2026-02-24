@@ -251,7 +251,6 @@ export const markMissedCall = asyncHandler(async (req, res) => {
    =========================================================== */
 export const getCallHistory = asyncHandler(async (req, res) => {
   const { page = 1, limit = 20, type, from, to, q } = req.query;
-  const skip = (page - 1) * limit;
   const userId = new mongoose.Types.ObjectId(req.user._id);
 
   const match = {
@@ -268,16 +267,29 @@ export const getCallHistory = asyncHandler(async (req, res) => {
     if (to) match.startedAt.$lte = new Date(to);
   }
 
-  // optional: q search in chat name
+  const pageNum = Number(page);
+  const limitNum = Number(limit);
+  const skip = (pageNum - 1) * limitNum;
+
   const pipeline = [
     { $match: match },
     { $sort: { startedAt: -1 } },
-    { $skip: Number(skip) },
-    { $limit: Number(limit) },
+    { $skip: skip },
+    { $limit: limitNum },
     {
-      $lookup: { from: "chats", localField: "chatId", foreignField: "_id", as: "chat" }
+      $lookup: {
+        from: "chats",
+        localField: "chatId",
+        foreignField: "_id",
+        as: "chat"
+      }
     },
-    { $unwind: "$chat" },
+    {
+      $unwind: {
+        path: "$chat",
+        preserveNullAndEmptyArrays: true
+      }
+    }
   ];
 
   if (q) {

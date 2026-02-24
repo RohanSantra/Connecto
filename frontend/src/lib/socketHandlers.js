@@ -7,6 +7,7 @@ import { useDeviceStore } from "@/store/useDeviceStore";
 import { useCallStore } from "@/store/useCallStore";
 import { useBlockStore } from "@/store/useBlockStore";
 import { useAuthStore } from "@/store/useAuthStore";
+import { toast } from "sonner";
 
 /**
  * Attach all handlers (call once, after initSocket/getSocket())
@@ -319,6 +320,11 @@ export function attachSocketHandlers(socket) {
     socket.on(ChatEventEnum.DEVICE_LOGGED_OUT_EVENT, (p) => {
         log(ChatEventEnum.DEVICE_LOGGED_OUT_EVENT, p);
         useDeviceStore.getState().onDeviceLoggedOut?.(p);
+        const auth = useAuthStore.getState();
+        if (String(p.deviceId) === String(auth.deviceId)) {
+            auth.logout();
+            toast.error("You were logged out from this device");
+        }
     });
 
     socket.on(ChatEventEnum.DEVICE_REMOVED_EVENT, (p) => {

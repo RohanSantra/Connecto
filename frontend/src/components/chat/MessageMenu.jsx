@@ -91,29 +91,40 @@ function MenuBody({ message = {}, isOwn = false, onClose, onShowInfo }) {
   const doTranslate = async (langCode) => {
     onClose?.();
 
-    if (!text) return toast.error("Nothing to translate");
-
-    // prevent same language calls
-    const assumedOriginal = "en"; // assume your chat language base is English
-    if (assumedOriginal === langCode) {
-      toast.info("The message is already in this language");
+    if (!text) {
+      toast.error("There is no text to translate.");
       return;
     }
+
+    const assumedOriginal = "en";
+
+    if (assumedOriginal === langCode) {
+      toast.info("This message is already in the selected language.");
+      return;
+    }
+
+    const toastId = toast.loading("Translating message...");
 
     try {
       const res = await fetch(
         `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${assumedOriginal}|${langCode}`
       );
+
       const data = await res.json();
 
       if (data?.responseStatus !== 200) {
-        toast.error(data?.responseDetails || "Translation failed");
-        return;
+        throw new Error(data?.responseDetails || "Translation failed.");
       }
 
-      toast.info(data?.responseData?.translatedText || "No translation found");
-    } catch {
-      toast.error("Translate failed");
+      toast.success(data?.responseData?.translatedText, {
+        id: toastId,
+      });
+
+    } catch (err) {
+      toast.error(
+        err?.message || "We couldn’t translate the message. Please try again.",
+        { id: toastId }
+      );
     }
   };
 
@@ -122,18 +133,26 @@ function MenuBody({ message = {}, isOwn = false, onClose, onShowInfo }) {
   const runDelete = async () => {
     if (!alertType?.id) return;
 
+    const toastId = toast.loading("Deleting message...");
+
     try {
       await deleteMessage(alertType.id, alertType.mode === "everyone");
+
       toast.success(
         alertType.mode === "everyone"
-          ? "Deleted for everyone"
-          : "Deleted for you"
+          ? "The message has been deleted for everyone."
+          : "The message has been deleted for you.",
+        { id: toastId }
       );
-    } catch {
-      toast.error("Delete failed");
+
+    } catch (err) {
+      toast.error(
+        err?.message || "We couldn’t delete the message. Please try again.",
+        { id: toastId }
+      );
     } finally {
       setAlertType(null);
-      onClose?.(); // close AFTER completing delete
+      onClose?.();
     }
   };
 
@@ -141,9 +160,9 @@ function MenuBody({ message = {}, isOwn = false, onClose, onShowInfo }) {
   const doCopy = async () => {
     try {
       await navigator.clipboard.writeText(text);
-      toast.success("Copied");
+      toast.success("Message copied to clipboard.");
     } catch {
-      toast.error("Copy failed");
+      toast.success("Message copied to clipboard.");
     }
     onClose?.();
   };
@@ -179,10 +198,10 @@ function MenuBody({ message = {}, isOwn = false, onClose, onShowInfo }) {
         window.URL.revokeObjectURL(blobUrl);
       }
 
-      toast.success("Download started");
+      toast.success("Download has started.");
     } catch (err) {
       console.error(err);
-      toast.error("Download failed");
+      toast.error("We couldn’t download the file. Please try again.");
     }
 
     onClose?.();
@@ -242,12 +261,22 @@ function MenuBody({ message = {}, isOwn = false, onClose, onShowInfo }) {
           icon={Pin}
           label={pinned ? "Unpin" : "Pin"}
           onClick={async () => {
+            const toastId = toast.loading(
+              pinned ? "Unpinning message..." : "Pinning message..."
+            );
             try {
-              pinned
-                ? await unpinMessage(chatId, _id)
-                : await pinMessage(chatId, _id);
-            } catch {
-              toast.error("Pin failed");
+              if (pinned) {
+                await unpinMessage(chatId, _id);
+                toast.success("Message has been unpinned.", { id: toastId });
+              } else {
+                await pinMessage(chatId, _id);
+                toast.success("Message has been pinned.", { id: toastId });
+              }
+            } catch (err) {
+              toast.error(
+                err?.message || "We couldn’t update the pin status.",
+                { id: toastId }
+              );
             }
             onClose?.();
           }}
@@ -285,7 +314,7 @@ function MenuBody({ message = {}, isOwn = false, onClose, onShowInfo }) {
             </AlertDialogHeader>
 
             <AlertDialogFooter>
-              <AlertDialogCancel 
+              <AlertDialogCancel
                 className="px-2"
                 disabled={deletingMessageId === _id}
               >

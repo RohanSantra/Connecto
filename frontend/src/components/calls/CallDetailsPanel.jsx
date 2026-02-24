@@ -89,7 +89,7 @@ export default function CallDetailsPanel({ call, open, onClose }) {
                 className={cn(
                     "p-0 flex flex-col bg-card",
                     isMobile
-                        ? "h-screen rounded-none"
+                        ? "h-[95%] rounded-none"
                         : "w-full sm:max-w-3xl border-l shadow-xl"
                 )}
             >

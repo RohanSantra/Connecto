@@ -10,11 +10,13 @@ import {
   Trash,
   Monitor,
   Apple,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDeviceStore } from "@/store/useDeviceStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import DevicesSectionSkeleton from "../Skeleton/DevicesSectionSkeleton";
+import { toast } from "sonner";
 
 /* --------------------------------
    Helpers
@@ -87,10 +89,7 @@ export default function DevicesSection() {
     logoutDevice,
     deleteDevice,
   } = useDeviceStore();
-
-  console.log(devices);
-
-
+  const [processingId, setProcessingId] = useState(null);
   const {
     deviceId: localDeviceId,
     logout: logoutCurrentDevice,
@@ -99,8 +98,15 @@ export default function DevicesSection() {
   const [expanded, setExpanded] = useState(null);
 
   useEffect(() => {
-    fetchDevices();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const load = async () => {
+      try {
+        await fetchDevices();
+      } catch (err) {
+        toast.error(err.message);
+      }
+    };
+
+    load();
   }, []);
 
   const sorted = [...devices].sort((a, b) => {
@@ -108,6 +114,38 @@ export default function DevicesSection() {
     if (!a.isPrimary && b.isPrimary) return 1;
     return new Date(b.lastSeen || 0) - new Date(a.lastSeen || 0);
   });
+
+  const handleLogoutDevice = async (deviceId) => {
+    if (processingId) return;
+
+    setProcessingId(deviceId);
+    const toastId = toast.loading("Logging out device...");
+
+    try {
+      await logoutDevice(deviceId);
+      toast.success("Device logged out successfully.", { id: toastId });
+    } catch (err) {
+      toast.error(err.message || "Failed to logout device.", { id: toastId });
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleDeleteDevice = async (deviceId) => {
+    if (processingId) return;
+
+    setProcessingId(deviceId);
+    const toastId = toast.loading("Removing device...");
+
+    try {
+      await deleteDevice(deviceId);
+      toast.success("Device removed successfully.", { id: toastId });
+    } catch (err) {
+      toast.error(err?.message || "Failed to remove device.", { id: toastId });
+    } finally {
+      setProcessingId(null);
+    }
+  };
 
   return (
     <div className="theme-animate space-y-4 w-full max-w-4xl mx-auto px-3 sm:px-4">
@@ -229,22 +267,42 @@ export default function DevicesSection() {
                               logoutCurrentDevice();
                             } else {
                               // REMOTE LOGOUT
-                              logoutDevice(d.deviceId);
+                              handleLogoutDevice(d.deviceId);
                             }
                           }}
+                          disabled={processingId === d.deviceId}
                           className="px-3 py-1 rounded border text-sm flex items-center"
                         >
-                          <LogOut className="w-4 h-4 mr-2" />
-                          {isThisDevice ? "Logout this device" : "Logout device"}
+                          {processingId === d.deviceId ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                              Logging out...
+                            </>
+                          ) : (
+                            <>
+                              <LogOut className="w-4 h-4 mr-2" />
+                              {isThisDevice ? "Logout this device" : "Logout device"}
+                            </>
+                          )}
                         </button>
                       )}
 
                       <button
-                        onClick={() => deleteDevice(d.deviceId)}
+                        onClick={() => handleDeleteDevice(d.deviceId)}
+                        disabled={processingId === d.deviceId}
                         className="sm:ml-auto px-3 py-1 rounded border text-destructive text-sm flex items-center"
                       >
-                        <Trash className="w-4 h-4 mr-2" />
-                        Remove device
+                        {processingId === d.deviceId ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                            Removing device...
+                          </>
+                        ) : (
+                          <>
+                            <Trash className="w-4 h-4 mr-2" />
+                            Remove device
+                          </>
+                        )}
                       </button>
                     </div>
                   </div>

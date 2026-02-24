@@ -23,6 +23,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
+
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -102,7 +113,7 @@ function Section({ title, icon: Icon, danger, children }) {
   return (
     <div
       className={cn(
-        "rounded-2xl border bg-card p-4 space-y-4 shadow-sm mt-4",
+        "rounded-2xl border bg-card p-4 sm:p-5 space-y-4 shadow-sm mt-4",
         danger && "border-destructive"
       )}
     >
@@ -135,7 +146,7 @@ function ActionButton({ label, icon: Icon, danger, disabled, onClick }) {
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "w-full flex items-center gap-3 text-left px-4 py-3 rounded-lg border text-sm font-medium transition",
+        "w-full flex items-center gap-3 text-left px-4 py-3 min-h-[44px] rounded-lg border text-sm sm:text-[15px] font-medium transition",
         danger ? "text-destructive hover:bg-destructive/20 border-destructive" : "hover:bg-muted",
         disabled && "opacity-50 cursor-not-allowed"
       )}
@@ -545,6 +556,7 @@ export default function ChatDetailsPanel() {
     return () => window.removeEventListener("resize", check);
   }, []);
 
+  const [confirmLoading, setConfirmLoading] = useState(false);
 
   // Always compute chat (hooks must run consistently)
   const chat = chats.find((c) => String(c.chatId) === String(activeChatId));
@@ -621,84 +633,85 @@ export default function ChatDetailsPanel() {
   };
 
   const handleConfirm = async () => {
-    // always guard: if chat disappeared, just close dialog
-    if (!confirmPayload) { setConfirmOpen(false); return; }
-    if (!chat) { setConfirmOpen(false); setConfirmPayload(null); return; }
+    if (!confirmPayload || !chat || confirmLoading) return;
 
-    const { type, userId, pinned } = confirmPayload;
+    const { type, userId, pinned, username } = confirmPayload;
+
+
+    const toastId = toast.loading("Processing request...");
+    setConfirmLoading(true);
 
     try {
       if (type === "remove") {
         await removeMember(chat.chatId, userId);
-        toast.success("Member removed");
-      } else if (type === "leave") {
-        await leaveGroup(chat.chatId);
-        toast.success("Left group");
-        // after leaving, the server will update sockets and likely remove chat for this user
-        // ensure UI cleanup
-        setActiveChatId(null);
-        closeDetailsPanel();
-      } else if (type === "delete") {
-        await deleteChat(chat.chatId);
-        toast.success("Deleted");
-        // if deleted, close panel and active chat
-        setActiveChatId(null);
-        closeDetailsPanel();
-      } else if (type === "chat") {
-        const one = await createOneToOneChat(userId);
-        if (one) {
-          const cid = one.chatId || one._id || (one.chat && one.chat._id);
-          if (cid) {
-            try { setActiveChatId(cid); } catch { }
-            closeDetailsPanel();
-            openChatView();
-          }
-        } else {
-          toast.error("Failed to start chat");
-        }
-      } else if (type === "clear") {
-        try {
-          await clearChatForUser(chat.chatId);
-          toast.success("Chat cleared");
-        } catch (err) {
-          console.warn("clear chat failed", err);
-          toast.error("Failed to clear chat");
-        }
-      } else if (type === "pin") {
-        try {
-          await togglePin(chat.chatId);
-          toast.success(!pinned ? "Pinned" : "Unpinned");
-        } catch (err) {
-          console.warn("toggle pin failed", err);
-          toast.error("Failed to toggle pin");
-        }
-      } else if (type === "promote") {
-        try {
-          await promoteMember(chat.chatId, userId);
-          // fetch details to ensure local state matches server
-          await fetchChatDetails(chat.chatId);
-          toast.success("Member promoted");
-        } catch (err) {
-          console.warn("promote failed", err);
-          toast.error("Failed to promote member");
-        }
-      } else if (type === "demote") {
-        try {
-          await demoteMember(chat.chatId, userId);
-          await fetchChatDetails(chat.chatId);
-          toast.success("Member demoted");
-        } catch (err) {
-          console.warn("demote failed", err);
-          toast.error("Failed to demote member");
-        }
+        toast.success("Member has been removed from the group.", { id: toastId });
       }
 
-      // refresh chat details where it makes sense
-      try { await fetchChatDetails(chat.chatId); } catch { }
+      else if (type === "leave") {
+        await leaveGroup(chat.chatId);
+        toast.success("You have successfully left the group.", { id: toastId });
+
+        setActiveChatId(null);
+        closeDetailsPanel();
+      }
+
+      else if (type === "delete") {
+        await deleteChat(chat.chatId);
+        toast.success(
+          chat.isGroup
+            ? "The group has been permanently deleted."
+            : "The chat has been permanently deleted.",
+          { id: toastId }
+        );
+
+        setActiveChatId(null);
+        closeDetailsPanel();
+      }
+
+      else if (type === "chat") {
+        const one = await createOneToOneChat(userId);
+        const cid =
+          one?.chatId ||
+          one?._id ||
+          one?.chat?._id;
+
+        if (!cid) {
+          throw new Error("Unable to start the conversation.");
+        }
+
+        setActiveChatId(cid);
+        closeDetailsPanel();
+        openChatView();
+
+        toast.success("Conversation started successfully.", { id: toastId });
+      }
+
+      else if (type === "clear") {
+        await clearChatForUser(chat.chatId);
+        toast.success("Chat history has been cleared for you.", { id: toastId });
+      }
+
+      else if (type === "promote") {
+        await promoteMember(chat.chatId, userId);
+        await fetchChatDetails(chat.chatId);
+
+        toast.success(`${username} has been promoted to admin.`, { id: toastId });
+      }
+
+      else if (type === "demote") {
+        await demoteMember(chat.chatId, userId);
+        await fetchChatDetails(chat.chatId);
+
+        toast.success(`${username} has been demoted to member.`, { id: toastId });
+      }
+
     } catch (err) {
-      console.warn("confirm action failed", err);
-      toast.error("Action failed");
+      toast.error(
+        err?.message || "We couldn’t complete your request. Please try again.",
+        { id: toastId }
+      );
     } finally {
+      setConfirmLoading(false);
       setConfirmOpen(false);
       setConfirmPayload(null);
     }
@@ -777,32 +790,68 @@ export default function ChatDetailsPanel() {
 
   // compute confirm dialog text based on type
   const confirmTitle = (() => {
-    const t = confirmPayload?.type;
-    if (t === "remove") return "Remove Member";
-    if (t === "leave") return "Leave Group";
-    if (t === "delete") return "Delete Chat / Group";
-    if (t === "chat") return `Start chat with ${confirmPayload?.username || "user"}?`;
-    if (t === "clear") return "Clear Chat";
-    if (t === "pin") return confirmPayload?.pinned ? "Unpin Chat" : "Pin Chat";
-    if (t === "promote") return "Promote Member";
-    if (t === "demote") return "Demote Member";
-    return "Confirm";
+    if (!confirmPayload) return "Confirm";
+
+    const { type, username } = confirmPayload;
+
+    const titles = {
+      remove: "Remove Member",
+      leave: "Leave Group",
+      delete: "Delete Chat",
+      clear: "Clear Chat",
+      promote: "Promote Member",
+      demote: "Demote Member",
+      chat: `Start Chat with ${username || "User"}?`,
+    };
+
+    return titles[type] || "Confirm";
   })();
 
   const confirmDescription = (() => {
-    const t = confirmPayload?.type;
-    if (t === "remove") return confirmPayload?.label || "Remove this member from the group?";
-    if (t === "leave") return confirmPayload?.label || "Leave this group?";
-    if (t === "delete") return confirmPayload?.label || "Are you sure? This action cannot be undone.";
-    if (t === "chat") return confirmPayload?.label || "Open a 1:1 chat with this person.";
-    if (t === "clear") return confirmPayload?.label || "Clear chat history for you. You will lose messages locally.";
-    if (t === "pin") return confirmPayload?.pinned ? "Unpin this chat?" : "Pin this chat to the top?";
-    if (t === "promote") return confirmPayload?.label || "Promote this member to admin?";
-    if (t === "demote") return confirmPayload?.label || "Demote this member from admin?";
-    return confirmPayload?.label || "Are you sure? This action cannot be undone.";
+    if (!confirmPayload) {
+      return "Are you sure? This action cannot be undone.";
+    }
+
+    const { type, label, username } = confirmPayload;
+
+    const descriptions = {
+      remove:
+        label ||
+        `Are you sure you want to remove ${username || "this member"} from the group?`,
+
+      leave:
+        label ||
+        "Are you sure you want to leave this group? You may need to be re-added to join again.",
+
+      delete:
+        label ||
+        "This action cannot be undone. The chat and its history will be permanently deleted.",
+
+      clear:
+        label ||
+        "This will clear the chat history only for you. Messages cannot be restored.",
+
+      promote:
+        label ||
+        `Promote ${username || "this member"} to admin? They will gain full group control.`,
+
+      demote:
+        label ||
+        `Demote ${username || "this member"} from admin? They will lose admin privileges.`,
+
+      chat:
+        label ||
+        `Start a private conversation with ${username || "this user"}?`,
+    };
+
+    return descriptions[type] || "Are you sure? This action cannot be undone.";
   })();
 
   const handleBlockToggle = async () => {
+    if (!chat) return;
+
+    const toastId = toast.loading("Updating block status...");
+
     try {
       if (isGroup) {
         groupBlocked
@@ -813,11 +862,24 @@ export default function ChatDetailsPanel() {
           ? await unblockUser(otherUser.userId)
           : await blockUser(otherUser.userId);
       }
+
+      toast.success(
+        isGroup
+          ? groupBlocked
+            ? "Group unblocked"
+            : "Group blocked"
+          : userBlocked
+            ? "User unblocked"
+            : "User blocked",
+        { id: toastId }
+      );
+
     } catch (err) {
-      console.warn("Block toggle failed", err);
+      toast.error(err?.message || "Failed to update block", {
+        id: toastId,
+      });
     }
   };
-
 
 
   return (
@@ -827,7 +889,9 @@ export default function ChatDetailsPanel() {
           side={isMobile ? "bottom" : "right"}
           className={cn(
             "p-0 flex flex-col bg-card",
-            isMobile ? "h-[95%] rounded-none" : "w-full sm:max-w-3xl border-l shadow-xl"
+            isMobile
+              ? "h-[95vh] rounded-t-3xl border-t shadow-2xl"
+              : "w-full sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl border-l shadow-xl"
           )}
         >
           <SheetHeader className="px-5 py-3 border-b shrink-0 flex items-center justify-between gap-4">
@@ -836,7 +900,7 @@ export default function ChatDetailsPanel() {
             </div>
           </SheetHeader>
 
-          <ScrollArea className="flex-1 px-6 py-6 space-y-6 min-h-0">
+          <ScrollArea className="flex-1 px-4 sm:px-6 py-5 sm:py-6 space-y-6 min-h-0">
             {/* If chat is missing show fallback */}
             {isChatMissing ? (
               <div className="flex items-center justify-center h-48 text-muted-foreground">Chat no longer exists</div>
@@ -844,7 +908,7 @@ export default function ChatDetailsPanel() {
               <>
                 <div className="flex flex-col items-center text-center gap-4">
                   <div className="relative">
-                    <Avatar className="w-28 h-28 ring-4 ring-background shadow-md rounded-xl mt-2">
+                    <Avatar className="w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 ring-4 ring-background shadow-md rounded-xl mt-2">
                       <AvatarImage src={avatar} />
                       <AvatarFallback className="rounded-xl">{name?.[0]}</AvatarFallback>
                     </Avatar>
@@ -988,7 +1052,27 @@ export default function ChatDetailsPanel() {
                   <ActionButton
                     label={chat?.pinned ? "Unpin Chat" : "Pin Chat"}
                     icon={Pin}
-                    onClick={() => openConfirm("pin", { pinned: !!chat?.pinned })}
+                    onClick={async () => {
+                      const toastId = toast.loading(
+                        chat?.pinned ? "Unpinning chat..." : "Pinning chat..."
+                      );
+
+                      try {
+                        await togglePin(chat.chatId);
+
+                        toast.success(
+                          chat?.pinned
+                            ? "Chat has been unpinned."
+                            : "Chat has been pinned.",
+                          { id: toastId }
+                        );
+                      } catch (err) {
+                        toast.error(
+                          err?.message || "We couldn’t update pin status.",
+                          { id: toastId }
+                        );
+                      }
+                    }}
                   />
                 </Section>
 
@@ -1050,21 +1134,37 @@ export default function ChatDetailsPanel() {
       <EditGroupOverlay open={editOpen} onOpenChange={(v) => setEditOpen(v)} initial={editingInitial} onSave={handleEditSave} />
 
       {/* confirm dialog */}
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{confirmTitle}</DialogTitle>
-            <DialogDescription>{confirmDescription}</DialogDescription>
-          </DialogHeader>
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent className="w-[95%] sm:max-w-sm rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmTitle}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmDescription}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
 
-          <div className="mt-4 flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setConfirmOpen(false)} className="px-2">Cancel</Button>
-            <Button onClick={handleConfirm} className="bg-destructive text-destructive-foreground hover:brightness-95 px-2">
-              Confirm
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={confirmLoading} className="px-2">
+              Cancel
+            </AlertDialogCancel>
+
+            <AlertDialogAction
+              onClick={handleConfirm}
+              disabled={confirmLoading}
+              className="bg-destructive text-destructive-foreground hover:brightness-95 px-2"
+            >
+              {confirmLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Please wait...
+                </>
+              ) : (
+                "Confirm"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

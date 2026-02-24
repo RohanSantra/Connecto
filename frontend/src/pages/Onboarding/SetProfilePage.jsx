@@ -66,8 +66,8 @@ export default function SetProfilePage() {
     const handleFileUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
-        if (!file.type.startsWith("image/")) return toast.error("Only image files are allowed");
-        if (file.size > 2 * 1024 * 1024) return toast.error("File too large (max 2MB)");
+        if (!file.type.startsWith("image/")) return toast.error("Only image files are supported.");
+        if (file.size > 2 * 1024 * 1024) return toast.error("Only image files are supported.");
 
         setCustomAvatar(file);
         setSelectedAvatar(URL.createObjectURL(file));
@@ -83,25 +83,53 @@ export default function SetProfilePage() {
        ========================================================== */
     const handleSubmit = async (e) => {
         e.preventDefault();
+
         const trimmed = username.trim();
 
-        // validation
-        if (trimmed.length < 3) return toast.error("Username must be at least 3 characters");
-        if (usernameAvailable === false) return toast.error("Username already taken");
-        if (!primaryLanguage) return toast.error("Primary language is required");
-        if (primaryLanguage === secondaryLanguage && secondaryLanguage)
-            return toast.error("Primary and secondary languages cannot be the same");
+        if (trimmed.length < 3) {
+            toast.error("Username must be at least 3 characters");
+            return;
+        }
 
-        const formData = new FormData();
-        formData.append("username", trimmed);
-        formData.append("bio", bio.trim());
-        formData.append("primaryLanguage", primaryLanguage);
-        formData.append("secondaryLanguage", secondaryLanguage || "");
-        if (customAvatar) formData.append("avatar", customAvatar);
-        else formData.append("avatarUrl", selectedAvatar);
+        if (loading) return;
 
-        const res = await setupProfile(formData);
-        if (res) navigate("/", { replace: true });
+        const toastId = toast.loading("Setting up profile...");
+
+        try {
+            const formData = new FormData();
+
+            formData.append("username", trimmed);
+            formData.append("bio", bio.trim());
+            formData.append("primaryLanguage", primaryLanguage);
+            formData.append(
+                "secondaryLanguage",
+                secondaryLanguage || ""
+            );
+
+            if (customAvatar) {
+                formData.append("avatar", customAvatar);
+            } else {
+                formData.append("avatarUrl", selectedAvatar);
+            }
+
+            await setupProfile(formData);
+
+            toast.success("Your profile has been created successfully.", {
+                id: toastId,
+            });
+
+            // slight delay so user sees success state
+            await new Promise((r) => setTimeout(r, 500));
+
+            navigate("/", { replace: true });
+
+        } catch (err) {
+            toast.error(
+                err?.message ||
+                "We couldn’t complete your profile setup. Please try again.",
+                { id: toastId }
+            );
+        }
     };
 
     /* ==========================================================

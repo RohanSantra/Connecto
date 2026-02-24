@@ -425,6 +425,7 @@ export default function AdminConsolePage() {
             <Button
               size="sm"
               onClick={async () => {
+                const toastId = toast.loading(`Refreshing...`)
                 try {
                   if (active === "overview") await fetchGlobalStats(rangeParams);
                   else if (active === "calls") await fetchCallStats(rangeParams);
@@ -436,9 +437,9 @@ export default function AdminConsolePage() {
                   else if (active === "activity")
                     await fetchActivityTimeline(rangeParams);
 
-                  toast.success("Refreshed");
+                  toast.success(`Refreshed`, { id: toastId });
                 } catch {
-                  toast.error("Refresh failed");
+                  toast.error("Refresh failed", { id: toastId });
                 }
               }}
               disabled={sectionLoading}

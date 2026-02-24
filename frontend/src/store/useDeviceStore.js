@@ -1,6 +1,5 @@
 // src/store/useDeviceStore.js
 import { create } from "zustand";
-import { toast } from "sonner";
 import api from "@/api/axios";
 
 /**
@@ -27,8 +26,8 @@ export const useDeviceStore = create((set, get) => ({
             set({ devices });
             return devices;
         } catch (err) {
-            toast.error(err?.response?.data?.message || "Failed to load devices");
-            return [];
+            set({ devices: [] });
+            throw new Error(err?.response?.data?.message || "Failed to load devices");
         } finally {
             set({ loading: false });
         }
@@ -50,11 +49,9 @@ export const useDeviceStore = create((set, get) => ({
                 devices: [newDevice, ...state.devices],
             }));
 
-            toast.success("Device registered");
             return newDevice;
         } catch (err) {
-            toast.error(err?.response?.data?.message || "Failed to register device");
-            return null;
+            throw new Error(err?.response?.data?.message || "Failed to register device");
         }
     },
 
@@ -71,9 +68,8 @@ export const useDeviceStore = create((set, get) => ({
                 ),
             }));
 
-            toast.info("Device logged out");
         } catch (err) {
-            toast.error(err?.response?.data?.message || "Failed to logout device");
+            throw new Error(err?.response?.data?.message || "Failed to logout device");
         }
     },
 
@@ -88,9 +84,8 @@ export const useDeviceStore = create((set, get) => ({
                 devices: state.devices.filter((d) => d.deviceId !== deviceId),
             }));
 
-            toast.success("Device removed");
         } catch (err) {
-            toast.error(err?.response?.data?.message || "Failed to delete device");
+            throw new Error(err?.response?.data?.message || "Failed to delete device");
         }
     },
 
@@ -106,7 +101,6 @@ export const useDeviceStore = create((set, get) => ({
             )
         }));
 
-        toast.success("Device keys rotated");
     },
 
 
@@ -124,7 +118,6 @@ export const useDeviceStore = create((set, get) => ({
             return { devices: [device, ...state.devices] };
         });
 
-        toast.success("New device registered");
     },
     onDevicePrimaryChanged: ({ deviceId }) => {
         set((state) => ({
@@ -135,7 +128,6 @@ export const useDeviceStore = create((set, get) => ({
             )
         }));
 
-        toast.success("Primary device updated");
     },
 
     // DEVICE_LOGGED_OUT_EVENT → { deviceId }
@@ -150,7 +142,6 @@ export const useDeviceStore = create((set, get) => ({
             ),
         }));
 
-        toast.warning("A device was logged out");
     },
 
 
@@ -162,6 +153,5 @@ export const useDeviceStore = create((set, get) => ({
             devices: state.devices.filter((d) => d.deviceId !== deviceId),
         }));
 
-        toast.warning("A device was removed");
     },
 }));

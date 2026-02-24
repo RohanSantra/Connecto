@@ -3,7 +3,7 @@ import useCallStore from "@/store/useCallStore";
 import { useProfileStore } from "@/store/useProfileStore";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Phone, PhoneOff, Video, PhoneIncoming } from "lucide-react";
+import { Phone, PhoneOff, Video, PhoneIncoming, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { playRingtone, stopAllCallSounds } from "@/lib/callSoundManager";
 
@@ -12,7 +12,8 @@ export default function IncomingCallDialog() {
   const acceptAndStart = useCallStore((s) => s.acceptAndStart);
   const rejectCallApi = useCallStore((s) => s.rejectCallApi);
   const getProfileById = useProfileStore((s) => s.getProfileById);
-
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isRejecting, setIsRejecting] = useState(false);
   const acceptBtnRef = useRef(null);
   const [elapsedSec, setElapsedSec] = useState(0);
 
@@ -61,24 +62,34 @@ export default function IncomingCallDialog() {
   }, [callId, isVideo, incomingCall?.callId]);
 
   const accept = async ({ audio = true, video = false } = {}) => {
+    if (isProcessing) return;
+
     try {
+      setIsProcessing(true);
+
       await acceptAndStart({
-        callId: callId,
+        callId,
         audio,
         video,
       });
+
     } catch (err) {
       console.warn("accept failed", err);
       toast.error("Failed to accept call");
+      setIsProcessing(false);
     }
   };
 
   const reject = async () => {
+    if (isRejecting || isProcessing) return;
+
     try {
+      setIsRejecting(true);
       await rejectCallApi(callId);
     } catch (err) {
       console.warn("reject failed", err);
       toast.error("Failed to reject call");
+      setIsRejecting(false);
     }
   };
 
@@ -127,22 +138,30 @@ export default function IncomingCallDialog() {
           {/* Reject */}
           <Button
             onClick={reject}
+            disabled={isRejecting || isProcessing}
             className="rounded-full w-14 h-14 bg-destructive flex items-center justify-center"
-            aria-label="Reject call"
-            title="Reject (Esc)"
           >
-            <PhoneOff />
+            {isRejecting ? (
+              <Loader2 className="animate-spin" />
+            ) : (
+              <PhoneOff />
+            )}
           </Button>
 
           {/* Accept audio-only */}
           {!isVideo &&
             <Button
               onClick={() => accept({ audio: true, video: false })}
+              disabled={isProcessing}
               className="rounded-full w-14 h-14 bg-emerald-600 flex items-center justify-center"
               aria-label="Answer audio only"
               title="Answer audio only"
             >
-              <Phone />
+              {isProcessing ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <Phone />
+              )}
             </Button>
           }
 
@@ -150,12 +169,17 @@ export default function IncomingCallDialog() {
           {isVideo && (
             <Button
               onClick={() => accept({ audio: true, video: true })}
+              disabled={isProcessing}
               className="rounded-full w-14 h-14 bg-blue-600 flex items-center justify-center"
               aria-label="Answer with video"
               title="Answer with video (Enter)"
               ref={acceptBtnRef}
             >
-              <Video />
+              {isProcessing ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <Video />
+              )}
             </Button>
           )}
         </div>

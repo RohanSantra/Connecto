@@ -148,19 +148,30 @@ export default function NewChatOverlay() {
     }, [results, focusedIndex]);
 
     const startChat = async (userId) => {
+        const toastId = toast.loading("Starting conversation...");
+
         try {
             const chat = await createOneToOneChat(userId);
-            if (!chat) return toast.error("Failed to create chat");
-            // server may return chatId or _id
             const activeId = chat.chatId || chat._id;
-            if (activeId) setActiveChatId(activeId);
+
+            if (!activeId) {
+                throw new Error("Unable to start the conversation.");
+            }
+
+            await setActiveChatId(activeId);
+
+            toast.success("Conversation started successfully.", { id: toastId });
+
             closeNewChat();
             setSearch("");
             setResults([]);
             setFocusedIndex(-1);
+
         } catch (err) {
-            console.warn(err);
-            toast.error(err?.response?.data?.message || "Failed to start chat");
+            toast.error(
+                err?.message || "We couldn’t start the conversation. Please try again.",
+                { id: toastId }
+            );
         }
     };
 

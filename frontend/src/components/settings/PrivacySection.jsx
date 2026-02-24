@@ -39,13 +39,16 @@ export default function PrivacySection() {
   const { deleteProfile } = useProfileStore();
 
   const handleDeactiveAccount = async () => {
+    const toastId = toast.loading("Deactivating account...");
+
     try {
-      const ok = await deleteProfile();
-      if (ok) {
-        toast.success("Account deactivated");
-      }
-    } catch {
-      toast.error("Failed to deactivate");
+      await deleteProfile();
+      toast.success("Account deactivated successfully", { id: toastId });
+
+    } catch (err) {
+      toast.error(err.message || "Failed to deactivate account", {
+        id: toastId,
+      });
     }
   };
 

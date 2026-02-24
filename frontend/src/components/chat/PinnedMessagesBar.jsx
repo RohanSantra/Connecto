@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { useMessageStore } from "@/store/useMessageStore";
 import { badgeFor } from "@/lib/fileBadge";
 import { detectKind } from "@/lib/detectKind";
+import { toast } from "sonner";
 /* ---------- Kind helpers (shared with message/media logic) ---------- */
 
 
@@ -117,10 +118,10 @@ function AttachmentChips({ message }) {
           (kind === "image"
             ? "IMG"
             : kind === "video"
-            ? "VID"
-            : kind === "audio"
-            ? "AUD"
-            : "FILE");
+              ? "VID"
+              : kind === "audio"
+                ? "AUD"
+                : "FILE");
 
         return (
           <span
@@ -274,7 +275,18 @@ export default function PinnedMessagesBar({ pinnedMessages = [] }) {
                 {/* Unpin */}
                 <button
                   type="button"
-                  onClick={() => unpinMessage(m.chatId, m._id)}
+                  onClick={async () => {
+                    const toastId = toast.loading("Unpinning message...");
+                    try {
+                      await unpinMessage(m.chatId, m._id)
+                      toast.success("Message has been pinned.", { id: toastId });
+                    } catch (err) {
+                      toast.error(
+                        err?.message || "We couldn’t update the pin status.",
+                        { id: toastId }
+                      );
+                    }
+                  }}
                   className="p-1.5 rounded-md hover:bg-destructive/10 hover:text-destructive shrink-0"
                 >
                   <X className="w-4 h-4" />

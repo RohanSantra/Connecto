@@ -163,23 +163,49 @@ export default function NewGroupOverlay() {
     useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl) }, [previewUrl]);
 
     const createGroup = async () => {
-        if (!groupName.trim()) return toast.error("Group name required");
-        if (members.length < 2) return toast.error("Add at least 2 members");
+        if (!groupName.trim()) {
+            toast.error("Group name is required.");
+            return;
+        }
+
+        if (members.length < 2) {
+            toast.error("Please add at least two members to create a group.");
+            return;
+        }
 
         const formData = new FormData();
         formData.append("name", groupName.trim());
         formData.append("description", groupDescription.trim() || "");
-        formData.append("memberIds", JSON.stringify(members.map(m => m.userId || m.user?.userId || m.userId)));
-        if (avatarFile) formData.append("avatar", avatarFile);
+        formData.append(
+            "memberIds",
+            JSON.stringify(members.map(m => m.userId || m.user?.userId))
+        );
 
-        const created = await createGroupChat(formData);
-        if (created) {
-            toast.success("Group created");
-            const activeId = created.chatId || chat._id;
-            if (activeId) setActiveChatId(activeId);
+        if (avatarFile) {
+            formData.append("avatar", avatarFile);
+        }
+
+        const toastId = toast.loading("Creating group...");
+
+        try {
+            const created = await createGroupChat(formData);
+            const activeId = created.chatId || created._id;
+
+            if (!activeId) {
+                throw new Error("Unable to create the group.");
+            }
+
+            await setActiveChatId(activeId);
+
+            toast.success("The group has been created successfully.", { id: toastId });
+
             closeNewGroup();
-        } else {
-            toast.error("Failed to create group");
+
+        } catch (err) {
+            toast.error(
+                err?.message || "We couldn’t create the group. Please try again.",
+                { id: toastId }
+            );
         }
     };
 

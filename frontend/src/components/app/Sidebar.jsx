@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { useResponsiveDrawer } from "@/hooks/useResponsiveDrawer";
 import { useNavigate } from "react-router-dom";
 import ChatListSkeleton from "../Skeleton/ChatListSkeleton";
+import { toast } from "sonner";
 
 /* --------------------------
    Sidebar component
@@ -266,10 +267,26 @@ export default function Sidebar({ isDrawer = false }) {
     /* --------------------------
        Select chat (click or Enter)
        -------------------------- */
-    const handleSelectChat = (chat) => {
+    const handleSelectChat = async (chat) => {
         if (activeChatId !== chat.chatId) {
-            setActiveChatId(chat.chatId);
+            await setActiveChatId(chat.chatId);
             openChatView();
+        }
+    };
+
+    const handleLogout = async () => {
+        const toastId = toast.loading("Signing out...");
+
+        try {
+            await logout();
+
+            toast.success("Signed out successfully", { id: toastId });
+
+        } catch (err) {
+            toast.error(
+                err?.message || "Logout failed",
+                { id: toastId }
+            );
         }
     };
 
@@ -452,7 +469,7 @@ export default function Sidebar({ isDrawer = false }) {
                                 <Settings className="w-4 h-4 mr-2" /> Settings
                             </DropdownMenuItem>
 
-                            <DropdownMenuItem className="text-destructive" onClick={logout}>
+                            <DropdownMenuItem className="text-destructive" onClick={handleLogout}>
                                 <LogOut className="w-4 h-4 mr-2" /> Logout
                             </DropdownMenuItem>
                         </DropdownMenuContent>

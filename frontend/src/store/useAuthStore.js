@@ -2,7 +2,6 @@
 import { create } from "zustand";
 import { v4 as uuidv4 } from "uuid";
 import api from "@/api/axios";
-import { toast } from "sonner";
 
 import {
   initSocket,
@@ -133,13 +132,12 @@ export const useAuthStore = create((set, get) => ({
 
       localStorage.setItem("connecto_last_email", email);
 
-      toast.success("OTP Verified");
-      return { success: true };
+      return { success: true, user };
 
     } catch (err) {
-      console.error(err);
-      toast.error("OTP verification failed");
-      return { success: false };
+      throw err?.response?.data?.message
+        ? new Error(err.response.data.message)
+        : err;
     }
   },
 
@@ -214,9 +212,7 @@ export const useAuthStore = create((set, get) => ({
       disconnectSocket();
       set({ user: null, isAuthenticated: false });
 
-      toast.success("Logged out");
     } catch (err) {
-      toast.error("Logout failed");
     }
   },
 

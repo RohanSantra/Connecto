@@ -8,6 +8,7 @@ import {
     Circle,
     Search,
     ArrowUpDown,
+    Loader2
 } from "lucide-react";
 
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -15,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useBlockStore } from "@/store/useBlockStore";
 import { formatDistanceToNow } from "date-fns";
+import { toast } from "sonner";
 
 /* ====================================================== */
 /* MAIN                                                   */
@@ -84,7 +86,7 @@ export default function BlockedSection() {
                                 avatar={b.user.avatarUrl}
                                 isOnline={b.user.isOnline}
                                 blockedAt={b.blockedAt}
-                                onUnblock={() => unblockUser(b.user.userId)}
+                                onUnblockAction={() => unblockUser(b.user.userId)}
                             />
                         )}
                     />
@@ -102,7 +104,7 @@ export default function BlockedSection() {
                                 avatar={b.chat.groupAvatarUrl}
                                 subtitle={`${b.chat.memberCount || 0} members`}
                                 blockedAt={b.blockedAt}
-                                onUnblock={() => unblockChat(b.chat.chatId)}
+                                onUnblockAction={() => unblockChat(b.chat.chatId)}
                             />
                         )}
                     />
@@ -202,12 +204,31 @@ function BlockRow({
     isOnline,
     blockedAt,
     subtitle,
-    onUnblock,
+    onUnblockAction,
 }) {
+    const [loading, setLoading] = useState(false);
+
+    const handleUnblock = async () => {
+        if (loading) return;
+
+        const toastId = toast.loading("Unblocking...");
+        setLoading(true);
+
+        try {
+            await onUnblockAction();
+            toast.success("Block has been removed successfully.", { id: toastId });
+        } catch (err) {
+            toast.error(
+                err?.message || "We couldn’t update the block status. Please try again.",
+                { id: toastId }
+            );
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-4 sm:px-6 py-4 hover:bg-muted/30 transition">
-
-            {/* Left Section */}
             <div className="flex items-center gap-3 min-w-0">
                 <Avatar className="h-10 w-10 sm:h-11 sm:w-11 shrink-0">
                     <AvatarImage src={avatar} />
@@ -216,10 +237,7 @@ function BlockRow({
 
                 <div className="flex flex-col min-w-0">
                     <div className="flex items-center gap-2 min-w-0">
-                        <span className="font-medium break-words">
-                            {name}
-                        </span>
-
+                        <span className="font-medium break-words">{name}</span>
                         {isOnline && (
                             <Circle className="w-2.5 h-2.5 fill-green-500 text-green-500 shrink-0" />
                         )}
@@ -227,7 +245,6 @@ function BlockRow({
 
                     <div className="text-xs text-muted-foreground flex flex-wrap gap-1 items-center">
                         {subtitle && <span>{subtitle}</span>}
-
                         <CalendarDays className="w-3 h-3 shrink-0" />
                         <span>
                             Blocked{" "}
@@ -239,15 +256,21 @@ function BlockRow({
                 </div>
             </div>
 
-            {/* Right Section */}
             <Button
                 size="sm"
                 variant="secondary"
-                onClick={onUnblock}
+                onClick={handleUnblock}
+                disabled={loading}
                 className="w-full sm:w-auto"
             >
-                <Unlock className="w-4 h-4 mr-1" />
-                Unblock
+                {loading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                    <>
+                        <Unlock className="w-4 h-4 mr-1" />
+                        Unblock
+                    </>
+                )}
             </Button>
         </div>
     );

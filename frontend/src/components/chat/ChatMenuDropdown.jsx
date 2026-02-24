@@ -43,6 +43,7 @@ import {
 import { useBlockStore } from "@/store/useBlockStore";
 import { Button } from "../ui/button";
 import { useResponsiveDrawer } from "@/hooks/useResponsiveDrawer";
+import { toast } from "sonner";
 
 export default function ChatMenuDropdown() {
   const { openMediaDocs, openDetailsPanel, openDetailsView } = useUIStore();
@@ -113,29 +114,134 @@ export default function ChatMenuDropdown() {
       ? ShieldBan
       : UserX;
 
-  /* ---------------- ACTION WRAPPER ---------------- */
-  const runAction = async (type, fn, closeSetter) => {
+  const handleClearChat = async () => {
+    const toastId = toast.loading("Clearing chat...");
+    setLoading("clear");
+
     try {
-      setLoading(type);
-      await fn();
+      await clearChatForUser(chatId);
+
+      toast.success("Chat history has been cleared for you.", { id: toastId });
+
+      setConfirmClear(false);
+    } catch (err) {
+      toast.error(
+        err?.message || "We couldn’t clear the chat history. Please try again.",
+        { id: toastId }
+      );
     } finally {
       setLoading(null);
-      closeSetter(false);
+    }
+  };
+
+  const handleDeleteChat = async () => {
+    const toastId = toast.loading(
+      isGroup ? "Deleting group..." : "Deleting chat..."
+    );
+
+    setLoading("delete");
+
+    try {
+      await deleteChat(chatId);
+
+      toast.success(
+        isGroup
+          ? "The group has been permanently deleted."
+          : "The chat has been permanently deleted.",
+        { id: toastId }
+      );
+
+      setConfirmDelete(false);
+    } catch (err) {
+      toast.error(
+        err?.message || "We couldn’t delete this conversation. Please try again.",
+        { id: toastId }
+      );
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleLeaveGroup = async () => {
+    const toastId = toast.loading("Leaving group...");
+    setLoading("leave");
+
+    try {
+      await leaveGroup(chatId);
+
+      toast.success("You have successfully left the group.", { id: toastId });
+      setConfirmLeave(false);
+    } catch (err) {
+      toast.error(
+        err?.message || "We couldn’t leave the group. Please try again.",
+        { id: toastId }
+      );
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleTogglePin = async () => {
+    const toastId = toast.loading(
+      isPinned ? "Unpinning chat..." : "Pinning chat..."
+    );
+
+    try {
+      const newPinned = await togglePin(chatId);
+
+      toast.success(
+        newPinned
+          ? "Chat has been pinned to the top."
+          : "Chat has been removed from pinned conversations.",
+        { id: toastId }
+      );
+
+    } catch (err) {
+      toast.error(
+        err?.message || "We couldn’t update the pin status. Please try again.",
+        { id: toastId }
+      );
     }
   };
 
   const handleBlockToggle = async () => {
     if (loading === "block") return;
+
+    const toastId = toast.loading(
+      blocked
+        ? isGroup
+          ? "Unblocking group..."
+          : "Unblocking user..."
+        : isGroup
+          ? "Blocking group..."
+          : "Blocking user..."
+    );
+
     setLoading("block");
 
     try {
       if (isGroup) {
-        blocked ? await unblockChat(chatId) : await blockChat(chatId);
+        blocked
+          ? await unblockChat(chatId)
+          : await blockChat(chatId);
       } else if (otherUser) {
         blocked
           ? await unblockUser(otherUser.userId)
           : await blockUser(otherUser.userId);
       }
+
+      toast.success(
+        blocked
+          ? (isGroup ? "The group has been unblocked." : "The user has been unblocked.")
+          : (isGroup ? "The group has been blocked." : "The user has been blocked."),
+        { id: toastId }
+      );
+
+    } catch (err) {
+      toast.error(
+        err?.message || "We couldn’t update the block status. Please try again.",
+        { id: toastId }
+      );
     } finally {
       setLoading(null);
     }
@@ -177,7 +283,7 @@ export default function ChatMenuDropdown() {
             Chat
           </DropdownMenuLabel>
 
-          <DropdownMenuItem onClick={() => togglePin(chatId)}>
+          <DropdownMenuItem onClick={handleTogglePin}>
             <Pin className="w-4 h-4 mr-2" />
             {isPinned ? "Unpin Chat" : "Pin Chat"}
           </DropdownMenuItem>
@@ -267,9 +373,7 @@ export default function ChatMenuDropdown() {
             <AlertDialogCancel className="px-2">Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="px-2"
-              onClick={() =>
-                runAction("clear", () => clearChatForUser(chatId), setConfirmClear)
-              }
+              onClick={handleClearChat}
             >
               {loading === "clear" ? <Loader2 className="animate-spin w-4 h-4" /> : "Clear"}
             </AlertDialogAction>
@@ -294,9 +398,7 @@ export default function ChatMenuDropdown() {
             <AlertDialogCancel className="px-2">Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="px-2"
-              onClick={() =>
-                runAction("delete", () => deleteChat(chatId), setConfirmDelete)
-              }
+              onClick={handleDeleteChat}
             >
               {loading === "delete" ? <Loader2 className="animate-spin w-4 h-4" /> : "Delete"}
             </AlertDialogAction>
@@ -317,9 +419,7 @@ export default function ChatMenuDropdown() {
             <AlertDialogCancel className="px-2">Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="px-2"
-              onClick={() =>
-                runAction("leave", () => leaveGroup(chatId), setConfirmLeave)
-              }
+              onClick={handleLeaveGroup}
             >
               {loading === "leave" ? <Loader2 className="animate-spin w-4 h-4" /> : "Leave"}
             </AlertDialogAction>

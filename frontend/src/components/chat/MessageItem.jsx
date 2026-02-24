@@ -33,6 +33,7 @@ import formatSize from "@/lib/formatSize.js";
 import { useChatStore } from "@/store/useChatStore";
 import { useBlockStore } from "@/store/useBlockStore";
 import { Badge } from "../ui/badge";
+import { toast } from "sonner";
 
 const SHOW_MORE = 350;
 
@@ -442,11 +443,23 @@ export default React.memo(
 
     const handlePinToggle = useCallback(async (e) => {
       e?.stopPropagation?.();
+      const toastId = toast.loading(
+        pinned ? "Unpinning message..." : "Pinning message..."
+      );
       try {
-        if (pinned) await unpinMessage(chatId, _id);
-        else await pinMessage(chatId, _id);
+        if (pinned) {
+          await unpinMessage(chatId, _id);
+          toast.success("Message has been unpinned.", { id: toastId });
+        }
+        else {
+          await pinMessage(chatId, _id);
+          toast.success("Message has been pinned.", { id: toastId });
+        }
       } catch (err) {
-        console.warn("Pin failed", err);
+        toast.error(
+          err?.message || "We couldn’t update the pin status.",
+          { id: toastId }
+        );
       }
     }, [pinned, pinMessage, unpinMessage, chatId, _id]);
 

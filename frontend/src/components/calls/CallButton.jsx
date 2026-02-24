@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useResponsiveDrawer } from "@/hooks/useResponsiveDrawer";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 
 export function CallButton({
   chatId,
@@ -20,27 +21,66 @@ export function CallButton({
   const dropdownRef = useRef(null);
   const [pos, setPos] = useState(null);
   const { isMobile } = useResponsiveDrawer();
+  const [isCalling, setIsCalling] = useState(false);
 
   /* ---------------- call helpers ---------------- */
 
   const startCall = async (type) => {
-    if (disabled) return;
+    if (disabled || isCalling) return;
+
+    const toastId = toast.loading(
+      type === "video"
+        ? "Starting video call..."
+        : "Starting voice call..."
+    );
+
     try {
+      setIsCalling(true);
+
       await prepareAndStartCall({ chatId, type });
+
+      toast.success("Calling...", { id: toastId });
+
     } catch (err) {
-      console.warn("start call failed", err);
+      toast.error(
+        err?.response?.data?.message ||
+        "We couldn’t start the call. Please try again.",
+        { id: toastId }
+      );
     } finally {
+      setIsCalling(false);
       setOpen(false);
     }
   };
 
   const startIndividualCall = async (userId, type) => {
-    if (disabled) return;
+    if (disabled || isCalling) return;
+
+    const toastId = toast.loading(
+      type === "video"
+        ? "Starting video call..."
+        : "Starting voice call..."
+    );
+
     try {
-      await prepareAndStartCall({ chatId, type, targetUserId: userId });
+      setIsCalling(true);
+
+      await prepareAndStartCall({
+        chatId,
+        type,
+        targetUserId: userId,
+      });
+
+      toast.success("Calling...", { id: toastId });
+
     } catch (err) {
-      console.warn("individual call failed", err);
+      toast.error(
+        err?.response?.data?.message ||
+        "We couldn’t start the call. Please try again.",
+        { id: toastId }
+      );
     } finally {
+      setIsCalling(false);
       setOpen(false);
     }
   };
@@ -152,7 +192,7 @@ export function CallButton({
               <div className="px-4 pb-4 overflow-y-auto">
                 <MobileCallContent
                   members={members}
-                  disabled={disabled}
+                  disabled={disabled || isCalling}
                   startCall={startCall}
                   startIndividualCall={startIndividualCall}
                 />
@@ -181,9 +221,10 @@ export function CallButton({
           >
             <DesktopCallContent
               members={members}
-              disabled={disabled}
+              disabled={disabled || isCalling}
               startCall={startCall}
               startIndividualCall={startIndividualCall}
+              isCalling={isCalling}
             />
           </div>
         ),
@@ -197,7 +238,7 @@ export function CallButton({
       <Button
         size={isMobile ? "sm" : "icon"}
         variant="default"
-        disabled={disabled}
+        disabled={disabled || isCalling}
         onClick={() => startCall("audio")}
         className={isMobile && isGroup ? "hidden" : ""}
       >
@@ -208,7 +249,7 @@ export function CallButton({
       <Button
         size={isMobile ? "sm" : "icon"}
         variant="default"
-        disabled={disabled}
+        disabled={disabled || isCalling}
         onClick={() => startCall("video")}
         className={isMobile && isGroup ? "hidden" : ""}
       >
@@ -221,8 +262,11 @@ export function CallButton({
           <Button
             size={isMobile ? "sm" : "icon"}
             variant="outline"
-            disabled={disabled}
-            onClick={() => !disabled && setOpen((v) => !v)}
+            disabled={disabled || isCalling}
+            onClick={() => {
+              if (disabled || isCalling) return;
+              setOpen((v) => !v);
+            }}
             className="flex items-center gap-1"
           >
             {isMobile && <span className="text-sm">Calls</span>}
@@ -255,7 +299,7 @@ function DropdownItem({ label, icon, disabled, onClick }) {
   );
 }
 
-function IconButton({ icon, onClick, disabled }) {
+function IconButton({ icon, onClick, disabled, isCalling }) {
   return (
     <button
       type="button"
@@ -279,6 +323,7 @@ function DesktopCallContent({
   disabled,
   startCall,
   startIndividualCall,
+  isCalling
 }) {
   return (
     <>
@@ -308,8 +353,9 @@ function DesktopCallContent({
 
       <MemberList
         members={members}
-        disabled={disabled}
+        disabled={disabled || isCalling}
         startIndividualCall={startIndividualCall}
+        isCalling={isCalling}
       />
     </>
   );
@@ -320,6 +366,7 @@ function MobileCallContent({
   disabled,
   startCall,
   startIndividualCall,
+  isCalling
 }) {
   return (
     <>
@@ -330,7 +377,7 @@ function MobileCallContent({
       <div className="space-y-2">
         <Button
           className="w-full"
-          disabled={disabled}
+          disabled={disabled || isCalling}
           onClick={() => startCall("audio")}
         >
           <Phone className="w-4 h-4 mr-2" />
@@ -340,7 +387,7 @@ function MobileCallContent({
         <Button
           variant="outline"
           className="w-full"
-          disabled={disabled}
+          disabled={disabled || isCalling}
           onClick={() => startCall("video")}
         >
           <Video className="w-4 h-4 mr-2" />
@@ -354,7 +401,7 @@ function MobileCallContent({
 
       <MemberList
         members={members}
-        disabled={disabled}
+        disabled={disabled || isCalling}
         startIndividualCall={startIndividualCall}
       />
     </>

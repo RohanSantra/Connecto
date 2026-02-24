@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { toast } from "sonner";
 import api from "@/api/axios";
 import { decryptIncomingMessageWithReply } from "@/lib/decryption";
 import { useChatStore } from "./useChatStore";
@@ -188,8 +187,7 @@ export const useMessageStore = create(
 
             return decrypted;
           } catch (err) {
-            toast.error(err?.response?.data?.message || "Failed to load messages");
-            return [];
+            throw new Error(err?.response?.data?.message || "Failed to load messages");
           } finally {
             if (page === 1) set({ loadingInitial: false });
           }
@@ -208,8 +206,7 @@ export const useMessageStore = create(
           const chatId = formData.get("chatId");
 
           if (!chatId || !myUserId) {
-            toast.error("Unable to send message");
-            return null;
+            throw new Error("Unable to send message");
           }
 
           // ---------------------------
@@ -300,8 +297,7 @@ export const useMessageStore = create(
               ),
             }));
 
-            toast.error(err?.response?.data?.message || "Failed to send message");
-            return null;
+            throw new Error(err?.response?.data?.message || "Failed to send message");
           }
         },
 
@@ -330,10 +326,8 @@ export const useMessageStore = create(
                 String(m._id) === String(messageId) ? updated : m
               ),
             }));
-
-            toast.info("Message edited");
           } catch (err) {
-            toast.error(err?.response?.data?.message || "Failed to edit message");
+            throw new Error(err?.response?.data?.message || "Failed to edit message");
           }
         },
 
@@ -378,8 +372,7 @@ export const useMessageStore = create(
                 ),
             }));
           } catch (error) {
-            toast.error("Failed to delete message");
-            return [];
+            throw new Error("Failed to delete message");
           } finally {
             set({ deletingMessageId: false })
           }
@@ -405,7 +398,6 @@ export const useMessageStore = create(
 
             useChatStore.getState().onChatClearedSocket({ chatId, userId });
 
-            toast.success("Chat cleared");
           } catch (err) {
             console.warn("clearChat failed:", err?.message);
           }
@@ -435,7 +427,7 @@ export const useMessageStore = create(
             );
             // server broadcasts; socket handler updates store
           } catch (err) {
-            toast.error(err?.response?.data?.message || "Failed to react");
+            throw new Error(err?.response?.data?.message || "Failed to react");
           }
         },
 
@@ -445,7 +437,7 @@ export const useMessageStore = create(
               withCredentials: true,
             });
           } catch (err) {
-            toast.error(err?.response?.data?.message || "Failed to remove reaction");
+            throw new Error(err?.response?.data?.message || "Failed to remove reaction");
           }
         },
 
@@ -468,9 +460,8 @@ export const useMessageStore = create(
               };
             });
 
-            toast.success("Pinned");
           } catch (err) {
-            toast.error(err?.response?.data?.message || "Failed to pin message");
+            throw new Error(err?.response?.data?.message || "Failed to pin message");
           }
         },
 
@@ -484,9 +475,8 @@ export const useMessageStore = create(
               messages: state.messages.map((m) => (String(m._id) === String(messageId) ? { ...m, pinned: false } : m)),
             }));
 
-            toast.info("Unpinned");
           } catch (err) {
-            toast.error(err?.response?.data?.message || "Failed to unpin");
+            throw new Error(err?.response?.data?.message || "Failed to unpin");
           }
         },
 

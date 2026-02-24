@@ -1,7 +1,6 @@
 // src/store/useOtpStore.js
 import { create } from "zustand";
 import api from "@/api/axios";
-import { toast } from "sonner";
 import { useAuthStore } from "./useAuthStore";
 
 export const useOtpStore = create((set, get) => ({
@@ -52,30 +51,35 @@ export const useOtpStore = create((set, get) => ({
        ========================================================== */
     sendOtp: async (email) => {
         if (!email) {
-            toast.error("Please enter your email");
-            return false;
+            throw new Error("Email is required");
         }
 
         set({ isLoading: true });
 
         try {
-            await api.post("/auth/send-otp", { email }, { withCredentials: true });
+            await api.post(
+                "/auth/send-otp",
+                { email },
+                { withCredentials: true }
+            );
 
-            toast.success("OTP sent successfully");
             set({ email });
 
-            // cache last email in auth store for UX
             try {
-              useAuthStore.getState().setLastEmail(email);
-            } catch {}
+                useAuthStore.getState().setLastEmail(email);
+            } catch { }
 
-            // Restart timer (2 min)
+            // Start timer only after success
             get().startTimer(120);
 
-            return true;
+            return true; // success
+
         } catch (err) {
-            toast.error(err?.response?.data?.message || "Failed to send OTP");
-            return false;
+            const msg =
+                err?.response?.data?.message ||
+                "Failed to send OTP";
+
+            throw new Error(msg); // 🔥 MUST THROW
         } finally {
             set({ isLoading: false });
         }
@@ -88,12 +92,10 @@ export const useOtpStore = create((set, get) => ({
         const { email, timer } = get();
 
         if (!email) {
-            toast.error("No email found");
             return;
         }
 
         if (timer > 0) {
-            toast.warning(`Please wait ${timer}s`);
             return;
         }
 
@@ -102,17 +104,17 @@ export const useOtpStore = create((set, get) => ({
         try {
             await api.post("/auth/resend-otp", { email }, { withCredentials: true });
 
-            toast.success("OTP resent successfully");
 
             // cache last email in auth store for UX (idempotent)
             try {
-              useAuthStore.getState().setLastEmail(email);
-            } catch {}
+                useAuthStore.getState().setLastEmail(email);
+            } catch { }
 
             // Restart timer
             get().startTimer(120);
         } catch (err) {
-            toast.error(err?.response?.data?.message || "Failed to resend OTP");
+            const msg = err?.response?.data?.message || "Failed to resend OTP";
+            throw new Error(msg);
         } finally {
             set({ isLoading: false });
         }
@@ -128,7 +130,6 @@ export const useOtpStore = create((set, get) => ({
         try {
             await api.post("/auth/cancel-otp", { email }, { withCredentials: true });
 
-            toast.info("OTP canceled");
             get().resetTimer();
         } catch {
             // silent fail — backend cancel is optional

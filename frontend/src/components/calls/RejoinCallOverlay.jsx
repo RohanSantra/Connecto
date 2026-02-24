@@ -3,7 +3,7 @@ import React, { useEffect, useRef } from "react";
 import useCallStore from "@/store/useCallStore";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Phone, Video, RotateCcw, X } from "lucide-react";
+import { Phone, Video, RotateCcw, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function RejoinCallOverlay() {
@@ -12,6 +12,7 @@ export default function RejoinCallOverlay() {
   const clearActiveCall = useCallStore((s) => s.clearActiveCall);
   const stopLocalMedia = useCallStore((s) => s.stopLocalMedia);
   const loading = useCallStore((s) => s.loading);
+  
 
   const btnRef = useRef(null);
 
@@ -26,7 +27,7 @@ export default function RejoinCallOverlay() {
   const isGroup = !!meta.groupName;
 
   console.log(meta);
-  
+
 
   const title = isGroup ? meta.groupName : meta.callerName || "Call";
   const avatarSrc = isGroup ? meta.groupAvatar : meta.callerAvatar;
@@ -39,7 +40,6 @@ export default function RejoinCallOverlay() {
   const handleRejoin = async () => {
     try {
       await rejoinCall();
-      toast.success("Rejoining call…");
     } catch (err) {
       toast.error("Could not rejoin. Check camera & microphone permissions.");
     }
@@ -48,7 +48,6 @@ export default function RejoinCallOverlay() {
   const handleCancel = () => {
     clearActiveCall();
     stopLocalMedia();
-    toast("Left call");
   };
 
   return (
@@ -108,7 +107,11 @@ export default function RejoinCallOverlay() {
             disabled={loading}
             className="flex-1"
           >
-            <RotateCcw className="w-4 h-4 mr-2" />
+            {loading ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <RotateCcw className="w-4 h-4 mr-2" />
+            )}
             Rejoin call
           </Button>
 

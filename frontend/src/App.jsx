@@ -31,6 +31,7 @@ import { useBlockStore } from "./store/useBlockStore";
 import CallHistoryPage from "./pages/Call/CallHistoryPage";
 import AdminRoute from "./routes/AdminRoute";
 import AdminAnalyticsPage from "./pages/admin/AdminAnalyticsPage";
+import GlobalCallUI from "./components/calls/GlobalCallUI";
 
 
 export default function App() {
@@ -68,118 +69,123 @@ export default function App() {
   const isBoarded = user?.isBoarded;
 
   return (
-    <Routes location={location}>
+    <>
+      <Routes location={location}>
 
-      {/* ------------------------------------------------------------
+        {/* ------------------------------------------------------------
          🔹 Public Auth Routes
       ------------------------------------------------------------ */}
-      <Route
-        path="/auth"
-        element={
-          isAuthenticated
-            ? isBoarded
-              ? <Navigate to="/" />
-              : <Navigate to="/set-profile" />
-            : <AuthEmailPage />
-        }
-      />
+        <Route
+          path="/auth"
+          element={
+            isAuthenticated
+              ? isBoarded
+                ? <Navigate to="/" />
+                : <Navigate to="/set-profile" />
+              : <AuthEmailPage />
+          }
+        />
 
-      <Route
-        path="/verify"
-        element={
-          isAuthenticated
-            ? isBoarded
-              ? <Navigate to="/" />
-              : <Navigate to="/set-profile" />
-            : <VerifyOtpPage />
-        }
-      />
+        <Route
+          path="/verify"
+          element={
+            isAuthenticated
+              ? isBoarded
+                ? <Navigate to="/" />
+                : <Navigate to="/set-profile" />
+              : <VerifyOtpPage />
+          }
+        />
 
-      <Route path="/auth/success" element={<AuthSuccessPage />} />
+        <Route path="/auth/success" element={<AuthSuccessPage />} />
 
-      {/* ------------------------------------------------------------
+        {/* ------------------------------------------------------------
          🔹 Onboarding
       ------------------------------------------------------------ */}
-      <Route
-        path="/set-profile"
-        element={
-          isAuthenticated
-            ? isBoarded
-              ? <Navigate to="/" />
-              : <SetProfilePage />
-            : <Navigate to="/auth" />
-        }
-      />
+        <Route
+          path="/set-profile"
+          element={
+            isAuthenticated
+              ? isBoarded
+                ? <Navigate to="/" />
+                : <SetProfilePage />
+              : <Navigate to="/auth" />
+          }
+        />
 
 
-      {/* ------------------------------------------------------------
+        {/* ------------------------------------------------------------
          🔹 Main App (Protected)
       ------------------------------------------------------------ */}
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <HomeLayout />
-          </ProtectedRoute>
-        }
-      />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <HomeLayout />
+            </ProtectedRoute>
+          }
+        />
 
-      {/* ------------------------------------------------------------
+        {/* ------------------------------------------------------------
          🔹 Calls History
       ------------------------------------------------------------ */}
-      <Route
-        path="/calls/history"
-        element={
-          <ProtectedRoute>
-            <CallHistoryPage />
-          </ProtectedRoute>
-        }
-      />
+        <Route
+          path="/calls/history"
+          element={
+            <ProtectedRoute>
+              <CallHistoryPage />
+            </ProtectedRoute>
+          }
+        />
 
-      {/* ------------------------------------------------------------
+        {/* ------------------------------------------------------------
          🔹 Settings
       ------------------------------------------------------------ */}
-      <Route
-        path="/settings"
-        element={
-          <ProtectedRoute>
-            <SettingsPage />
-          </ProtectedRoute>
-        }
-      />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <SettingsPage />
+            </ProtectedRoute>
+          }
+        />
 
 
-      {/* ------------------------------------------------------------
+        {/* ------------------------------------------------------------
          🔹 Legal
       ------------------------------------------------------------ */}
-      <Route
-        path="/legal/privacy-policy"
-        element={
-          <PrivacyPolicyPage />
-        }
-      />
-      <Route
-        path="/legal/terms-of-service"
-        element={
-          <TermsOfServicePage />
-        }
-      />
-      {/* ------------------------------------------------------------
+        <Route
+          path="/legal/privacy-policy"
+          element={
+            <PrivacyPolicyPage />
+          }
+        />
+        <Route
+          path="/legal/terms-of-service"
+          element={
+            <TermsOfServicePage />
+          }
+        />
+        {/* ------------------------------------------------------------
          🔹 Admin Analytical page
       ------------------------------------------------------------ */}
-      <Route
-        path="/admin/analytics"
-        element={
-          <AdminRoute>
-            <AdminAnalyticsPage />
-          </AdminRoute>
-        }
-      />
+        <Route
+          path="/admin/analytics"
+          element={
+            <AdminRoute>
+              <AdminAnalyticsPage />
+            </AdminRoute>
+          }
+        />
 
-      {/* ------------------------------------------------------------
+        {/* ------------------------------------------------------------
          ❌ 404
       ------------------------------------------------------------ */}
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+
+      {/* 🌍 GLOBAL CALL LAYER */}
+      <GlobalCallUI />
+    </>
   );
 }

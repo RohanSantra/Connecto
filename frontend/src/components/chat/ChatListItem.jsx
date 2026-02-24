@@ -44,6 +44,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 
 
 /* -----------------------------------
@@ -229,7 +230,8 @@ function ChatListMenu({ chat }) {
   } = useBlockStore();
 
   const [confirm, setConfirm] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loadingAction, setLoadingAction] = useState(null);
+  // loadingAction: "pin" | "block" | "clear" | "delete" | "leave" | null
 
   const isGroup = chat.isGroup;
   const isPinned = !!chat.pinned;
@@ -243,8 +245,9 @@ function ChatListMenu({ chat }) {
   const chatBlocked = isChatBlocked(chat.chatId);
   const userBlocked = otherUser && isUserBlocked(otherUser.userId);
   const blockedByOther = chat.otherUserBlockedMe;
-
   const blocked = chatBlocked || userBlocked;
+
+  const isLoading = (key) => loadingAction === key;
 
   const members = participants;
   const myMember = members.find((m) => String(m.userId) === String(profile.userId));
@@ -258,19 +261,152 @@ function ChatListMenu({ chat }) {
     return true;
   };
 
-  const run = async (fn) => {
-    setLoading(true);
-    try { await fn(); }
-    finally { setLoading(false); setConfirm(null); }
+  /* ---------------- PIN ---------------- */
+  const handleTogglePin = async () => {
+    if (loadingAction) return;
+
+    const toastId = toast.loading(
+      isPinned ? "Unpinning chat..." : "Pinning chat..."
+    );
+
+    setLoadingAction("pin");
+
+    try {
+      const newPinned = await togglePin(chat.chatId);
+
+      toast.success(
+        newPinned
+          ? "Chat has been pinned to the top."
+          : "Chat has been removed from pinned conversations.",
+        { id: toastId }
+      );
+    } catch (err) {
+      toast.error(
+        err?.message || "We couldn’t update the pin status.",
+        { id: toastId }
+      );
+    } finally {
+      setLoadingAction(null);
+    }
   };
 
+  /* ---------------- BLOCK ---------------- */
   const handleBlockToggle = async () => {
-    if (blockedByOther) return;
+    if (loadingAction || blockedByOther) return;
 
-    if (isGroup) {
-      blocked ? await unblockChat(chat.chatId) : await blockChat(chat.chatId);
-    } else if (otherUser) {
-      blocked ? await unblockUser(otherUser.userId) : await blockUser(otherUser.userId);
+    const toastId = toast.loading(
+      blocked
+        ? isGroup
+          ? "Unblocking group..."
+          : "Unblocking user..."
+        : isGroup
+          ? "Blocking group..."
+          : "Blocking user..."
+    );
+
+    setLoadingAction("block");
+
+    try {
+      if (isGroup) {
+        blocked
+          ? await unblockChat(chat.chatId)
+          : await blockChat(chat.chatId);
+      } else if (otherUser) {
+        blocked
+          ? await unblockUser(otherUser.userId)
+          : await blockUser(otherUser.userId);
+      }
+
+      toast.success(
+        blocked
+          ? isGroup
+            ? "The group has been unblocked."
+            : "The user has been unblocked."
+          : isGroup
+            ? "The group has been blocked."
+            : "The user has been blocked.",
+        { id: toastId }
+      );
+    } catch (err) {
+      toast.error(
+        err?.message || "We couldn’t update block status.",
+        { id: toastId }
+      );
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
+  /* ---------------- CLEAR ---------------- */
+  const handleClearChat = async () => {
+    if (loadingAction) return;
+
+    const toastId = toast.loading("Clearing chat...");
+    setLoadingAction("clear");
+
+    try {
+      await clearChatForUser(chat.chatId);
+      toast.success("Chat history has been cleared.", { id: toastId });
+      setConfirm(null);
+    } catch (err) {
+      toast.error(
+        err?.message || "Failed to clear chat.",
+        { id: toastId }
+      );
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
+  /* ---------------- DELETE ---------------- */
+  const handleDeleteChat = async () => {
+    if (loadingAction) return;
+
+    const toastId = toast.loading(
+      isGroup ? "Deleting group..." : "Deleting chat..."
+    );
+
+    setLoadingAction("delete");
+
+    try {
+      await deleteChat(chat.chatId);
+
+      toast.success(
+        isGroup
+          ? "The group has been permanently deleted."
+          : "The chat has been permanently deleted.",
+        { id: toastId }
+      );
+
+      setConfirm(null);
+    } catch (err) {
+      toast.error(
+        err?.message || "Failed to delete.",
+        { id: toastId }
+      );
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
+  /* ---------------- LEAVE ---------------- */
+  const handleLeaveGroup = async () => {
+    if (loadingAction) return;
+
+    const toastId = toast.loading("Leaving group...");
+    setLoadingAction("leave");
+
+    try {
+      await leaveGroup(chat.chatId);
+      toast.success("You have left the group.", { id: toastId });
+      setConfirm(null);
+    } catch (err) {
+      toast.error(
+        err?.message || "Failed to leave group.",
+        { id: toastId }
+      );
+    } finally {
+      setLoadingAction(null);
     }
   };
 
@@ -278,7 +414,12 @@ function ChatListMenu({ chat }) {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="p-1 hover:bg-accent rounded-lg">
+          <Button
+            variant="ghost"
+            size="icon"
+            disabled={!!loadingAction}
+            className="p-1 hover:bg-accent rounded-lg"
+          >
             <EllipsisVertical className="w-4 h-4" />
           </Button>
         </DropdownMenuTrigger>
@@ -287,21 +428,28 @@ function ChatListMenu({ chat }) {
 
           {/* PIN */}
           <DropdownMenuItem
-            onClick={() => togglePin(chat.chatId)}
+            onClick={handleTogglePin}
+            disabled={!!loadingAction}
           >
-            <Pin className="w-4 h-4 mr-2" />
+            {isLoading("pin") ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Pin className="w-4 h-4 mr-2" />
+            )}
             {isPinned ? "Unpin" : "Pin"}
           </DropdownMenuItem>
 
           <DropdownMenuSeparator />
 
-          {/* BLOCK / UNBLOCK */}
+          {/* BLOCK */}
           <DropdownMenuItem
             onClick={handleBlockToggle}
-            disabled={blockedByOther}
+            disabled={!!loadingAction || blockedByOther}
             className="text-destructive"
           >
-            {blocked ? (
+            {isLoading("block") ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : blocked ? (
               isGroup ? (
                 <ShieldCheck className="w-4 h-4 mr-2" />
               ) : (
@@ -312,7 +460,6 @@ function ChatListMenu({ chat }) {
             ) : (
               <UserX className="w-4 h-4 mr-2" />
             )}
-
             {blocked
               ? "Unblock"
               : isGroup
@@ -323,37 +470,28 @@ function ChatListMenu({ chat }) {
           <DropdownMenuSeparator />
 
           <DropdownMenuItem
-            className="text-destructive"
+            disabled={!!loadingAction}
             onClick={() => setConfirm("clear")}
+            className="text-destructive"
           >
             <Trash2 className="w-4 h-4 mr-2" />
             Clear Chat
           </DropdownMenuItem>
 
-          {!isGroup && (
-            <DropdownMenuItem
-              className="text-destructive"
-              onClick={() => setConfirm("delete")}
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              Delete Chat
-            </DropdownMenuItem>
-          )}
-
-          {isGroup && isAdmin && (
-            <DropdownMenuItem
-              className="text-destructive"
-              onClick={() => setConfirm("delete")}
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              Delete Group
-            </DropdownMenuItem>
-          )}
+          <DropdownMenuItem
+            disabled={!!loadingAction}
+            onClick={() => setConfirm("delete")}
+            className="text-destructive"
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Delete
+          </DropdownMenuItem>
 
           {isGroup && canLeaveGroup() && (
             <DropdownMenuItem
-              className="text-destructive"
+              disabled={!!loadingAction}
               onClick={() => setConfirm("leave")}
+              className="text-destructive"
             >
               <DoorOpen className="w-4 h-4 mr-2" />
               Leave Group
@@ -363,32 +501,36 @@ function ChatListMenu({ chat }) {
       </DropdownMenu>
 
       {/* CONFIRM DIALOG */}
-      <AlertDialog open={!!confirm} onOpenChange={() => setConfirm(null)}>
+      <AlertDialog open={!!confirm} onOpenChange={(o) => !loadingAction && setConfirm(o ? confirm : null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {confirm === "leave" && "Leave group?"}
-              {confirm === "delete" && (isGroup ? "Delete group?" : "Delete chat?")}
-              {confirm === "clear" && "Clear chat?"}
-            </AlertDialogTitle>
+            <AlertDialogTitle>Confirm Action</AlertDialogTitle>
             <AlertDialogDescription>
-              {confirm === "leave" && "You will stop receiving messages."}
-              {confirm === "delete" && "This cannot be undone."}
-              {confirm === "clear" && "Messages will be removed only for you."}
+              Are you sure? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
 
           <AlertDialogFooter>
-            <AlertDialogCancel className="px-2">Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={!!loadingAction}>
+              Cancel
+            </AlertDialogCancel>
+
             <AlertDialogAction
-              className="px-2"
+              disabled={!!loadingAction}
               onClick={() => {
-                if (confirm === "clear") run(() => clearChatForUser(chat.chatId));
-                if (confirm === "delete") run(() => deleteChat(chat.chatId));
-                if (confirm === "leave") run(() => leaveGroup(chat.chatId));
+                if (confirm === "clear") handleClearChat();
+                if (confirm === "delete") handleDeleteChat();
+                if (confirm === "leave") handleLeaveGroup();
               }}
             >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirm"}
+              {loadingAction ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Please wait...
+                </>
+              ) : (
+                "Confirm"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

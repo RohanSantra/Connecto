@@ -275,54 +275,42 @@ export default function ProfileSection() {
       return;
     }
 
-    if (profile && profile.username !== name && usernameAvailable === false) {
-      toast.error("Username not available");
-      return;
-    }
-
-    if (!local.primaryLanguage) {
-      toast.error("Select primary language");
-      return;
-    }
-
-    if (local.primaryLanguage && local.secondaryLanguage && local.primaryLanguage === local.secondaryLanguage) {
-      toast.error("Primary & secondary languages must differ");
-      return;
-    }
+    if (saving) return;
 
     setSaving(true);
+
+    const toastId = toast.loading("Saving profile...");
+
     try {
-      // 1) upload avatar file first (server emits avatar updated and store updated)
+      // 1️⃣ Upload avatar if needed
       if (avatarFile) {
         const fd = new FormData();
         fd.append("avatar", avatarFile);
-        const avatarUpdated = await updateAvatar(fd);
-        if (!avatarUpdated) throw new Error("Avatar upload failed");
+        await updateAvatar(fd);
       }
 
-      // 2) prepare payload
-      const payload = {
+      // 2️⃣ Update profile
+      await updateProfile({
         username: name,
         bio: String(local.bio || "").trim(),
         primaryLanguage: local.primaryLanguage,
         secondaryLanguage: local.secondaryLanguage || null,
-      };
+      });
 
-      // if user picked a default (not uploaded) and it's different from stored store it as avatarUrl
-      if (!avatarFile && local.avatarPreview && profile && local.avatarPreview !== profile.avatarUrl) {
-        payload.avatarUrl = local.avatarPreview;
-      }
-
-      const updated = await updateProfile(payload);
-      // re-fetch to ensure `user` field is present and store has full shape
+      // 3️⃣ Refetch clean data
       await fetchProfile();
+
+      toast.success("Profile updated successfully", { id: toastId });
 
       setEditMode(false);
       setAvatarFile(null);
       setUsernameAvailable(null);
+
     } catch (err) {
-      console.error(err);
-      toast.error(err?.message || "Failed to save profile");
+      toast.error(
+        err?.message || "Failed to update profile",
+        { id: toastId }
+      );
     } finally {
       setSaving(false);
     }
@@ -332,13 +320,37 @@ export default function ProfileSection() {
      Delete flow
   ----------------------------------------------------- */
   const handleDeactivateAccount = async () => {
+    const toastId = toast.loading("Deactivating account...");
+
     try {
-      const ok = await deleteProfile();
-      if (ok) {
-        toast.success("Account deactivated");
-      }
-    } catch {
-      toast.error("Failed to deactivate");
+      await deleteProfile();
+
+      toast.success("Account deactivated", { id: toastId });
+
+      // logout already happens inside deleteProfile
+
+    } catch (err) {
+      toast.error(
+        err?.message || "Failed to deactivate account",
+        { id: toastId }
+      );
+    }
+  };
+
+
+  const handleLogout = async () => {
+    const toastId = toast.loading("Signing out...");
+
+    try {
+      await logout();
+
+      toast.success("Signed out successfully", { id: toastId });
+
+    } catch (err) {
+      toast.error(
+        err?.message || "Logout failed",
+        { id: toastId }
+      );
     }
   };
 
@@ -438,7 +450,7 @@ export default function ProfileSection() {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-              <Button onClick={() => logout()}>Sign out</Button>
+              <Button onClick={handleLogout}>Sign out</Button>
             </div>
           </div>
         </aside>

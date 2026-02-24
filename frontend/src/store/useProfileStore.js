@@ -1,6 +1,5 @@
 // src/store/useProfileStore.js
 import { create } from "zustand";
-import { toast } from "sonner";
 import api from "@/api/axios";
 import { useAuthStore } from "./useAuthStore.js";
 
@@ -13,7 +12,7 @@ export const useProfileStore = create((set, get) => ({
   error: null,
   searchResults: [],
   usernameSuggestions: [],
-  
+
   /* ==========================================================
      FETCH MY PROFILE
   ========================================================== */
@@ -29,8 +28,7 @@ export const useProfileStore = create((set, get) => ({
     } catch (err) {
       const msg = err?.response?.data?.message || "Failed to load profile";
       set({ error: msg });
-      toast.error(msg);
-      return null;
+      throw new Error(msg);
     } finally {
       set({ profileLoading: false });
     }
@@ -57,11 +55,10 @@ export const useProfileStore = create((set, get) => ({
         setUser({ ...user, isBoarded: true });
       }
 
-      toast.success("Profile setup completed");
       return profile;
-    } catch {
-      toast.error("Profile setup failed");
-      return null;
+    } catch (err) {
+      const msg = err?.response?.data?.message || "Failed to set up profile";
+      throw new Error(msg);
     } finally {
       set({ profileLoading: false });
     }
@@ -80,11 +77,10 @@ export const useProfileStore = create((set, get) => ({
       const updated = res.data?.data;
       set({ profile: updated });
 
-      toast.success("Profile updated");
       return updated;
-    } catch {
-      toast.error("Failed to update profile");
-      return null;
+    } catch (err) {
+      const msg = err?.response?.data?.message || "Failed to update profile";
+      throw new Error(msg);
     } finally {
       set({ profileLoading: false });
     }
@@ -105,11 +101,12 @@ export const useProfileStore = create((set, get) => ({
       const updated = res.data?.data;
       set({ profile: updated });
 
-      toast.success("Avatar updated");
       return updated;
-    } catch {
-      toast.error("Failed to update avatar");
-      return null;
+    } catch (err) {
+      const msg = err?.response?.data?.message || "Failed to update avatar";
+      console.log(err);
+      
+      throw new Error(msg);
     } finally {
       set({ profileLoading: false });
     }
@@ -144,12 +141,10 @@ export const useProfileStore = create((set, get) => ({
       const { logout } = useAuthStore.getState();
       logout();
 
-      toast.success("Account deactivated");
 
-    } catch(err) {
+    } catch (err) {
       const msg = err?.response?.data?.message || "Failed to deactivate account";
-      toast.error(msg);
-      return false;
+      throw new Error(msg);
     }
   },
 
@@ -172,7 +167,6 @@ export const useProfileStore = create((set, get) => ({
 
       return data;
     } catch {
-      toast.error("Username check failed");
       return { available: false, suggestions: [] };
     }
   },
@@ -199,7 +193,6 @@ export const useProfileStore = create((set, get) => ({
 
       return results;
     } catch {
-      toast.error("Search failed");
       return [];
     } finally {
       set({ searchLoading: false });
@@ -321,7 +314,6 @@ export const useProfileStore = create((set, get) => ({
     if (String(profile.userId) !== String(data.userId)) return;
 
     set({ profile: null });
-    toast.warning("Your account was deleted");
   },
 
   onDeviceRegisteredSocket: ({ userId }) => {
