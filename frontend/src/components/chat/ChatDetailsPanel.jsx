@@ -352,7 +352,7 @@ function EditGroupOverlay({ open, onOpenChange, initial = {}, onSave }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md p-0">
+      <DialogContent className="max-w-md p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
         <DialogHeader className="p-4 border-b">
           <DialogTitle>Edit Group</DialogTitle>
           <DialogDescription>Change details and add members</DialogDescription>
@@ -601,6 +601,9 @@ export default function ChatDetailsPanel() {
   const myMember = members.find((m) => String(m.userId) === String(profile.userId));
   const amAdmin = myMember?.role === "admin" && !groupBlocked;
   const adminCount = members.filter((m) => m.role === "admin").length;
+  const [membersExpanded, setMembersExpanded] = useState(false);
+
+  const INITIAL_VISIBLE_MEMBERS = 5;
 
   const canLeaveGroup = () => {
     if (!isGroup) return true;
@@ -631,6 +634,12 @@ export default function ChatDetailsPanel() {
     setConfirmPayload({ type, ...opts });
     setConfirmOpen(true);
   };
+
+  useEffect(() => {
+    if (memberQuery.trim()) {
+      setMembersExpanded(true);
+    }
+  }, [memberQuery]);
 
   const handleConfirm = async () => {
     if (!confirmPayload || !chat || confirmLoading) return;
@@ -847,6 +856,14 @@ export default function ChatDetailsPanel() {
     return descriptions[type] || "Are you sure? This action cannot be undone.";
   })();
 
+  const visibleMembers = useMemo(() => {
+    if (membersExpanded) return filteredMembers;
+    return filteredMembers.slice(0, INITIAL_VISIBLE_MEMBERS);
+  }, [filteredMembers, membersExpanded]);
+
+  const remainingCount =
+    filteredMembers.length - INITIAL_VISIBLE_MEMBERS;
+
   const handleBlockToggle = async () => {
     if (!chat) return;
 
@@ -887,6 +904,7 @@ export default function ChatDetailsPanel() {
       <Sheet open={detailsPanelOpen} onOpenChange={(o) => { if (!o) { closeDetailsPanel(); if (isMobile) openChatView(); } }}>
         <SheetContent
           side={isMobile ? "bottom" : "right"}
+          onOpenAutoFocus={(e) => e.preventDefault()}
           className={cn(
             "p-0 flex flex-col bg-card",
             isMobile
@@ -963,71 +981,134 @@ export default function ChatDetailsPanel() {
 
                     <div className="space-y-3 mt-3">
                       {filteredMembers.length === 0 ? (
-                        <div className="py-4 text-center text-muted-foreground">No members found</div>
+                        <div className="py-4 text-center text-muted-foreground">
+                          No members found
+                        </div>
                       ) : (
-                        filteredMembers.map((m) => {
-                          const isMe = String(m.userId) === String(profile.userId);
-                          return (
-                            <div key={m.userId} className="relative flex items-center gap-3 p-3 rounded-xl border bg-muted/20">
-                              <div className="relative">
-                                <Avatar className="w-10 h-10">
-                                  <AvatarImage src={m.avatarUrl} />
-                                  <AvatarFallback>{m.username?.[0]}</AvatarFallback>
-                                </Avatar>
-                                <OnlineDot isOnline={!!m.isOnline} />
-                              </div>
+                        <>
+                          {visibleMembers.map((m) => {
+                            const isMe = String(m.userId) === String(profile.userId);
 
-                              <div className="flex-1 min-w-0">
-                                <p className="font-medium flex items-center gap-2">
-                                  <span className="truncate">{m.username}</span>
-                                  <RoleBadge role={m.role} />
-                                  <DeactivatedBadge isDeactivated={m.isDeactivated} />
+                            return (
+                              <div
+                                key={m.userId}
+                                className="relative flex items-center gap-3 p-3 rounded-xl border bg-muted/20"
+                              >
+                                <div className="relative">
+                                  <Avatar className="w-10 h-10">
+                                    <AvatarImage src={m.avatarUrl} />
+                                    <AvatarFallback>{m.username?.[0]}</AvatarFallback>
+                                  </Avatar>
+                                  <OnlineDot isOnline={!!m.isOnline} />
+                                </div>
 
-                                  {isMe && <span className="text-xs text-muted-foreground">(You)</span>}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {m.isOnline ? "Online" : (m.lastSeenAt ? `Last seen ${new Date(m.lastSeenAt).toLocaleString()}` : "Offline")}
-                                </p>
-                              </div>
-
-                              {!isMe && (
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <button className="p-2 rounded-md hover:bg-muted">
-                                      <MoreVertical className="w-5 h-5 text-muted-foreground" />
-                                    </button>
-                                  </DropdownMenuTrigger>
-
-                                  <DropdownMenuContent align="end" className="w-48">
-                                    <DropdownMenuItem onClick={() => openConfirm("chat", { userId: m.userId, username: m.username })} className="gap-2">
-                                      <MessageSquare className="w-4 h-4" /> Chat
-                                    </DropdownMenuItem>
-
-                                    {amAdmin && (
-                                      <>
-                                        {m.role === "member" && (
-                                          <DropdownMenuItem onClick={() => openConfirm("promote", { userId: m.userId, username: m.username })} className="gap-2">
-                                            <UserPlus className="w-4 h-4" /> Promote
-                                          </DropdownMenuItem>
-                                        )}
-
-                                        {m.role === "admin" && (
-                                          <DropdownMenuItem onClick={() => openConfirm("demote", { userId: m.userId, username: m.username })} className="gap-2">
-                                            <UserMinus className="w-4 h-4" /> Demote
-                                          </DropdownMenuItem>
-                                        )}
-
-                                        <DropdownMenuItem onClick={() => openConfirm("remove", { userId: m.userId, label: `Remove ${m.username}?` })} className="gap-2 text-destructive focus:text-destructive">
-                                          <Trash2 className="w-4 h-4" /> Remove
-                                        </DropdownMenuItem>
-                                      </>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium flex items-center gap-2">
+                                    <span className="truncate">{m.username}</span>
+                                    <RoleBadge role={m.role} />
+                                    <DeactivatedBadge isDeactivated={m.isDeactivated} />
+                                    {isMe && (
+                                      <span className="text-xs text-muted-foreground">
+                                        (You)
+                                      </span>
                                     )}
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              )}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {m.isOnline
+                                      ? "Online"
+                                      : m.lastSeenAt
+                                        ? `Last seen ${new Date(
+                                          m.lastSeenAt
+                                        ).toLocaleString()}`
+                                        : "Offline"}
+                                  </p>
+                                </div>
+
+                                {!isMe && (
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <button className="p-2 rounded-md hover:bg-muted">
+                                        <MoreVertical className="w-5 h-5 text-muted-foreground" />
+                                      </button>
+                                    </DropdownMenuTrigger>
+
+                                    <DropdownMenuContent align="end" className="w-48">
+                                      <DropdownMenuItem
+                                        onClick={() =>
+                                          openConfirm("chat", {
+                                            userId: m.userId,
+                                            username: m.username,
+                                          })
+                                        }
+                                        className="gap-2"
+                                      >
+                                        <MessageSquare className="w-4 h-4" /> Chat
+                                      </DropdownMenuItem>
+
+                                      {amAdmin && (
+                                        <>
+                                          {m.role === "member" && (
+                                            <DropdownMenuItem
+                                              onClick={() =>
+                                                openConfirm("promote", {
+                                                  userId: m.userId,
+                                                  username: m.username,
+                                                })
+                                              }
+                                              className="gap-2"
+                                            >
+                                              <UserPlus className="w-4 h-4" /> Promote
+                                            </DropdownMenuItem>
+                                          )}
+
+                                          {m.role === "admin" && (
+                                            <DropdownMenuItem
+                                              onClick={() =>
+                                                openConfirm("demote", {
+                                                  userId: m.userId,
+                                                  username: m.username,
+                                                })
+                                              }
+                                              className="gap-2"
+                                            >
+                                              <UserMinus className="w-4 h-4" /> Demote
+                                            </DropdownMenuItem>
+                                          )}
+
+                                          <DropdownMenuItem
+                                            onClick={() =>
+                                              openConfirm("remove", {
+                                                userId: m.userId,
+                                                label: `Remove ${m.username}?`,
+                                              })
+                                            }
+                                            className="gap-2 text-destructive focus:text-destructive"
+                                          >
+                                            <Trash2 className="w-4 h-4" /> Remove
+                                          </DropdownMenuItem>
+                                        </>
+                                      )}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                )}
+                              </div>
+                            );
+                          })}
+
+                          {/* Expand / Collapse Button */}
+                          {filteredMembers.length > INITIAL_VISIBLE_MEMBERS && (
+                            <div className="flex justify-center pt-2">
+                              <button
+                                onClick={() => setMembersExpanded((p) => !p)}
+                                className="text-sm font-medium text-primary hover:underline"
+                              >
+                                {membersExpanded
+                                  ? "Show less"
+                                  : `Show all (${remainingCount} more)`}
+                              </button>
                             </div>
-                          );
-                        })
+                          )}
+                        </>
                       )}
                     </div>
                   </Section>

@@ -103,6 +103,25 @@ export const useDeviceStore = create((set, get) => ({
 
     },
 
+    /* ==========================================================
+        SET A DEVICE AS PRIMARY
+    ========================================================== */
+    setPrimaryDevice: async (deviceId) => {
+        try {
+            await api.patch(`/devices/${deviceId}/primary`, {}, { withCredentials: true });
+
+            set((state) => ({
+                devices: state.devices.map((d) =>
+                    d.deviceId === deviceId
+                        ? { ...d, isPrimary: true }
+                        : { ...d, isPrimary: false }
+                ),
+            }));
+        } catch (err) {
+            throw new Error(err?.response?.data?.message || "Failed to set primary device");
+        }
+    },
+
 
     /* ==========================================================
        SOCKET HANDLERS (match backend)

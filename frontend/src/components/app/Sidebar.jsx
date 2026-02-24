@@ -269,7 +269,7 @@ export default function Sidebar({ isDrawer = false }) {
        -------------------------- */
     const handleSelectChat = async (chat) => {
         if (activeChatId !== chat.chatId) {
-            await setActiveChatId(chat.chatId);
+            setActiveChatId(chat.chatId);
             openChatView();
         }
     };

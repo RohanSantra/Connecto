@@ -23,13 +23,14 @@ import NewChatOverlay from "@/components/chat/NewChatOverlay";
 import NewGroupOverlay from "@/components/chat/NewGroupOverlay";
 import { useBlockStore } from "@/store/useBlockStore";
 import ShortcutsModal from "../common/ShortcutsModal";
+import { cn } from "@/lib/utils";
 
 export default function AppShell() {
     const navigate = useNavigate();
     const { isMobile } = useResponsiveDrawer();
 
     /* ---------------- STORE HOOKS ---------------- */
-    const { fetchChats } = useChatStore();
+    const { fetchChats, hasFetchedChats } = useChatStore();
 
     const { profile, profileLoading } = useProfileStore();
     const {
@@ -49,7 +50,7 @@ export default function AppShell() {
     ------------------------------------------------------- */
     useEffect(() => {
         const init = async () => {
-            if (profileLoading || !profile) return;
+            if (profileLoading || !profile || hasFetchedChats) return;
 
             const blockStore = useBlockStore.getState();
 
@@ -125,13 +126,27 @@ export default function AppShell() {
                     )}
 
                     {view === "chat" && (
-                        <div className="absolute inset-0 z-40 bg-background">
+                        <div
+                            className={cn(
+                                "absolute inset-0 bg-background transition-transform duration-300",
+                                view === "chat"
+                                    ? "translate-x-0 z-40"
+                                    : "translate-x-full pointer-events-none"
+                            )}
+                        >
                             <ChatArea />
                         </div>
                     )}
 
                     {view === "details" && (
-                        <div className="absolute inset-0 z-50 bg-background">
+                        <div
+                            className={cn(
+                                "absolute inset-0 bg-background transition-transform duration-300",
+                                view === "chat"
+                                    ? "translate-x-0 z-40"
+                                    : "translate-x-full pointer-events-none"
+                            )}
+                        >
                             <DetailsPanel />
                         </div>
                     )}
