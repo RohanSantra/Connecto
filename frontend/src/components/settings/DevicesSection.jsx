@@ -115,6 +115,10 @@ export default function DevicesSection() {
     return new Date(b.lastSeen || 0) - new Date(a.lastSeen || 0);
   });
 
+  const myDevice = devices.find(d => d.deviceId === localDeviceId);
+  const isMyDevicePrimary = myDevice?.isPrimary === true;
+
+
   const handleLogoutDevice = async (deviceId) => {
     if (processingId) return;
 
@@ -258,53 +262,55 @@ export default function DevicesSection() {
                     </div>
 
                     {/* Actions */}
-                    <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
-                      {d.status === "active" && (
+                    {isMyDevicePrimary && (
+                      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
+                        {d.status === "active" && (
+                          <button
+                            onClick={() => {
+                              if (isThisDevice) {
+                                // FULL LOGOUT (current device)
+                                logoutCurrentDevice();
+                              } else {
+                                // REMOTE LOGOUT
+                                handleLogoutDevice(d.deviceId);
+                              }
+                            }}
+                            disabled={processingId === d.deviceId}
+                            className="px-3 py-1 rounded border text-sm flex items-center"
+                          >
+                            {processingId === d.deviceId ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                Logging out...
+                              </>
+                            ) : (
+                              <>
+                                <LogOut className="w-4 h-4 mr-2" />
+                                {isThisDevice ? "Logout this device" : "Logout device"}
+                              </>
+                            )}
+                          </button>
+                        )}
+
                         <button
-                          onClick={() => {
-                            if (isThisDevice) {
-                              // FULL LOGOUT (current device)
-                              logoutCurrentDevice();
-                            } else {
-                              // REMOTE LOGOUT
-                              handleLogoutDevice(d.deviceId);
-                            }
-                          }}
+                          onClick={() => handleDeleteDevice(d.deviceId)}
                           disabled={processingId === d.deviceId}
-                          className="px-3 py-1 rounded border text-sm flex items-center"
+                          className="sm:ml-auto px-3 py-1 rounded border text-destructive text-sm flex items-center"
                         >
                           {processingId === d.deviceId ? (
                             <>
                               <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                              Logging out...
+                              Removing device...
                             </>
                           ) : (
                             <>
-                              <LogOut className="w-4 h-4 mr-2" />
-                              {isThisDevice ? "Logout this device" : "Logout device"}
+                              <Trash className="w-4 h-4 mr-2" />
+                              Remove device
                             </>
                           )}
                         </button>
-                      )}
-
-                      <button
-                        onClick={() => handleDeleteDevice(d.deviceId)}
-                        disabled={processingId === d.deviceId}
-                        className="sm:ml-auto px-3 py-1 rounded border text-destructive text-sm flex items-center"
-                      >
-                        {processingId === d.deviceId ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                            Removing device...
-                          </>
-                        ) : (
-                          <>
-                            <Trash className="w-4 h-4 mr-2" />
-                            Remove device
-                          </>
-                        )}
-                      </button>
-                    </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
