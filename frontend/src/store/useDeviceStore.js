@@ -173,4 +173,16 @@ export const useDeviceStore = create((set, get) => ({
         }));
 
     },
+
+    onDeviceDisconnected: ({ deviceId }) => {
+        if (!deviceId) return;
+
+        set((state) => ({
+            devices: state.devices.map((d) =>
+                d.deviceId === deviceId
+                    ? { ...d, status: "inactive" }
+                    : d
+            ),
+        }));
+    },
 }));

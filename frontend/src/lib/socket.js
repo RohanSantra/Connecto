@@ -9,7 +9,7 @@ let connectedEventReceived = false;
    INIT
 ========================================================= */
 export function initSocket({ accessToken, userId, deviceId }) {
-  if (socket?.connected) return socket;
+  if (socket) return socket;
 
   socket = io(import.meta.env.VITE_SOCKET_URL, {
     withCredentials: true,

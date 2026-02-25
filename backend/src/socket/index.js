@@ -71,6 +71,14 @@ async function tryAuthenticateSocket(socket) {
    Allows multiple sockets per user (multi-device).
 ------------------------- */
 const onlineUsers = new Map(); // Map<userId, Set<socketId>>
+
+// Grace disconnect timers (prevents flicker on Render / network jitter)
+const pendingOfflineTimers = new Map(); // Map<userId, Timeout>
+
+// How long to wait before marking user offline (ms)
+const OFFLINE_GRACE_PERIOD = 7000; // 7 seconds (recommended 5–10s)
+
+
 /* -------------------------
    Utility to add/remove socketId for a user
 ------------------------- */
@@ -89,6 +97,18 @@ function removeOnlineSocket(userId, socketId) {
    Device + profile online management
 ------------------------- */
 async function markDeviceOnline(io, userId, deviceId, socketId) {
+
+  /* -----------------------------------------
+     CANCEL ANY PENDING OFFLINE TIMER
+  ----------------------------------------- */
+  if (pendingOfflineTimers.has(userId)) {
+    clearTimeout(pendingOfflineTimers.get(userId));
+    pendingOfflineTimers.delete(userId);
+  }
+
+  /* -----------------------------------------
+     UPDATE DEVICE STATUS
+  ----------------------------------------- */
   if (deviceId) {
     await Device.findOneAndUpdate(
       { userId, deviceId },
@@ -102,20 +122,21 @@ async function markDeviceOnline(io, userId, deviceId, socketId) {
   const wasOnline = onlineUsers.has(userId);
   addOnlineSocket(userId, socketId);
 
+  /* -----------------------------------------
+     IF FIRST SOCKET → MARK ONLINE
+  ----------------------------------------- */
   if (!wasOnline) {
     await Profile.updateOne(
       { userId },
       { $set: { isOnline: true, lastSeen: null } }
     );
 
-    // broadcast status once
     io.emit(ChatEventEnum.USER_STATUS_UPDATED, {
       userId,
       isOnline: true,
       lastSeen: null,
     });
 
-    // notify user's own devices too (optional)
     io.in(userRoom(userId)).emit(ChatEventEnum.USER_ONLINE_EVENT, {
       userId,
       deviceId,
@@ -124,12 +145,10 @@ async function markDeviceOnline(io, userId, deviceId, socketId) {
     });
 
     /* ======================================================
-       DELIVER any pending messages for this user
-       - find chats the user is member of
-       - find messages where deliveredTo does NOT include this user
-       - emit MESSAGE_DELIVERED_EVENT to each chat room
-       - persist deliveredTo using $addToSet
+       KEEP YOUR FULL MESSAGE DELIVERY LOGIC BELOW
+       (DO NOT REMOVE ANYTHING)
     ====================================================== */
+
     try {
       const membership = await ChatMember.find({ userId }).select("chatId").lean();
       const chatIds = membership.map((m) => m.chatId).filter(Boolean);
@@ -137,7 +156,6 @@ async function markDeviceOnline(io, userId, deviceId, socketId) {
       if (chatIds.length > 0) {
         const objectUserId = new mongoose.Types.ObjectId(userId);
 
-        // find undelivered messages (sender != user AND deliveredTo doesn't contain user)
         const undelivered = await Message.find({
           chatId: { $in: chatIds },
           senderId: { $ne: objectUserId },
@@ -150,11 +168,11 @@ async function markDeviceOnline(io, userId, deviceId, socketId) {
           .lean();
 
         if (undelivered.length > 0) {
-          // Load blocks relevant to this user once (outgoing user-blocks, incoming user-blocks, and chat-blocks)
+
           const blocks = await Block.find({
             $or: [
-              { blockedBy: objectUserId },          // chats & users this user blocked
-              { blockedUser: objectUserId, type: "user" } // users who blocked this user
+              { blockedBy: objectUserId },
+              { blockedUser: objectUserId, type: "user" }
             ],
           }).lean();
 
@@ -164,18 +182,18 @@ async function markDeviceOnline(io, userId, deviceId, socketId) {
 
           for (const b of blocks) {
             if (b.type === "user") {
-              if (String(b.blockedBy) === String(objectUserId) && b.blockedUser) blockedUsersSet.add(String(b.blockedUser));
-              if (String(b.blockedUser) === String(objectUserId) && b.blockedBy) usersWhoBlockedMeSet.add(String(b.blockedBy));
+              if (String(b.blockedBy) === String(objectUserId) && b.blockedUser)
+                blockedUsersSet.add(String(b.blockedUser));
+              if (String(b.blockedUser) === String(objectUserId) && b.blockedBy)
+                usersWhoBlockedMeSet.add(String(b.blockedBy));
             } else if (b.type === "chat") {
-              if (String(b.blockedBy) === String(objectUserId) && b.blockedChat) blockedChatsSet.add(String(b.blockedChat));
+              if (String(b.blockedBy) === String(objectUserId) && b.blockedChat)
+                blockedChatsSet.add(String(b.blockedChat));
             }
           }
 
-          // filter messages user should not receive
           const filtered = undelivered.filter((m) => {
-            // if this chat is blocked by this user -> skip
             if (blockedChatsSet.has(String(m.chatId))) return false;
-            // if sender is in sender-block list (either user blocked sender or sender blocked user) -> skip
             const senderIdStr = String(m.senderId);
             if (blockedUsersSet.has(senderIdStr)) return false;
             if (usersWhoBlockedMeSet.has(senderIdStr)) return false;
@@ -185,45 +203,40 @@ async function markDeviceOnline(io, userId, deviceId, socketId) {
           const deliveredAt = new Date();
           const msgIds = filtered.map((m) => m._id);
 
-          // Persist: push deliveredTo entry only for messages that don't already have it
           await Message.updateMany(
             { _id: { $in: msgIds }, "deliveredTo.userId": { $ne: objectUserId } },
             { $push: { deliveredTo: { userId: objectUserId, deliveredAt } } }
           );
 
-          // Emit events for filtered messages only
           for (const msg of filtered) {
             const payload = {
               messageId: msg._id,
               chatId: msg.chatId,
-              userId,          // the user who just came online
+              userId,
               deliveredAt,
             };
 
-            // notify chat room (UI in chat room)
             io.in(chatRoom(String(msg.chatId))).emit(
               ChatEventEnum.MESSAGE_DELIVERED_EVENT,
               payload
             );
 
-            // notify sender devices so they update ticks
             io.in(userRoom(String(msg.senderId))).emit(
               ChatEventEnum.MESSAGE_DELIVERED_EVENT,
               payload
             );
 
-            // notify the recipient userRoom too
             io.in(userRoom(String(userId))).emit(
               ChatEventEnum.MESSAGE_DELIVERED_EVENT,
               payload
             );
           }
         }
-
       }
     } catch (err) {
-      console.warn("markDeviceOnline deliver failed:", err && err.stack ? err.stack : err);
+      console.warn("markDeviceOnline deliver failed:", err);
     }
+
   } else {
     io.in(userRoom(userId)).emit(ChatEventEnum.DEVICE_REGISTERED_EVENT, {
       userId,
@@ -235,7 +248,7 @@ async function markDeviceOnline(io, userId, deviceId, socketId) {
 }
 
 async function markDeviceOffline(io, userId, deviceId, socketId) {
-  // ❗ DO NOT CHANGE DEVICE STATUS HERE
+
   if (deviceId) {
     await Device.updateOne(
       { userId, deviceId },
@@ -245,39 +258,62 @@ async function markDeviceOffline(io, userId, deviceId, socketId) {
 
   removeOnlineSocket(userId, socketId);
 
-  // If user has ZERO sockets online -> user goes offline
-  if (!onlineUsers.has(userId)) {
-    const lastSeen = new Date();
-
-    // update profile online status
-    await Profile.updateOne(
-      { userId },
-      { $set: { isOnline: false, lastSeen } }
-    );
-
-    // Global broadcast
-    io.emit(ChatEventEnum.USER_STATUS_UPDATED, {
-      userId,
-      isOnline: false,
-      lastSeen,
-    });
-
-    // notify user's own devices
-    io.in(userRoom(userId)).emit(ChatEventEnum.USER_OFFLINE_EVENT, {
-      userId,
-      deviceId,
-      lastSeen,
-    });
-  }
-  else {
-    // Another socket still online for this user → device disconnected only
+  /* -----------------------------------------
+     IF OTHER SOCKETS STILL ACTIVE
+  ----------------------------------------- */
+  if (onlineUsers.has(userId)) {
     io.in(userRoom(userId)).emit(ChatEventEnum.DEVICE_DISCONNECTED_EVENT, {
       userId,
       deviceId,
       socketId,
       timestamp: new Date(),
     });
+    return;
   }
+
+  /* -----------------------------------------
+     START GRACE TIMER (PREVENT FLICKER)
+  ----------------------------------------- */
+
+  if (pendingOfflineTimers.has(userId)) return;
+
+  const timeout = setTimeout(async () => {
+
+    try {
+
+      if (onlineUsers.has(userId)) {
+        pendingOfflineTimers.delete(userId);
+        return;
+      }
+
+      const lastSeen = new Date();
+
+      await Profile.updateOne(
+        { userId },
+        { $set: { isOnline: false, lastSeen } }
+      );
+
+      io.emit(ChatEventEnum.USER_STATUS_UPDATED, {
+        userId,
+        isOnline: false,
+        lastSeen,
+      });
+
+      io.in(userRoom(userId)).emit(ChatEventEnum.USER_OFFLINE_EVENT, {
+        userId,
+        deviceId,
+        lastSeen,
+      });
+
+    } catch (err) {
+      console.warn("Offline timer error:", err);
+    }
+
+    pendingOfflineTimers.delete(userId);
+
+  }, OFFLINE_GRACE_PERIOD);
+
+  pendingOfflineTimers.set(userId, timeout);
 }
 
 
@@ -691,56 +727,56 @@ export function initializeSocket(server, app) {
     });
 
     socket.on("call:rejoin", async ({ callId }) => {
-  try {
-    if (!callId) return;
+      try {
+        if (!callId) return;
 
-    const call = await Call.findById(callId);
-    if (!call) return;
+        const call = await Call.findById(callId);
+        if (!call) return;
 
-    // call must be in accepted state to rejoin
-    if (String(call.status) !== "accepted") return;
+        // call must be in accepted state to rejoin
+        if (String(call.status) !== "accepted") return;
 
-    // make sure socket is authenticated & member
-    const userObj = socket.user;
-    if (!userObj || !userObj._id) return;
+        // make sure socket is authenticated & member
+        const userObj = socket.user;
+        if (!userObj || !userObj._id) return;
 
-    const userId = String(userObj._id);
+        const userId = String(userObj._id);
 
-    const participants = [
-      String(call.callerId),
-      ...(call.calleeIds || []).map((x) => String(x)),
-    ];
+        const participants = [
+          String(call.callerId),
+          ...(call.calleeIds || []).map((x) => String(x)),
+        ];
 
-    if (!participants.includes(userId)) return;
+        if (!participants.includes(userId)) return;
 
-    // notify participants that this user has (re)joined
-    io.in(userRoom(userId)).emit(ChatEventEnum.CALL_ACCEPTED_EVENT, {
-      callId: call._id.toString(),
-      userId,
-      timestamp: new Date(),
+        // notify participants that this user has (re)joined
+        io.in(userRoom(userId)).emit(ChatEventEnum.CALL_ACCEPTED_EVENT, {
+          callId: call._id.toString(),
+          userId,
+          timestamp: new Date(),
+        });
+
+        // also broadcast to other participants' user rooms and chat room
+        // (so UI + any connected devices get the event)
+        participants.forEach((uid) => {
+          if (uid === userId) return;
+          io.in(userRoom(uid)).emit(ChatEventEnum.CALL_ACCEPTED_EVENT, {
+            callId: call._id.toString(),
+            userId,
+            timestamp: new Date(),
+          });
+        });
+
+        // also emit to the chat room
+        io.in(chatRoom(String(call.chatId))).emit(ChatEventEnum.CALL_ACCEPTED_EVENT, {
+          callId: call._id.toString(),
+          userId,
+          timestamp: new Date(),
+        });
+      } catch (err) {
+        console.warn("call:rejoin handler failed:", err && err.stack ? err.stack : err);
+      }
     });
-
-    // also broadcast to other participants' user rooms and chat room
-    // (so UI + any connected devices get the event)
-    participants.forEach((uid) => {
-      if (uid === userId) return;
-      io.in(userRoom(uid)).emit(ChatEventEnum.CALL_ACCEPTED_EVENT, {
-        callId: call._id.toString(),
-        userId,
-        timestamp: new Date(),
-      });
-    });
-
-    // also emit to the chat room
-    io.in(chatRoom(String(call.chatId))).emit(ChatEventEnum.CALL_ACCEPTED_EVENT, {
-      callId: call._id.toString(),
-      userId,
-      timestamp: new Date(),
-    });
-  } catch (err) {
-    console.warn("call:rejoin handler failed:", err && err.stack ? err.stack : err);
-  }
-});
 
 
 

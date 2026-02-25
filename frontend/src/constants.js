@@ -62,7 +62,7 @@ export const ChatEventEnum = Object.freeze({
   USER_OFFLINE_EVENT: "user:offline",
   USER_DELETED_EVENT: "user:deleted",
   USER_REACTIVATED_EVENT: "user:reactivated",
-  USER_ROLE_UPDATED:"user:updated",
+  USER_ROLE_UPDATED: "user:role_updated",
 
   // ----------------------------------
   // 🔹 Chat member roles
@@ -78,6 +78,7 @@ export const ChatEventEnum = Object.freeze({
   DEVICE_LOGGED_OUT_EVENT: "device:logged_out",
   DEVICE_REMOVED_EVENT: "device:removed",
   DEVICE_KEYS_ROTATED_EVENT: "device:keys_rotated",
+  DEVICE_DISCONNECTED_EVENT: "device:disconnected",
 
   // ----------------------------------
   // 🔹 Calls

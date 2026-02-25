@@ -1,6 +1,4 @@
-// src/services/email.service.js
 import nodemailer from "nodemailer";
-import axios from "axios";
 
 const createTransport = () => {
   return nodemailer.createTransport({
@@ -13,8 +11,6 @@ const createTransport = () => {
     },
   });
 };
-
-const BREVO_API_KEY = process.env.BREVO_API_KEY || null;
 
 /**
  * Produces both HTML and plain-text versions of the OTP email.
@@ -128,42 +124,9 @@ Connecto — Private. Fast. Encrypted.
 };
 
 export const sendOtpEmail = async ({ to, otp }) => {
+  const transporter = createTransport();
   const { subject, text, html } = buildOtpEmail({ otp, to });
 
-  // Prefer Brevo REST API when API key is present
-  if (BREVO_API_KEY) {
-    const senderEmail =
-      process.env.SMTP_FROM?.match(/<(.+)>/)?.[1] || process.env.SMTP_FROM;
-    const payload = {
-      sender: {
-        name: "Connecto",
-        email: senderEmail,
-      },
-      to: [{ email: to }],
-      subject,
-      htmlContent: html,
-      textContent: text,
-    };
-
-    try {
-      const resp = await axios.post("https://api.brevo.com/v3/smtp/email", payload, {
-        headers: {
-          "api-key": BREVO_API_KEY,
-          "Content-Type": "application/json",
-        },
-        // no timeout so caller can handle, adjust if needed
-      });
-      return resp.data;
-    } catch (err) {
-      // rethrow with some context
-      // If Brevo fails, fallback to nodemailer as a best-effort (useful in dev)
-      console.error("Brevo send failed:", err?.response?.data || err.message || err);
-      // fall through to nodemailer fallback
-    }
-  }
-
-  // Fallback to Nodemailer (local dev or if Brevo failed)
-  const transporter = createTransport();
   return transporter.sendMail({
     from: process.env.SMTP_FROM,
     to,
@@ -181,35 +144,6 @@ export const sendOtpEmail = async ({ to, otp }) => {
  * - text: plain text fallback (optional)
  */
 export const sendGenericMail = async ({ to, subject, html, text }) => {
-  // Try Brevo first
-  if (BREVO_API_KEY) {
-    const senderEmail =
-      process.env.SMTP_FROM?.match(/<(.+)>/)?.[1] || process.env.SMTP_FROM;
-    const payload = {
-      sender: {
-        name: "Connecto",
-        email: senderEmail,
-      },
-      to: [{ email: to }],
-      subject,
-      htmlContent: html,
-      textContent: text,
-    };
-
-    try {
-      const resp = await axios.post("https://api.brevo.com/v3/smtp/email", payload, {
-        headers: {
-          "api-key": BREVO_API_KEY,
-          "Content-Type": "application/json",
-        },
-      });
-      return resp.data;
-    } catch (err) {
-      console.error("Brevo generic send failed:", err?.response?.data || err.message || err);
-      // fall through to nodemailer
-    }
-  }
-
   const transporter = createTransport();
   return transporter.sendMail({
     from: process.env.SMTP_FROM,
@@ -225,6 +159,7 @@ export const sendGenericMail = async ({ to, subject, html, text }) => {
  * Call: sendVerificationSuccess({ to, name })
  */
 export const sendVerificationSuccess = async ({ to, name }) => {
+  const transporter = createTransport();
   const appUrl = process.env.FRONTEND_URL || "https://app.connecto.example";
 
   const subject = "Welcome to Connecto — You're verified";
@@ -248,5 +183,11 @@ Connecto`;
   </div>
   `;
 
-  return sendGenericMail({ to, subject, html, text });
+  return transporter.sendMail({
+    from: process.env.SMTP_FROM,
+    to,
+    subject,
+    text,
+    html,
+  });
 };

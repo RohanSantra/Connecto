@@ -342,6 +342,11 @@ export function attachSocketHandlers(socket) {
         useDeviceStore.getState().onDeviceKeysRotated?.(p);
     });
 
+    socket.on(ChatEventEnum.DEVICE_DISCONNECTED_EVENT, (p) => {
+        log(ChatEventEnum.DEVICE_DISCONNECTED_EVENT, p);
+        useDeviceStore.getState().onDeviceDisconnected?.(p);
+    });
+
     /* -----------------------
        CALLS
     ------------------------*/

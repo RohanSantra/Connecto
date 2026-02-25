@@ -2,8 +2,10 @@ import React, { useEffect } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 
 import { useAuthStore } from "@/store/useAuthStore.js";
+import { useThemeStore } from "./store/useThemeStore";
 
 import ProtectedRoute from "./routes/ProtectedRoute";
+import AdminRoute from "./routes/AdminRoute";
 
 import NotFound from "@/pages/NotFound.jsx";
 import HomeLayout from "@/pages/Home/HomeLayout.jsx";
@@ -16,40 +18,38 @@ import VerifyOtpPage from "@/pages/Auth/VerifyOtpPage.jsx";
 // Onboarding
 import SetProfilePage from "@/pages/Onboarding/SetProfilePage.jsx";
 
-// Loader
-import LoaderScreen from "@/components/common/LoaderScreen.jsx";
-
-// Settings
+// Main App Pages
+import AppShell from "@/components/app/AppShell";
 import SettingsPage from "@/pages/Settings/SettingsPage.jsx";
+import CallHistoryPage from "./pages/Call/CallHistoryPage";
+
+// Admin
+import AdminAnalyticsPage from "./pages/admin/AdminAnalyticsPage";
 
 // Legal
 import PrivacyPolicyPage from "./pages/legal/PrivacyPolicyPage";
 import TermsOfServicePage from "./pages/legal/TermsOfServicePage";
 
-import { useThemeStore } from "./store/useThemeStore";
-import { useBlockStore } from "./store/useBlockStore";
-import CallHistoryPage from "./pages/Call/CallHistoryPage";
-import AdminRoute from "./routes/AdminRoute";
-import AdminAnalyticsPage from "./pages/admin/AdminAnalyticsPage";
-import GlobalCallUI from "./components/calls/GlobalCallUI";
+// Loader
+import LoaderScreen from "@/components/common/LoaderScreen.jsx";
 
+// Global Call Layer
+import GlobalCallUI from "./components/calls/GlobalCallUI";
 
 export default function App() {
   const location = useLocation();
   const { user, loading, checkAuth, isAuthenticated } = useAuthStore();
   const initTheme = useThemeStore((s) => s.initTheme);
 
-  // TO get the theme selected
+  /* ------------------------------------------------------------
+     Init Theme
+  ------------------------------------------------------------ */
   useEffect(() => {
     initTheme();
   }, []);
 
-  useEffect(() => {
-    document.documentElement.classList.add("scroll-thumb-only");
-  }, []);
-
   /* ------------------------------------------------------------
-     🔹 Run checkAuth ONLY on first mount
+     Run checkAuth only once
   ------------------------------------------------------------ */
   const didRunRef = React.useRef(false);
 
@@ -59,9 +59,7 @@ export default function App() {
       checkAuth();
     }
   }, []);
-  /* ------------------------------------------------------------
-     🔹 Show loading while verifying session
-  ------------------------------------------------------------ */
+
   if (loading) {
     return <LoaderScreen />;
   }
@@ -72,9 +70,8 @@ export default function App() {
     <>
       <Routes location={location}>
 
-        {/* ------------------------------------------------------------
-         🔹 Public Auth Routes
-      ------------------------------------------------------------ */}
+        {/* ================= PUBLIC ROUTES ================= */}
+
         <Route
           path="/auth"
           element={
@@ -99,9 +96,6 @@ export default function App() {
 
         <Route path="/auth/success" element={<AuthSuccessPage />} />
 
-        {/* ------------------------------------------------------------
-         🔹 Onboarding
-      ------------------------------------------------------------ */}
         <Route
           path="/set-profile"
           element={
@@ -113,62 +107,29 @@ export default function App() {
           }
         />
 
+        {/* ================= PROTECTED LAYOUT ================= */}
 
-        {/* ------------------------------------------------------------
-         🔹 Main App (Protected)
-      ------------------------------------------------------------ */}
         <Route
-          path="/"
           element={
             <ProtectedRoute>
               <HomeLayout />
             </ProtectedRoute>
           }
-        />
+        >
 
-        {/* ------------------------------------------------------------
-         🔹 Calls History
-      ------------------------------------------------------------ */}
-        <Route
-          path="/calls/history"
-          element={
-            <ProtectedRoute>
-              <CallHistoryPage />
-            </ProtectedRoute>
-          }
-        />
+          {/* Main Chat App */}
+          <Route path="/" element={<AppShell />} />
 
-        {/* ------------------------------------------------------------
-         🔹 Settings
-      ------------------------------------------------------------ */}
-        <Route
-          path="/settings"
-          element={
-            <ProtectedRoute>
-              <SettingsPage />
-            </ProtectedRoute>
-          }
-        />
+          {/* Settings */}
+          <Route path="/settings" element={<SettingsPage />} />
 
+          {/* Calls */}
+          <Route path="/calls/history" element={<CallHistoryPage />} />
 
-        {/* ------------------------------------------------------------
-         🔹 Legal
-      ------------------------------------------------------------ */}
-        <Route
-          path="/legal/privacy-policy"
-          element={
-            <PrivacyPolicyPage />
-          }
-        />
-        <Route
-          path="/legal/terms-of-service"
-          element={
-            <TermsOfServicePage />
-          }
-        />
-        {/* ------------------------------------------------------------
-         🔹 Admin Analytical page
-      ------------------------------------------------------------ */}
+        </Route>
+
+        {/* ================= ADMIN ================= */}
+
         <Route
           path="/admin/analytics"
           element={
@@ -178,13 +139,25 @@ export default function App() {
           }
         />
 
-        {/* ------------------------------------------------------------
-         ❌ 404
-      ------------------------------------------------------------ */}
+        {/* ================= LEGAL ================= */}
+
+        <Route
+          path="/legal/privacy-policy"
+          element={<PrivacyPolicyPage />}
+        />
+
+        <Route
+          path="/legal/terms-of-service"
+          element={<TermsOfServicePage />}
+        />
+
+        {/* ================= 404 ================= */}
+
         <Route path="*" element={<NotFound />} />
+
       </Routes>
 
-      {/* 🌍 GLOBAL CALL LAYER */}
+      {/* 🌍 GLOBAL CALL UI */}
       <GlobalCallUI />
     </>
   );
