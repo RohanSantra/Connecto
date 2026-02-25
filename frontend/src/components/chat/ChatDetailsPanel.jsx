@@ -828,17 +828,11 @@ export default function ChatDetailsPanel() {
         label ||
         `Are you sure you want to remove ${username || "this member"} from the group?`,
 
-      leave:
-        label ||
-        "Are you sure you want to leave this group? You may need to be re-added to join again.",
+      leave: "Are you sure you want to leave this group? You may need to be re-added to join again.",
 
-      delete:
-        label ||
-        "This action cannot be undone. The chat and its history will be permanently deleted.",
+      delete: "This action cannot be undone. The chat and its history will be permanently deleted.",
 
-      clear:
-        label ||
-        "This will clear the chat history only for you. Messages cannot be restored.",
+      clear: "This will clear the chat history only for you. Messages cannot be restored.",
 
       promote:
         label ||

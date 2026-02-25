@@ -511,12 +511,13 @@ function ChatListMenu({ chat }) {
           </AlertDialogHeader>
 
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={!!loadingAction}>
+            <AlertDialogCancel disabled={!!loadingAction} className="px-2">
               Cancel
             </AlertDialogCancel>
 
             <AlertDialogAction
               disabled={!!loadingAction}
+              className="px-2"
               onClick={() => {
                 if (confirm === "clear") handleClearChat();
                 if (confirm === "delete") handleDeleteChat();
