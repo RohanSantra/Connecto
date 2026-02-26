@@ -294,23 +294,17 @@ export const googleCallback = asyncHandler(async (req, res) => {
   let device = await Device.findOne({ userId: user._id, deviceId });
 
   if (!device) {
-    const hasPrimary = await Device.exists({
-      userId: user._id,
-      isPrimary: true,
-    });
-
+    // Just create — primary handled by /devices/register
     device = await Device.create({
       userId: user._id,
       deviceId,
       deviceName,
       publicKey,
       status: "active",
-      isPrimary: !hasPrimary,
       lastSeen: new Date(),
     });
   } else {
     if (device.publicKey && device.publicKey !== publicKey) {
-      // Allow update only if device was logged out
       if (device.status === "logged_out") {
         device.publicKey = publicKey;
       } else {
@@ -322,7 +316,6 @@ export const googleCallback = asyncHandler(async (req, res) => {
     device.lastSeen = new Date();
     await device.save();
   }
-
 
   /* Session */
   const accessToken = generateAccessToken({ userId: user._id });

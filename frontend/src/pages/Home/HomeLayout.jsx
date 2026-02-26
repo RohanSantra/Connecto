@@ -11,12 +11,14 @@ export default function HomeLayout() {
   const { profile, fetchProfile, profileLoading } = useProfileStore();
 
   useEffect(() => {
-    if (isAuthenticated && !profile && !profileLoading) {
+    if (!isAuthenticated) return;
+
+    if (!profile && !profileLoading) {
       fetchProfile();
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, profile, profileLoading]);
 
-  if (profileLoading && !profile) {
+  if (isAuthenticated && profileLoading) {
     return <LoaderScreen />;
   }
 

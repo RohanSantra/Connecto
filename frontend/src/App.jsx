@@ -41,6 +41,10 @@ export default function App() {
   const { user, loading, checkAuth, isAuthenticated } = useAuthStore();
   const initTheme = useThemeStore((s) => s.initTheme);
 
+  useEffect(() => {
+    document.documentElement.classList.add("scroll-thumb-only");
+  }, []);
+
   /* ------------------------------------------------------------
      Init Theme
   ------------------------------------------------------------ */

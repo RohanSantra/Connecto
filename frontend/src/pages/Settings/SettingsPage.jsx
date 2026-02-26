@@ -25,6 +25,7 @@ import { useNavigate } from "react-router-dom";
 import { useSearchParams } from "react-router-dom";
 import ShortcutsSection from "@/components/settings/ShortcutsSection";
 import { useResponsiveDrawer } from "@/hooks/useResponsiveDrawer";
+import { useProfileStore } from "@/store/useProfileStore";
 
 const allSections = [
   { key: "profile", label: "Profile", icon: User },

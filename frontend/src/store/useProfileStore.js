@@ -24,8 +24,31 @@ export const useProfileStore = create((set, get) => ({
       const profile = res.data?.data;
 
       set({ profile });
+
+      /* 🔥 FORCE SYNC ONLINE STATUS AFTER PROFILE LOAD */
+      try {
+        const { getSocket } = await import("@/lib/socket");
+        const socket = getSocket();
+
+        if (socket && socket.connected && profile?.userId) {
+          socket.emit("get_user_status", profile.userId, (resp) => {
+            if (!resp?.error) {
+              get().updateOnlineStatusSocket(resp);
+            }
+          });
+        }
+      } catch (err) {
+        console.warn("Post-profile status sync failed:", err);
+      }
+
       return profile;
     } catch (err) {
+      if (err?.response?.status === 404) {
+        // 🔥 Not an error — just means profile not created yet
+        set({ profile: null });
+        return null;
+      }
+
       const msg = err?.response?.data?.message || "Failed to load profile";
       set({ error: msg });
       throw new Error(msg);
@@ -53,6 +76,22 @@ export const useProfileStore = create((set, get) => ({
       const { user, setUser } = useAuthStore.getState();
       if (user) {
         setUser({ ...user, isBoarded: true });
+      }
+
+      /* 🔥 FORCE SYNC ONLINE STATUS AFTER PROFILE LOAD */
+      try {
+        const { getSocket } = await import("@/lib/socket");
+        const socket = getSocket();
+
+        if (socket && socket.connected && profile?.userId) {
+          socket.emit("get_user_status", profile.userId, (resp) => {
+            if (!resp?.error) {
+              get().updateOnlineStatusSocket(resp);
+            }
+          });
+        }
+      } catch (err) {
+        console.warn("Post-profile status sync failed:", err);
       }
 
       return profile;
@@ -105,7 +144,7 @@ export const useProfileStore = create((set, get) => ({
     } catch (err) {
       const msg = err?.response?.data?.message || "Failed to update avatar";
       console.log(err);
-      
+
       throw new Error(msg);
     } finally {
       set({ profileLoading: false });
@@ -252,7 +291,7 @@ export const useProfileStore = create((set, get) => ({
     if (String(profile.userId) !== String(data.userId)) return;
 
     set({
-      profile: { ...profile, ...data.fields }
+      profile: { ...profile, ...data }
     });
   },
 

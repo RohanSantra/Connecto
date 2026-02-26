@@ -26,67 +26,55 @@ function normalizeBase64(str = "") {
    1️⃣ REGISTER DEVICE  — Final Clean Version
 ========================================================== */
 export const registerDevice = asyncHandler(async (req, res) => {
-  const { deviceId, deviceName, publicKey, preKeys, signedPreKey, isPrimary } =
-    req.body;
+  const { deviceId, deviceName, publicKey, preKeys, signedPreKey } = req.body;
 
   if (!deviceId || !publicKey)
     throw new ApiError(400, "deviceId and publicKey are required");
 
-  // 🔐 Clean base64 key
   const cleanedKey = normalizeBase64(publicKey);
 
   if (!/^[A-Za-z0-9+/=]+$/.test(cleanedKey) || cleanedKey.length < 40) {
-    console.error("❌ Invalid publicKey:", publicKey);
     throw new ApiError(400, "Invalid device public key");
   }
 
-  const existing = await Device.findOne({
-    userId: req.user._id,
-    deviceId,
+  const userId = req.user._id;
+  const userIdStr = userId.toString();
+
+  let device = await Device.findOne({ userId, deviceId });
+
+  const hasPrimary = await Device.exists({
+    userId,
+    isPrimary: true,
+    status: "active",
   });
 
-  const userIdStr = req.user._id.toString();
+  if (device) {
+    device.publicKey = cleanedKey;
+    device.deviceName = deviceName || device.deviceName;
+    device.preKeys = Array.isArray(preKeys) ? preKeys : device.preKeys;
+    device.signedPreKey = signedPreKey || device.signedPreKey;
+    device.status = "active";
+    device.lastSeen = new Date();
 
-  // Already active? refresh only
-  if (existing && existing.status === "active") {
-    existing.lastSeen = new Date();
-    await existing.save();
+    // 🔥 Promote if no active primary exists
+    if (!hasPrimary) {
+      device.isPrimary = true;
+    }
 
-    emitSocketEvent(
-      req,
-      "user",
-      userIdStr,
-      ChatEventEnum.DEVICE_REGISTERED_EVENT,
-      {
-        userId: userIdStr,
-        deviceId,
-        isPrimary: existing.isPrimary,
-        lastSeen: existing.lastSeen,
-        timestamp: new Date(),
-      }
-    );
-
-    return res.json(
-      new ApiResponse(200, existing, "Device already active (refreshed)")
-    );
-  }
-
-  // Create or update device
-  const device = await Device.findOneAndUpdate(
-    { userId: req.user._id, deviceId },
-    {
-      userId: req.user._id,
+    await device.save();
+  } else {
+    device = await Device.create({
+      userId,
       deviceId,
       deviceName: deviceName || "Unknown",
       publicKey: cleanedKey,
       preKeys: Array.isArray(preKeys) ? preKeys : [],
       signedPreKey: signedPreKey || null,
-      isPrimary: !!isPrimary,
       status: "active",
+      isPrimary: !hasPrimary, // 🔥 KEY LINE
       lastSeen: new Date(),
-    },
-    { upsert: true, new: true }
-  );
+    });
+  }
 
   emitSocketEvent(
     req,
@@ -94,10 +82,7 @@ export const registerDevice = asyncHandler(async (req, res) => {
     userIdStr,
     ChatEventEnum.DEVICE_REGISTERED_EVENT,
     {
-      userId: userIdStr,
-      deviceId: device.deviceId,
-      isPrimary: device.isPrimary,
-      lastSeen: device.lastSeen,
+      device,
       timestamp: new Date(),
     }
   );

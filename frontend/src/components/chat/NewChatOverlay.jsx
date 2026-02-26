@@ -66,7 +66,7 @@ function highlightMatches(text = "", query = "") {
    Component
 -------------------------*/
 export default function NewChatOverlay() {
-    const { newChatOpen, closeNewChat } = useUIStore();
+    const { newChatOpen, closeNewChat, openChatView } = useUIStore();
     const { isMobile } = useResponsiveDrawer();
     const { createOneToOneChat, setActiveChatId } = useChatStore();
     const { searchProfiles, searchLoading } = useProfileStore();
@@ -159,6 +159,8 @@ export default function NewChatOverlay() {
             }
 
             await setActiveChatId(activeId);
+            
+            openChatView();
 
             toast.success("Conversation started successfully.", { id: toastId });
 

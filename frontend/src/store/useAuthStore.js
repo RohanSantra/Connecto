@@ -164,14 +164,13 @@ export const useAuthStore = create((set, get) => ({
 
       set({ user, isAuthenticated: true });
 
-      if (user.accessToken) {
-        initSocket({
-          accessToken: user.accessToken,
-          userId: user._id,
-          deviceId: get().deviceId,
-        });
-        get().ensureAttachSocket();
-      }
+      initSocket({
+        accessToken: user.accessToken,
+        userId: user._id,
+        deviceId: get().deviceId,
+      });
+      get().ensureAttachSocket();
+
 
       return { success: true };
 

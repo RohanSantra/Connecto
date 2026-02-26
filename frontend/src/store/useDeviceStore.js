@@ -45,13 +45,29 @@ export const useDeviceStore = create((set, get) => ({
             const newDevice = res.data?.data;
             if (!newDevice) return null;
 
-            set((state) => ({
-                devices: [newDevice, ...state.devices],
-            }));
+            set((state) => {
+                const exists = state.devices.some(
+                    (d) => d.deviceId === newDevice.deviceId
+                );
+
+                if (exists) {
+                    return {
+                        devices: state.devices.map((d) =>
+                            d.deviceId === newDevice.deviceId ? newDevice : d
+                        ),
+                    };
+                }
+
+                return {
+                    devices: [newDevice, ...state.devices],
+                };
+            });
 
             return newDevice;
         } catch (err) {
-            throw new Error(err?.response?.data?.message || "Failed to register device");
+            throw new Error(
+                err?.response?.data?.message || "Failed to register device"
+            );
         }
     },
 

@@ -61,7 +61,7 @@ function highlightMatches(text = "", query = "") {
 }
 
 export default function NewGroupOverlay() {
-    const { newGroupOpen, closeNewGroup } = useUIStore();
+    const { newGroupOpen, closeNewGroup, openChatView } = useUIStore();
     const { isMobile } = useResponsiveDrawer();
     const { createGroupChat, setActiveChatId, loading } = useChatStore();
     const { searchProfiles, searchLoading } = useProfileStore();
@@ -196,6 +196,8 @@ export default function NewGroupOverlay() {
             }
 
             await setActiveChatId(activeId);
+
+            openChatView();
 
             toast.success("The group has been created successfully.", { id: toastId });
 

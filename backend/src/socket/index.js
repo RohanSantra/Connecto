@@ -819,5 +819,5 @@ export function emitSocketEvent(reqOrIo, roomType, id, event, payload) {
   } else {
     // allow passing pre-built room string
     io.in(roomType).emit(event, payload);
-  }
+  } 
 }

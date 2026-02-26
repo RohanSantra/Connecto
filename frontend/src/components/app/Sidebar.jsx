@@ -73,7 +73,11 @@ export default function Sidebar({ isDrawer = false }) {
         };
     }, []);
 
-    const connectionLabel = connection.reconnecting ? "Reconnecting…" : connection.connected ? "Online" : "Offline";
+    const connectionLabel = connection.reconnecting
+        ? "Reconnecting…"
+        : profile?.isOnline
+            ? "Online"
+            : "Offline";
 
     /* --------------------------
        Helpers: scoring & filtering

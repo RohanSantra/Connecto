@@ -8,7 +8,7 @@ import { useCallStore } from "@/store/useCallStore";
 import { useBlockStore } from "@/store/useBlockStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { toast } from "sonner";
-
+import { getUserStatus } from "@/lib/socket";
 /**
  * Attach all handlers (call once, after initSocket/getSocket())
  */
@@ -22,6 +22,36 @@ export function attachSocketHandlers(socket) {
     const profile = useProfileStore.getState();
     const device = useDeviceStore.getState();
     const call = useCallStore.getState();
+
+    /* -----------------------
+   🔥 FORCE STATUS SYNC ON CONNECT
+------------------------*/
+    socket.on(ChatEventEnum.CONNECTED_EVENT, async (payload) => {
+        console.log("[socket] CONNECTED_EVENT", payload);
+
+        // Instead of checking self, sync all chat participants
+        const chats = useChatStore.getState().chats;
+
+        for (const chat of chats) {
+            const participants = chat.participants || [];
+
+            for (const member of participants) {
+                const userId = member?.userId;
+                if (!userId) continue;
+
+                try {
+                    const resp = await getUserStatus(userId);
+                    if (!resp?.error) {
+                        useChatStore.getState().setUserOnlineStatus?.(
+                            resp.userId,
+                            !!resp.isOnline,
+                            resp.lastSeen
+                        );
+                    }
+                } catch { }
+            }
+        }
+    });
 
     /* -----------------------
        MESSAGES
@@ -131,9 +161,33 @@ export function attachSocketHandlers(socket) {
     /* -----------------------
        CHAT (room-level)
     ------------------------*/
-    socket.on(ChatEventEnum.NEW_CHAT_EVENT, (p) => {
+    socket.on(ChatEventEnum.NEW_CHAT_EVENT, async (p) => {
         log(ChatEventEnum.NEW_CHAT_EVENT, p);
+
         chat.createOrAddChatSocket?.(p.chat);
+
+        /* 🔥 SYNC ONLINE STATUS FOR PARTICIPANTS */
+        try {
+            const participants = p?.chat?.participants || [];
+
+            for (const member of participants) {
+                const userId = member?.userId;
+                if (!userId) continue;
+
+                const resp = await getUserStatus(userId);
+
+                if (!resp?.error) {
+                    useProfileStore.getState().updateOnlineStatusSocket?.(resp);
+                    useChatStore.getState().setUserOnlineStatus?.(
+                        resp.userId,
+                        !!resp.isOnline,
+                        resp.lastSeen
+                    );
+                }
+            }
+        } catch (err) {
+            console.warn("NEW_CHAT status sync failed:", err);
+        }
     });
 
     socket.on(ChatEventEnum.CHAT_PINNED_EVENT, (p) => {

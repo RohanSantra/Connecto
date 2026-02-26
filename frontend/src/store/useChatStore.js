@@ -183,10 +183,12 @@ export const useChatStore = create((set, get) => ({
       });
 
       // apply clearedAt to each chat so lastMessage won't show
-      const normalizedWithClear = normalized.map((ch) => applyClearedToLastMessage(ch));
+      const finalChats = withBlockState.map((ch) =>
+        applyClearedToLastMessage(ch)
+      );
 
-      set({ chats: mergeChats(withBlockState) });
-      return normalizedWithClear;
+      set({ chats: mergeChats(finalChats) });
+      return finalChats;
     } catch (err) {
       // throw err;
       return [];

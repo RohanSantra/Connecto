@@ -90,7 +90,7 @@ export default function ProfileSection() {
     profileLoading,
     usernameSuggestions,
   } = useProfileStore();
-
+  
   const { logout } = useAuthStore();
   /* local UI/edit state */
   const [editMode, setEditMode] = useState(false);

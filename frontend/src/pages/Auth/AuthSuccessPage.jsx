@@ -8,48 +8,48 @@ import {
     backupPrivateKeyToServer,
     restorePrivateKeyFromServer
 } from "@/lib/deviceKeys";
+import { useProfileStore } from "@/store/useProfileStore";
 
 export default function AuthSuccessPage() {
     const navigate = useNavigate();
-    const { checkAuth, user, isAuthenticated } = useAuthStore();
+    const checkAuth = useAuthStore((s) => s.checkAuth);
+    const fetchProfile = useProfileStore((s) => s.fetchProfile);
 
     useEffect(() => {
         const finalize = async () => {
             await checkAuth();
 
-            const state = useAuthStore.getState();
+            const authState = useAuthStore.getState();
 
-            if (!state.isAuthenticated) {
+            if (!authState.isAuthenticated) {
                 return navigate("/auth", { replace: true });
             }
 
-            const user = state.user;
+            const user = authState.user;
 
-            // 🔐 Ensure local keypair exists
             getOrCreateDeviceKeypair();
 
-            // 🔐 Register device with backend
             await registerDeviceWithServer({
                 deviceName: navigator.userAgent,
             });
 
-            // 🔥 CRITICAL PART
             if (user?.encryptedPrivateKeyBackup) {
-                // Existing account → restore key
                 try {
-                    await restorePrivateKeyFromServer(user.email); // dev shortcut
+                    await restorePrivateKeyFromServer(user.email);
                 } catch (e) {
                     console.error("Restore failed:", e);
                 }
             } else {
-                // First device ever → backup key
-                await backupPrivateKeyToServer(user.email); // dev shortcut
+                await backupPrivateKeyToServer(user.email);
             }
 
-            if (user?.isBoarded)
+            // 🔥 THIS WILL NOW PROPERLY TRIGGER REACT UPDATE
+            if (user?.isBoarded) {
+                await fetchProfile();
                 navigate("/", { replace: true });
-            else
+            } else {
                 navigate("/set-profile", { replace: true });
+            }
         };
 
         finalize();

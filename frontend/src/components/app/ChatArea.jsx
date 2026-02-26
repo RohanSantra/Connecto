@@ -33,7 +33,7 @@ import ChatAreaSkeleton from "../Skeleton/ChatAreaSkeleton";
 export default function ChatArea() {
   const {
     activeChatId,
-    activeChat,
+    chats,
     fetchChatDetails,
     typing,
     setActiveChatId,
@@ -62,6 +62,10 @@ export default function ChatArea() {
 
   const { isUserBlocked, isChatBlocked } = useBlockStore();
 
+  const activeChat = useMemo(
+    () => chats.find(c => String(c.chatId) === String(activeChatId)),
+    [chats, activeChatId]
+  );
 
   useKeyboardShortcuts({
     onCloseChat: () => {
@@ -97,22 +101,14 @@ export default function ChatArea() {
   );
 
   /* ---------------- PARTICIPANTS ---------------- */
-  const participants = useMemo(() => {
-    if (!activeChat) return [];
-    return (activeChat.participants || []).map((p) => ({
-      userId: p.userId,
-      role: p.role,
-      lastSeenAt: p.lastSeenAt || p.lastSeen || null,
-      username: p.username || null,
-      avatarUrl: p.avatarUrl || null,
-      isOnline: !!p.isOnline,
-    }));
-  }, [activeChat]);
+  const participants = activeChat?.participants || [];
 
   const otherUser = useMemo(() => {
     if (!activeChat || activeChat.isGroup) return null;
-    return participants.find((u) => String(u.userId) !== String(profile.userId));
-  }, [activeChat, participants, profile]);
+    return (activeChat.participants || []).find(
+      (u) => String(u.userId) !== String(profile.userId)
+    );
+  }, [activeChat, profile?.userId]);
 
   const chatBlocked = isChatBlocked(activeChatId);
   const userBlocked =
@@ -198,7 +194,7 @@ export default function ChatArea() {
     return `last seen ${formatDistanceToNowStrict(
       new Date(otherUser.lastSeenAt)
     )} ago`;
-  }, [otherUser, participants]);
+  }, [otherUser, activeChat?.isGroup]);
 
   if (loadingActiveChat) {
     return <ChatAreaSkeleton />;
@@ -304,20 +300,13 @@ export default function ChatArea() {
 
       {/* ================= MESSAGE LIST ================= */}
       <div className="flex-1 overflow-hidden relative">
-
-        {getSocket() == null ? (
-          <div className="flex justify-center items-center h-full">
-            <Loader2 className="w-6 h-6 animate-spin" />
-          </div>
-        ) : (
-          <MessageList
-            messages={messages}
-            currentUserId={profile.userId}
-            fetchOlderMessages={fetchOlder}
-            hasMore={hasMore}
-            page={currentPage}
-          />
-        )}
+        <MessageList
+          messages={messages}
+          currentUserId={profile.userId}
+          fetchOlderMessages={fetchOlder}
+          hasMore={hasMore}
+          page={currentPage}
+        />
       </div>
 
       {/* ================= COMPOSER ================= */}

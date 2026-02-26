@@ -99,56 +99,37 @@ export const setupProfile = asyncHandler(async (req, res) => {
       timestamp: new Date()
     }
   );
+  const user = await User.findById(userId)
+    .select("email authProvider isBoarded accountStatus deactivatedAt")
+    .lean();
 
   return res
     .status(201)
-    .json(new ApiResponse(201, profile, "Profile setup complete"));
+    .json(
+      new ApiResponse(
+        201,
+        { ...profile.toObject(), user },
+        "Profile setup complete"
+      )
+    );
 });
 
 /* ---------------------------------------------------------
    2️⃣ GET MY PROFILE
 --------------------------------------------------------- */
 export const getMyProfile = asyncHandler(async (req, res) => {
-  const userId = new mongoose.Types.ObjectId(req.user._id);
+  const userId = req.user._id;
 
-  const data = await Profile.aggregate([
-    { $match: { userId } },
-    {
-      $lookup: {
-        from: "users",
-        localField: "userId",
-        foreignField: "_id",
-        as: "user"
-      }
-    },
-    { $unwind: "$user" },
-    {
-      $project: {
-        _id: 1,
-        username: 1,
-        bio: 1,
-        avatarUrl: 1,
-        isOnline: 1,
-        lastSeen: 1,
-        primaryLanguage: 1,
-        secondaryLanguage: 1,
-        userId: 1,
-        "user.email": 1,
-        "user.authProvider": 1,
-        "user.isBoarded": 1,
-        "user.accountStatus": 1,
-        "user.deactivatedAt": 1,
-        "isDeactivated": 1,
-        createdAt: 1,
-        updatedAt: 1,
+  const profile = await Profile.findOne({ userId }).lean();
+  if (!profile) throw new ApiError(404, "Profile not found");
 
-      }
-    }
-  ]);
+  const user = await User.findById(userId)
+    .select("email authProvider isBoarded accountStatus deactivatedAt")
+    .lean();
 
-  if (!data.length) throw new ApiError(404, "Profile not found");
-
-  return res.json(new ApiResponse(200, data[0], "Profile fetched"));
+  return res.json(
+    new ApiResponse(200, { ...profile, user }, "Profile fetched")
+  );
 });
 
 /* ---------------------------------------------------------
