@@ -27,23 +27,28 @@ export default function AuthSuccessPage() {
 
             const user = authState.user;
 
-            getOrCreateDeviceKeypair();
+            let restored = false;
 
+            // 1️⃣ RESTORE FIRST
+            if (user?.encryptedPrivateKeyBackup) {
+                try {
+                    restored = await restorePrivateKeyFromServer(user.email);
+                } catch (e) {
+                    console.error("Restore failed:", e);
+                }
+            }
+
+            // 2️⃣ IF NOT RESTORED → CREATE + BACKUP
+            if (!restored) {
+                const kp = getOrCreateDeviceKeypair();
+                await backupPrivateKeyToServer(user.email);
+            }
+
+            // 3️⃣ NOW REGISTER DEVICE (AFTER KEYS ARE CORRECT)
             await registerDeviceWithServer({
                 deviceName: navigator.userAgent,
             });
 
-            if (user?.encryptedPrivateKeyBackup) {
-                try {
-                    await restorePrivateKeyFromServer(user.email);
-                } catch (e) {
-                    console.error("Restore failed:", e);
-                }
-            } else {
-                await backupPrivateKeyToServer(user.email);
-            }
-
-            // 🔥 THIS WILL NOW PROPERLY TRIGGER REACT UPDATE
             if (user?.isBoarded) {
                 await fetchProfile();
                 navigate("/", { replace: true });
