@@ -543,17 +543,17 @@ export const useMessageStore = create(
         receiveMessage: (payload) => {
           if (!payload) return;
 
-          const full = payload.message && typeof payload.message === "object"
-            ? payload.message
-            : payload;
+          const full =
+            payload.message && typeof payload.message === "object"
+              ? payload.message
+              : payload;
 
           const chatId = payload.chatId || full?.chatId;
           if (!full?._id || !chatId) return;
 
-          const msgId = String(full?._id);
+          const msgId = String(full._id);
           if (!msgId) return;
 
-          // 🚫 DUPLICATE GUARD
           const existing = get().messages.find(
             (m) => String(m._id) === msgId
           );
@@ -566,18 +566,18 @@ export const useMessageStore = create(
             decrypted = full;
           }
 
-          // Merge any buffered receipts
           decrypted = mergeBufferedReceiptsForMessage(decrypted);
 
           const chatStore = useChatStore.getState();
           const activeChatId = chatStore.activeChatId;
-          const myUserId = chatStore.currentUserId || "";
+          const myUserId = useProfileStore.getState().profile?.userId || "";
+
           const isActive = String(chatId) === String(activeChatId);
           const isOwnMessage = String(decrypted.senderId) === String(myUserId);
 
           if (isOwnMessage) return;
 
-          // Update sidebar
+          // 🔥 ALWAYS update sidebar
           useChatStore.setState((state) => {
             const updatedChats = state.chats.map((c) => {
               if (String(c.chatId) !== String(chatId)) return c;
@@ -585,19 +585,22 @@ export const useMessageStore = create(
                 ...c,
                 lastMessage: normalizeLastMessage(decrypted),
                 updatedAt: decrypted.createdAt,
-                unreadCount:
-                  !isActive && !isOwnMessage
-                    ? (c.unreadCount || 0) + 1
-                    : c.unreadCount || 0,
+                unreadCount: !isActive
+                  ? (c.unreadCount || 0) + 1
+                  : 0,
               };
             });
 
-            updatedChats.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+            updatedChats.sort(
+              (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)
+            );
+
             return { chats: updatedChats };
           });
 
-          // Add to messages (if we keep loaded messages for other chats too)
-          const myId = useProfileStore.getState().profile?.userId;
+          // ✅ ONLY insert into messages if chat is active
+          if (!isActive) return;
+
           const clearedTime = get().clearedAt[chatId];
           const created = new Date(decrypted.createdAt);
 
@@ -606,40 +609,6 @@ export const useMessageStore = create(
           set((state) => ({
             messages: mergeMessages(state.messages, [decrypted]),
           }));
-
-
-          // optimistic delivered emit for non-own messages
-          const socket = getSocket();
-          if (socket && !isOwnMessage) {
-            try {
-              socket.emit(ChatEventEnum.MESSAGE_DELIVERED_EVENT, {
-                messageId: decrypted._id,
-                chatId: decrypted.chatId,
-                userId: myUserId,
-                deliveredAt: new Date(),
-              });
-            } catch (e) { /* ignore */ }
-          }
-
-          // Auto-mark read if active + not own message
-          if (isActive && !isOwnMessage) {
-            try {
-              socket?.emit(ChatEventEnum.MESSAGE_READ_EVENT, {
-                chatId: decrypted.chatId,
-                readUpToId: decrypted._id,
-              });
-              api.patch(`/messages/${decrypted.chatId}/read`, { readUpToId: decrypted._id }).catch(() => { });
-            } catch (e) { /* ignore */ }
-          }
-
-          // reset unread count if active
-          if (isActive) {
-            useChatStore.setState((s) => ({
-              chats: s.chats.map((c) =>
-                String(c.chatId) === String(chatId) ? { ...c, unreadCount: 0 } : c
-              ),
-            }));
-          }
         },
 
         editMessageSocket: (payload) => {
