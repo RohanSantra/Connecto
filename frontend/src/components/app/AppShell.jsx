@@ -50,7 +50,7 @@ export default function AppShell() {
     ------------------------------------------------------- */
     useEffect(() => {
         const init = async () => {
-            if (profileLoading || !profile || hasFetchedChats) return;
+            if ( !profile || hasFetchedChats) return;
 
             const blockStore = useBlockStore.getState();
 
@@ -66,7 +66,7 @@ export default function AppShell() {
         };
 
         init();
-    }, [profileLoading, profile]);
+    }, [profile]);
 
     /* -------------------------------------------------------
        3️⃣ Global keyboard shortcuts
@@ -79,13 +79,6 @@ export default function AppShell() {
         onOpenSettings: openSettings,       // CTRL + ,
         onHelp: openHelp,                   // CTRL + /
     });
-
-    /* -------------------------------------------------------
-       4️⃣ Loading Screen
-    ------------------------------------------------------- */
-    if (profileLoading && !profile) {
-        return <LoaderScreen />;
-    }
 
     return (
         <div className="w-full h-screen flex flex-col bg-background">

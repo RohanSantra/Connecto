@@ -391,7 +391,7 @@ export default function Sidebar({ isDrawer = false }) {
 
             {/* CHAT LIST (accessible listbox) */}
             <ScrollArea className="flex-1 overflow-y-auto">
-                {loadingChats || !hasFetchedChats ? (
+                {loadingChats && !hasFetchedChats ? (
                     <ChatListSkeleton count={10} />
                 ) : filteredChats.length === 0 ? (
                     <EmptyState

@@ -8,6 +8,7 @@ export const useProfileStore = create((set, get) => ({
   profiles: [], // cached contacts (if needed)
   profileLoading: false,
   searchLoading: false,
+  hasFetchedProfile: false,
 
   error: null,
   searchResults: [],
@@ -23,7 +24,7 @@ export const useProfileStore = create((set, get) => ({
       const res = await api.get("/profile/me", { withCredentials: true });
       const profile = res.data?.data;
 
-      set({ profile });
+      set({ profile, hasFetchedProfile: true });
 
       /* 🔥 FORCE SYNC ONLINE STATUS AFTER PROFILE LOAD */
       try {

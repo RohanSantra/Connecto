@@ -8,19 +8,19 @@ import LoaderScreen from "@/components/common/LoaderScreen";
 
 export default function HomeLayout() {
   const { isAuthenticated } = useAuthStore();
-  const { profile, fetchProfile, profileLoading } = useProfileStore();
+  const {
+    fetchProfile,
+    profileLoading,
+    hasFetchedProfile
+  } = useProfileStore();
 
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    if (!profile && !profileLoading) {
+    if (!hasFetchedProfile && !profileLoading) {
       fetchProfile();
     }
-  }, [isAuthenticated, profile, profileLoading]);
-
-  if (isAuthenticated && profileLoading) {
-    return <LoaderScreen />;
-  }
+  }, [isAuthenticated, hasFetchedProfile, profileLoading]);
 
   return <Outlet />;
 }

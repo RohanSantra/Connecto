@@ -148,7 +148,9 @@ export const useAuthStore = create((set, get) => ({
      CHECK AUTH ON PAGE LOAD
      ========================================================== */
   checkAuth: async () => {
-    set({ loading: true });
+    if (!get().user) {
+      set({ loading: true });
+    }
 
     try {
       const res = await api.get("/auth/check", {
