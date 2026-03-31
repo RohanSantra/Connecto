@@ -9,6 +9,7 @@ import {
     restorePrivateKeyFromServer
 } from "@/lib/deviceKeys";
 import { useProfileStore } from "@/store/useProfileStore";
+import LoaderScreen from "@/components/common/LoaderScreen";
 
 export default function AuthSuccessPage() {
     const navigate = useNavigate();
@@ -60,10 +61,5 @@ export default function AuthSuccessPage() {
         finalize();
     }, []);
 
-    return (
-        <div className="min-h-screen flex flex-col items-center justify-center text-muted-foreground gap-3">
-            <Loader2 className="w-6 h-6 animate-spin" />
-            <p>Finalizing secure login...</p>
-        </div>
-    );
+return <LoaderScreen />;
 }
