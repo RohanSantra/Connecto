@@ -35,6 +35,7 @@ export const useAdminStore = create((set, get) => ({
   mediaStats: null,
   activityTimeline: null,
   topEntities: null,
+  users: [],
 
   loading: {
     overview: false,
@@ -50,6 +51,8 @@ export const useAdminStore = create((set, get) => ({
   /* ================= HELPERS ================= */
 
   setError: (err) => set({ error: err }),
+
+
 
   /* ================= FETCH METHODS ================= */
 
@@ -221,6 +224,7 @@ export const useAdminStore = create((set, get) => ({
 
       set((s) => ({
         topEntities: res.data.data,
+        users: res.data.data.top || [],
         loading: { ...s.loading, [loadingKey]: false },
       }));
 
@@ -239,35 +243,64 @@ export const useAdminStore = create((set, get) => ({
   // promote/demote
   promoteUser: async (userId) => {
     if (!userId) throw new Error("userId required");
-    set({ error: null });
+
     try {
+      // 🔥 OPTIMISTIC UPDATE
+      set((state) => ({
+        users: state.users.map((u) =>
+          String(u.userId) === String(userId)
+            ? { ...u, isAdmin: true }
+            : u
+        ),
+      }));
+
       const res = await api.post(`/admin/users/${userId}/promote`);
-      // update local profile store if helper exists
-      useProfileStore.getState()?.setUserAdminStatus?.(userId, true);
-      toast.success("User Promoted")
+
+      toast.success("User Promoted");
       return res.data;
+
     } catch (err) {
-      set({
-        error: err?.response?.data?.message || err.message
-      });
-      toast.error(err?.response?.data?.message || err.message,)
+      // ❌ revert
+      set((state) => ({
+        users: state.users.map((u) =>
+          String(u.userId) === String(userId)
+            ? { ...u, isAdmin: false }
+            : u
+        ),
+      }));
+
+      toast.error(err?.response?.data?.message || err.message);
       throw err;
     }
   },
 
   demoteUser: async (userId) => {
     if (!userId) throw new Error("userId required");
-    set({ error: null });
+
     try {
+      set((state) => ({
+        users: state.users.map((u) =>
+          String(u.userId) === String(userId)
+            ? { ...u, isAdmin: false }
+            : u
+        ),
+      }));
+
       const res = await api.post(`/admin/users/${userId}/demote`);
-      useProfileStore.getState()?.setUserAdminStatus?.(userId, false);
-      toast.success("User Demoted")
+
+      toast.success("User Demoted");
       return res.data;
+
     } catch (err) {
-      set({
-        error: err?.response?.data?.message || err.message
-      });
-      toast.error(err?.response?.data?.message || err.message,)
+      set((state) => ({
+        users: state.users.map((u) =>
+          String(u.userId) === String(userId)
+            ? { ...u, isAdmin: true }
+            : u
+        ),
+      }));
+
+      toast.error(err?.response?.data?.message || err.message);
       throw err;
     }
   },

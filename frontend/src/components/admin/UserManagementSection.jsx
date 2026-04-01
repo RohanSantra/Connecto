@@ -63,85 +63,84 @@ function getInitials(nameOrEmailOrId) {
 
 /* ========== Component ========== */
 
-export default function UserManagementSection({ users = [] }) {
+export default function UserManagementSection() {
   const { promoteUser, demoteUser } = useAdminStore();
-  const profile = useProfileStore((s) => s.profile || s.user || {});
+  const users = useAdminStore((s) => s.users);
+
+  // ✅ FIX: avoid new object each render
+  const profile = useProfileStore((s) => s.profile);
   const currentUserId = profile?.userId || profile?._id || null;
 
-  // local copy so we can optimistically update after promote/demote
-  const [localUsers, setLocalUsers] = useState(Array.isArray(users) ? users : []);
+  // ❌ REMOVED localUsers state completely
 
   // filters / UI
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all"); // all | active | deactivated
-  const [roleFilter, setRoleFilter] = useState("all"); // all | admin | user
-  const [sortBy, setSortBy] = useState("createdAt"); // createdAt | count
-  const [sortOrder, setSortOrder] = useState("desc"); // desc | asc
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("createdAt");
+  const [sortOrder, setSortOrder] = useState("desc");
   const [perPage, setPerPage] = useState(30);
   const [page, setPage] = useState(1);
 
-  // keep localUsers in sync if prop changes
-  useEffect(() => {
-    setLocalUsers(Array.isArray(users) ? users : []);
-  }, [users]);
-
-  // debounce simple
+  // debounce
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(q.trim()), 300);
     return () => clearTimeout(t);
   }, [q]);
 
-  // derived stats
+  // ✅ derived stats (use users directly)
   const { totalMessages, avgMessages } = useMemo(() => {
-    const total = localUsers.reduce((sum, u) => sum + Number(u.count || 0), 0);
-    const avg = localUsers.length ? total / localUsers.length : 0;
+    const arr = Array.isArray(users) ? users : [];
+    const total = arr.reduce((sum, u) => sum + Number(u.count || 0), 0);
+    const avg = arr.length ? total / arr.length : 0;
     return { totalMessages: total, avgMessages: avg };
-  }, [localUsers]);
+  }, [users]);
 
-  // client-side filtering
+  // ✅ filtering
   const filtered = useMemo(() => {
-    const arr = Array.isArray(localUsers) ? [...localUsers] : [];
+    const arr = Array.isArray(users) ? [...users] : [];
     const qLower = debouncedQ.toLowerCase();
 
     return arr.filter((u) => {
-      // status filter
       if (statusFilter === "active" && u.isDeactivated) return false;
       if (statusFilter === "deactivated" && !u.isDeactivated) return false;
 
-      // role filter
       if (roleFilter === "admin" && !u.isAdmin) return false;
       if (roleFilter === "user" && u.isAdmin) return false;
 
-      // search
       if (!qLower) return true;
-      const username = (u.username || "").toString().toLowerCase();
-      const email = (u.email || "").toString().toLowerCase();
-      const id = (u.userId || "").toString().toLowerCase();
-      return username.includes(qLower) || email.includes(qLower) || id.includes(qLower);
-    });
-  }, [localUsers, debouncedQ, statusFilter, roleFilter]);
 
-  // sorting: admins first, then by chosen sort (new -> old default)
+      const username = (u.username || "").toLowerCase();
+      const email = (u.email || "").toLowerCase();
+      const id = (u.userId || "").toLowerCase();
+
+      return (
+        username.includes(qLower) ||
+        email.includes(qLower) ||
+        id.includes(qLower)
+      );
+    });
+  }, [users, debouncedQ, statusFilter, roleFilter]);
+
+  // ✅ sorting
   const sorted = useMemo(() => {
-    const arr = Array.isArray(filtered) ? [...filtered] : [];
+    const arr = [...filtered];
+
     const tstamp = (d) => {
       const v = d ? Date.parse(d) : 0;
       return Number.isFinite(v) ? v : 0;
     };
 
     arr.sort((a, b) => {
-      // admins pinned top
       if (a.isAdmin && !b.isAdmin) return -1;
       if (!a.isAdmin && b.isAdmin) return 1;
 
-      // if same admin status, sort by chosen field
       if (sortBy === "createdAt") {
         const cmp = tstamp(a.createdAt) - tstamp(b.createdAt);
-        return sortOrder === "asc" ? cmp : -cmp; // asc: old->new, desc: new->old
+        return sortOrder === "asc" ? cmp : -cmp;
       } else {
-        // sort by count numeric
-        const cmp = (Number(a.count || 0) - Number(b.count || 0));
+        const cmp = (a.count || 0) - (b.count || 0);
         return sortOrder === "asc" ? cmp : -cmp;
       }
     });
@@ -149,25 +148,22 @@ export default function UserManagementSection({ users = [] }) {
     return arr;
   }, [filtered, sortBy, sortOrder]);
 
-  // pagination slice
+  // ✅ pagination
   const totalPages = Math.max(1, Math.ceil(sorted.length / perPage));
+
   const pageItems = useMemo(() => {
     const start = (page - 1) * perPage;
     return sorted.slice(start, start + perPage);
   }, [sorted, page, perPage]);
 
-  // actions — optimistic update + error handling
+  // ✅ actions (NO local state update)
   const handlePromote = useCallback(
     async (userId) => {
       try {
-        // optimistic UI
-        setLocalUsers((prev) => prev.map((u) => (String(u.userId) === String(userId) ? { ...u, isAdmin: true } : u)));
         await promoteUser(userId);
         toast.success("Promoted to admin");
       } catch (err) {
-        // revert on error
-        setLocalUsers((prev) => prev.map((u) => (String(u.userId) === String(userId) ? { ...u, isAdmin: false } : u)));
-        console.error("Promote failed:", err);
+        console.error(err);
         toast.error("Promote failed");
       }
     },
@@ -177,12 +173,10 @@ export default function UserManagementSection({ users = [] }) {
   const handleDemote = useCallback(
     async (userId) => {
       try {
-        setLocalUsers((prev) => prev.map((u) => (String(u.userId) === String(userId) ? { ...u, isAdmin: false } : u)));
         await demoteUser(userId);
         toast.success("Removed admin");
       } catch (err) {
-        setLocalUsers((prev) => prev.map((u) => (String(u.userId) === String(userId) ? { ...u, isAdmin: true } : u)));
-        console.error("Demote failed:", err);
+        console.error(err);
         toast.error("Demote failed");
       }
     },
@@ -381,7 +375,7 @@ export default function UserManagementSection({ users = [] }) {
               <User className="w-5 h-5" />
               Users
             </div>
-            <p className="text-2xl font-semibold">{formatNumber(localUsers.length)}</p>
+            <p className="text-2xl font-semibold">{formatNumber(users.length)}</p>
             <p className="text-xs text-muted-foreground">Loaded / available</p>
           </CardContent>
         </Card>
@@ -392,7 +386,7 @@ export default function UserManagementSection({ users = [] }) {
               <ShieldCheck className="w-5 h-5" />
               Admins
             </div>
-            <p className="text-2xl font-semibold">{formatNumber(localUsers.filter((u) => u.isAdmin).length)}</p>
+            <p className="text-2xl font-semibold">{formatNumber(users.filter((u) => u.isAdmin).length)}</p>
             <p className="text-xs text-muted-foreground">Admins appear first</p>
           </CardContent>
         </Card>

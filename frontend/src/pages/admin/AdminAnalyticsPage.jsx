@@ -532,7 +532,6 @@ export default function AdminConsolePage() {
             sectionLoading
               ? <UserManagementSectionSkeleton />
               : <UserManagementSection
-                users={safeTop.top || []}
                 onViewUser={(userId) => fetchUserStats(userId, rangeParams)}
               />
           )}
